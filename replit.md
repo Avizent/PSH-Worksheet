@@ -53,17 +53,25 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `POST /seed` — Seed sample data (clears existing first)
 
 ### Alert Types (6)
-- `underspend` — Spending below 50% of plan (warning)
+- `underspend` — Spending below 70% of plan in closed months (warning)
 - `overspend` — Spending above 110% of plan (critical)
-- `budget_exhaustion` — Projected to exhaust budget before year end (critical)
-- `fixed_cost_variance` — Fixed cost deviates >5% from plan (warning)
-- `large_payment` — Single month actual > 25% of annual plan (warning)
-- `unbooked_event` — Event within 90 days still in "planned" status (info)
+- `budget_exhaustion` — Less than 15% budget remaining (critical)
+- `fixed_cost_variance` — Fixed cost varies >5% month-over-month (warning)
+- `large_payment` — Planned payment >£200k within 60 days (warning)
+- `unbooked_event` — Event within 45 days still in "planned" status (warning)
 
 ### Chart Components (SVG-based, cross-platform)
 - `BarChart.tsx` — Plan vs Actual monthly comparison
 - `LineChart.tsx` — Cumulative spend over time
 - `DonutChart.tsx` — Category breakdown
+- `ProjectionBarChart.tsx` — Stacked actual + projected spend with plan markers
+- `EventsGantt.tsx` — Events timeline showing events across months
+- Desktop: tabbed chart panel (5 tabs: Plan vs Actual, Cumulative, Categories, Projections, Events)
+- Mobile: horizontally swipeable full-width chart pager with page dots
+
+### Alert UX
+- Desktop: AlertCard with severity badges and resolve button
+- Mobile: SwipeableAlertCard with swipe-left-to-resolve gesture + "Swipe left to resolve" hint text
 
 ### Expo Web API Proxy
 - Metro config includes middleware that proxies `/api/*` requests to the API server (port 8080)

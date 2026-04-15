@@ -53,7 +53,7 @@ router.post("/alerts/evaluate", asyncHandler(async (req, res): Promise<void> => 
 
       const ratio = actual / plan;
 
-      if (ratio < 0.5 && m < currentMonth) {
+      if (ratio < 0.7 && m < currentMonth) {
         candidates.push({
           type: "underspend",
           severity: "warning",
@@ -116,37 +116,37 @@ router.post("/alerts/evaluate", asyncHandler(async (req, res): Promise<void> => 
     }
   }
 
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 60);
   for (const line of lines) {
     const linePlans = plans.filter(p => p.budgetLineId === line.id);
-    const lineActuals = actuals.filter(a => a.budgetLineId === line.id);
-    const annualPlan = linePlans.reduce((s, p) => s + Number(p.plannedAmount), 0);
-    if (annualPlan <= 0) continue;
-
-    for (const act of lineActuals) {
-      const actAmt = Number(act.actualAmount);
-      if (actAmt / annualPlan > 0.25) {
-        candidates.push({
-          type: "large_payment",
-          severity: "warning",
-          message: `${line.lineItem}: month ${act.month} actual (£${(actAmt / 1000).toFixed(0)}k) exceeds 25% of annual plan`,
-          month: act.month,
-          year,
-          budgetLineId: line.id,
-        });
+    for (const plan of linePlans) {
+      if (Number(plan.plannedAmount) > 200000) {
+        const paymentDate = new Date(year, plan.month - 1, 15);
+        if (paymentDate > now && paymentDate <= futureDate) {
+          candidates.push({
+            type: "large_payment",
+            severity: "warning",
+            message: `${line.lineItem}: large planned payment of £${(Number(plan.plannedAmount) / 1000).toFixed(0)}k in month ${plan.month}`,
+            month: plan.month,
+            year,
+            budgetLineId: line.id,
+          });
+        }
       }
     }
   }
 
   const daysThreshold = new Date();
-  daysThreshold.setDate(daysThreshold.getDate() + 90);
+  daysThreshold.setDate(daysThreshold.getDate() + 45);
   for (const evt of events) {
     if (evt.eventDate && evt.status === "Planned") {
       const eventDate = new Date(evt.eventDate);
       if (eventDate <= daysThreshold && eventDate > now) {
         candidates.push({
           type: "unbooked_event",
-          severity: "info",
-          message: `Event "${evt.name}" is within 90 days but still in Planned status`,
+          severity: "warning",
+          message: `Event "${evt.name}" is within 45 days but still in Planned status`,
           month: eventDate.getMonth() + 1,
           year: eventDate.getFullYear(),
           budgetLineId: evt.budgetLineId,

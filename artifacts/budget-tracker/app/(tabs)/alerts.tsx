@@ -3,6 +3,7 @@ import { View, ScrollView, StyleSheet, Platform, ActivityIndicator, RefreshContr
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { AlertCard } from "@/components/AlertCard";
+import { SwipeableAlertCard } from "@/components/SwipeableAlertCard";
 import { EmptyState } from "@/components/EmptyState";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
@@ -59,13 +60,15 @@ function AlertsContent() {
   const warningAlerts = alerts.filter((a) => a.severity === "warning");
   const infoAlerts = alerts.filter((a) => a.severity === "info");
 
+  const CardComponent = isDesktop ? AlertCard : SwipeableAlertCard;
+
   const renderGroup = (title: string, items: typeof alerts) => {
     if (items.length === 0) return null;
     return (
       <View style={styles.group}>
         <Text style={[styles.groupTitle, { color: colors.mutedForeground }]}>{title} ({items.length})</Text>
         {items.map((alert) => (
-          <AlertCard
+          <CardComponent
             key={alert.id}
             type={alert.type}
             severity={alert.severity}
@@ -74,6 +77,9 @@ function AlertsContent() {
             onResolve={showResolved ? undefined : () => handleResolve(alert.id)}
           />
         ))}
+        {!isDesktop && !showResolved && items.length > 0 && (
+          <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>Swipe left to resolve</Text>
+        )}
       </View>
     );
   };
@@ -187,6 +193,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase" as const,
     letterSpacing: 0.5,
     marginBottom: 8,
+  },
+  swipeHint: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    marginTop: 2,
+    fontStyle: "italic",
   },
   desktopContainer: {
     flex: 1,

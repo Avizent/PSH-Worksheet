@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, ScrollView, StyleSheet, Platform, ActivityIndicator, RefreshControl, useWindowDimensions } from "react-native";
+import React, { useState, useRef } from "react";
+import { View, ScrollView, StyleSheet, Platform, ActivityIndicator, RefreshControl, useWindowDimensions, Text, TouchableOpacity, FlatList } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
@@ -12,11 +12,15 @@ import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { BarChart } from "@/components/BarChart";
 import { LineChart } from "@/components/LineChart";
 import { DonutChart } from "@/components/DonutChart";
+import { ProjectionBarChart } from "@/components/ProjectionBarChart";
+import { EventsGantt } from "@/components/EventsGantt";
 import {
   useGetDashboardSummary,
   useListBudgetLinesWithMonthly,
   useListAlerts,
   useGetDashboardCharts,
+  useGetProjections,
+  useListEvents,
   useResolveAlert,
   useSeedData,
   useEvaluateAlerts,
@@ -26,6 +30,8 @@ import {
   getGetDashboardChartsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function formatCurrency(val: number): string {
   if (Math.abs(val) >= 1000000) {
@@ -37,6 +43,9 @@ function formatCurrency(val: number): string {
   return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
 }
 
+const CHART_TABS = ["Plan vs Actual", "Cumulative", "Categories", "Projections", "Events"] as const;
+type ChartTab = (typeof CHART_TABS)[number];
+
 function DashboardContent() {
   const colors = useColors();
   const { mode } = useLayout();
@@ -46,10 +55,15 @@ function DashboardContent() {
   const isWeb = Platform.OS === "web";
   const { width: windowWidth } = useWindowDimensions();
 
+  const [activeTab, setActiveTab] = useState<ChartTab>("Plan vs Actual");
+  const [mobileChartIndex, setMobileChartIndex] = useState(0);
+
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetDashboardSummary();
   const { data: budgetLines, isLoading: linesLoading, refetch: refetchLines } = useListBudgetLinesWithMonthly();
   const { data: alerts, refetch: refetchAlerts } = useListAlerts({ resolved: false });
   const { data: charts, refetch: refetchCharts } = useGetDashboardCharts();
+  const { data: projections } = useGetProjections();
+  const { data: events } = useListEvents();
 
   const seedMutation = useSeedData();
   const evaluateAlertsMutation = useEvaluateAlerts();
@@ -118,11 +132,85 @@ function DashboardContent() {
     );
   }
 
-  const chartWidth = isDesktop ? Math.min((windowWidth - 240 - 96) / 2, 500) : windowWidth - 32;
+  const chartWidth = isDesktop ? Math.min(windowWidth - 240 - 96, 900) : windowWidth - 32;
   const donutSize = isDesktop ? 180 : 160;
 
   const monthlyData = charts?.monthly ?? [];
   const categoryData = charts?.categories ?? [];
+
+  const projectionItems = projections?.items ?? [];
+  const projectionMonthly = MONTH_LABELS.map((label, i) => {
+    const month = i + 1;
+    let totalActual = 0;
+    let totalProjected = 0;
+    let totalPlanned = 0;
+    for (const item of projectionItems) {
+      const m = item.months?.find((mo: { month: number }) => mo.month === month);
+      if (m) {
+        totalActual += m.actual ?? 0;
+        totalProjected += m.projected ?? 0;
+        totalPlanned += m.planned ?? 0;
+      }
+    }
+    return { label, actual: totalActual, projected: totalProjected, planned: totalPlanned };
+  });
+
+  const eventsArray = Array.isArray(events) ? events : [];
+  const eventItems = eventsArray.map((evt) => {
+    const d = evt.eventDate ? new Date(evt.eventDate) : null;
+    return {
+      name: evt.name,
+      month: d ? d.getMonth() + 1 : 1,
+      status: evt.status ?? "Planned",
+      budget: evt.estimatedCost ?? 0,
+    };
+  }).sort((a, b) => a.month - b.month);
+
+  const renderChart = (tab: ChartTab) => {
+    switch (tab) {
+      case "Plan vs Actual":
+        return (
+          <BarChart
+            data={monthlyData.map(m => ({ label: m.monthLabel, planned: m.planned, actual: m.actual }))}
+            width={chartWidth}
+            height={260}
+          />
+        );
+      case "Cumulative":
+        return (
+          <LineChart
+            data={monthlyData.map(m => ({ label: m.monthLabel, cumPlanned: m.cumPlanned, cumActual: m.cumActual }))}
+            width={chartWidth}
+            height={260}
+          />
+        );
+      case "Categories":
+        return (
+          <DonutChart
+            data={categoryData.map(c => ({ category: c.category, value: c.planned }))}
+            size={donutSize}
+          />
+        );
+      case "Projections":
+        return (
+          <ProjectionBarChart
+            data={projectionMonthly}
+            width={chartWidth}
+            height={260}
+          />
+        );
+      case "Events":
+        return (
+          <EventsGantt
+            events={eventItems}
+            width={chartWidth}
+            height={Math.max(180, eventItems.length * 36 + 60)}
+          />
+        );
+    }
+  };
+
+  const mobileChartWidth = windowWidth - 32;
 
   const content = (
     <ScrollView
@@ -163,51 +251,50 @@ function DashboardContent() {
             <View style={styles.section}>
               <SectionHeader title="Charts" subtitle="Budget visualisations" />
               {isDesktop ? (
-                <View style={styles.chartsGrid}>
-                  <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <BarChart
-                      data={monthlyData.map(m => ({ label: m.monthLabel, planned: m.planned, actual: m.actual }))}
-                      width={chartWidth}
-                      height={260}
-                    />
+                <>
+                  <View style={styles.tabRow}>
+                    {CHART_TABS.map((tab) => (
+                      <TouchableOpacity
+                        key={tab}
+                        onPress={() => setActiveTab(tab)}
+                        style={[
+                          styles.tab,
+                          activeTab === tab && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
+                        ]}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.mutedForeground }]}>{tab}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                   <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <LineChart
-                      data={monthlyData.map(m => ({ label: m.monthLabel, cumPlanned: m.cumPlanned, cumActual: m.cumActual }))}
-                      width={chartWidth}
-                      height={260}
-                    />
+                    {renderChart(activeTab)}
                   </View>
-                  <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <DonutChart
-                      data={categoryData.map(c => ({ category: c.category, value: c.planned }))}
-                      size={donutSize}
-                    />
-                  </View>
-                </View>
+                </>
               ) : (
-                <View style={styles.chartsColumn}>
-                  <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <BarChart
-                      data={monthlyData.map(m => ({ label: m.monthLabel, planned: m.planned, actual: m.actual }))}
-                      width={chartWidth}
-                      height={220}
-                    />
+                <>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onMomentumScrollEnd={(e) => {
+                      const idx = Math.round(e.nativeEvent.contentOffset.x / mobileChartWidth);
+                      setMobileChartIndex(idx);
+                    }}
+                    style={styles.chartPager}
+                  >
+                    {CHART_TABS.map((tab) => (
+                      <View key={tab} style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, width: mobileChartWidth - 8 }]}>
+                        {renderChart(tab)}
+                      </View>
+                    ))}
+                  </ScrollView>
+                  <View style={styles.pagerDots}>
+                    {CHART_TABS.map((tab, i) => (
+                      <View key={tab} style={[styles.dot, { backgroundColor: i === mobileChartIndex ? colors.primary : colors.border }]} />
+                    ))}
                   </View>
-                  <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <LineChart
-                      data={monthlyData.map(m => ({ label: m.monthLabel, cumPlanned: m.cumPlanned, cumActual: m.cumActual }))}
-                      width={chartWidth}
-                      height={220}
-                    />
-                  </View>
-                  <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <DonutChart
-                      data={categoryData.map(c => ({ category: c.category, value: c.planned }))}
-                      size={donutSize}
-                    />
-                  </View>
-                </View>
+                </>
               )}
             </View>
           )}
@@ -272,20 +359,39 @@ const styles = StyleSheet.create({
   section: {
     marginTop: 8,
   },
-  chartsGrid: {
+  tabRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-    marginTop: 8,
+    gap: 4,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
   },
-  chartsColumn: {
-    gap: 16,
-    marginTop: 8,
+  tab: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  tabText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
   },
   chartCard: {
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
+  },
+  chartPager: {
+    marginTop: 8,
+  },
+  pagerDots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   desktopContainer: {
     flex: 1,
