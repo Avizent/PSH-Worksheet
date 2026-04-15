@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, isNull, isNotNull } from "drizzle-orm";
+import { z } from "zod";
 import { db, alertsTable } from "@workspace/db";
 import {
   ResolveAlertParams,
@@ -8,20 +9,26 @@ import {
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 
+const StrictResolvedParam = z.object({
+  resolved: z.enum(["true", "false"]).optional(),
+});
+
 const router: IRouter = Router();
 
 router.get("/alerts", asyncHandler(async (req, res): Promise<void> => {
-  const resolvedParam = req.query.resolved;
+  const parsed = StrictResolvedParam.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "resolved must be 'true' or 'false'" });
+    return;
+  }
+  const resolvedParam = parsed.data.resolved;
   let rows;
   if (resolvedParam === "true") {
     rows = await db.select().from(alertsTable).where(isNotNull(alertsTable.resolvedAt)).orderBy(alertsTable.createdAt);
   } else if (resolvedParam === "false") {
     rows = await db.select().from(alertsTable).where(isNull(alertsTable.resolvedAt)).orderBy(alertsTable.createdAt);
-  } else if (resolvedParam === undefined) {
-    rows = await db.select().from(alertsTable).orderBy(alertsTable.createdAt);
   } else {
-    res.status(400).json({ error: "resolved must be 'true' or 'false'" });
-    return;
+    rows = await db.select().from(alertsTable).orderBy(alertsTable.createdAt);
   }
   res.json(ListAlertsResponse.parse(rows));
 }));

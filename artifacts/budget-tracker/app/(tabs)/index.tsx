@@ -43,8 +43,8 @@ function formatCurrency(val: number): string {
   return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
 }
 
-const CHART_TABS = ["Plan vs Actual", "Cumulative", "Categories", "Projections", "Events"] as const;
-type ChartTab = (typeof CHART_TABS)[number];
+const EXTRA_CHART_TABS = ["Projections", "Events"] as const;
+type ExtraChartTab = (typeof EXTRA_CHART_TABS)[number];
 
 function DashboardContent() {
   const colors = useColors();
@@ -55,7 +55,7 @@ function DashboardContent() {
   const isWeb = Platform.OS === "web";
   const { width: windowWidth } = useWindowDimensions();
 
-  const [activeTab, setActiveTab] = useState<ChartTab>("Plan vs Actual");
+  const [extraTab, setExtraTab] = useState<ExtraChartTab>("Projections");
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
 
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetDashboardSummary();
@@ -132,7 +132,9 @@ function DashboardContent() {
     );
   }
 
-  const chartWidth = isDesktop ? Math.min(windowWidth - 240 - 96, 900) : windowWidth - 32;
+  const desktopContentWidth = windowWidth - 240 - 96;
+  const chartHalfWidth = isDesktop ? Math.min((desktopContentWidth - 16) / 2, 500) : windowWidth - 32;
+  const chartFullWidth = isDesktop ? Math.min(desktopContentWidth, 900) : windowWidth - 32;
   const donutSize = isDesktop ? 180 : 160;
 
   const monthlyData = charts?.monthly ?? [];
@@ -166,47 +168,23 @@ function DashboardContent() {
     };
   }).sort((a, b) => a.month - b.month);
 
-  const renderChart = (tab: ChartTab) => {
+  const MOBILE_CHART_TABS = ["Plan vs Actual", "Cumulative", "Categories", "Projections", "Events"] as const;
+
+  const renderMobileChart = (tab: string) => {
+    const w = windowWidth - 32;
     switch (tab) {
       case "Plan vs Actual":
-        return (
-          <BarChart
-            data={monthlyData.map(m => ({ label: m.monthLabel, planned: m.planned, actual: m.actual }))}
-            width={chartWidth}
-            height={260}
-          />
-        );
+        return <BarChart data={monthlyData.map(m => ({ label: m.monthLabel, planned: m.planned, actual: m.actual }))} width={w} height={220} />;
       case "Cumulative":
-        return (
-          <LineChart
-            data={monthlyData.map(m => ({ label: m.monthLabel, cumPlanned: m.cumPlanned, cumActual: m.cumActual }))}
-            width={chartWidth}
-            height={260}
-          />
-        );
+        return <LineChart data={monthlyData.map(m => ({ label: m.monthLabel, cumPlanned: m.cumPlanned, cumActual: m.cumActual }))} width={w} height={220} />;
       case "Categories":
-        return (
-          <DonutChart
-            data={categoryData.map(c => ({ category: c.category, value: c.planned }))}
-            size={donutSize}
-          />
-        );
+        return <DonutChart data={categoryData.map(c => ({ category: c.category, value: c.planned }))} size={donutSize} />;
       case "Projections":
-        return (
-          <ProjectionBarChart
-            data={projectionMonthly}
-            width={chartWidth}
-            height={260}
-          />
-        );
+        return <ProjectionBarChart data={projectionMonthly} width={w} height={220} />;
       case "Events":
-        return (
-          <EventsGantt
-            events={eventItems}
-            width={chartWidth}
-            height={Math.max(180, eventItems.length * 36 + 60)}
-          />
-        );
+        return <EventsGantt events={eventItems} width={w} height={Math.max(180, eventItems.length * 36 + 60)} />;
+      default:
+        return null;
     }
   };
 
@@ -252,23 +230,51 @@ function DashboardContent() {
               <SectionHeader title="Charts" subtitle="Budget visualisations" />
               {isDesktop ? (
                 <>
-                  <View style={styles.tabRow}>
-                    {CHART_TABS.map((tab) => (
-                      <TouchableOpacity
-                        key={tab}
-                        onPress={() => setActiveTab(tab)}
-                        style={[
-                          styles.tab,
-                          activeTab === tab && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
-                        ]}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.mutedForeground }]}>{tab}</Text>
-                      </TouchableOpacity>
-                    ))}
+                  <View style={styles.chartsRow}>
+                    <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}>
+                      <BarChart
+                        data={monthlyData.map(m => ({ label: m.monthLabel, planned: m.planned, actual: m.actual }))}
+                        width={chartHalfWidth}
+                        height={260}
+                      />
+                    </View>
+                    <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}>
+                      <LineChart
+                        data={monthlyData.map(m => ({ label: m.monthLabel, cumPlanned: m.cumPlanned, cumActual: m.cumActual }))}
+                        width={chartHalfWidth}
+                        height={260}
+                      />
+                    </View>
                   </View>
-                  <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    {renderChart(activeTab)}
+                  <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 12, alignSelf: "flex-start" }]}>
+                    <DonutChart
+                      data={categoryData.map(c => ({ category: c.category, value: c.planned }))}
+                      size={donutSize}
+                    />
+                  </View>
+                  <View style={styles.extraSection}>
+                    <View style={styles.tabRow}>
+                      {EXTRA_CHART_TABS.map((tab) => (
+                        <TouchableOpacity
+                          key={tab}
+                          onPress={() => setExtraTab(tab)}
+                          style={[
+                            styles.tab,
+                            extraTab === tab && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
+                          ]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.tabText, { color: extraTab === tab ? colors.primary : colors.mutedForeground }]}>{tab}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                      {extraTab === "Projections" ? (
+                        <ProjectionBarChart data={projectionMonthly} width={chartFullWidth} height={260} />
+                      ) : (
+                        <EventsGantt events={eventItems} width={chartFullWidth} height={Math.max(180, eventItems.length * 36 + 60)} />
+                      )}
+                    </View>
                   </View>
                 </>
               ) : (
@@ -283,14 +289,14 @@ function DashboardContent() {
                     }}
                     style={styles.chartPager}
                   >
-                    {CHART_TABS.map((tab) => (
+                    {MOBILE_CHART_TABS.map((tab) => (
                       <View key={tab} style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, width: mobileChartWidth - 8 }]}>
-                        {renderChart(tab)}
+                        {renderMobileChart(tab)}
                       </View>
                     ))}
                   </ScrollView>
                   <View style={styles.pagerDots}>
-                    {CHART_TABS.map((tab, i) => (
+                    {MOBILE_CHART_TABS.map((tab, i) => (
                       <View key={tab} style={[styles.dot, { backgroundColor: i === mobileChartIndex ? colors.primary : colors.border }]} />
                     ))}
                   </View>
@@ -358,6 +364,14 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: 8,
+  },
+  chartsRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 8,
+  },
+  extraSection: {
+    marginTop: 16,
   },
   tabRow: {
     flexDirection: "row",

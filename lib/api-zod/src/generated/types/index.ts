@@ -10,6 +10,7 @@ export * from "./alert";
 export * from "./alertEvaluationResult";
 export * from "./budgetLine";
 export * from "./budgetLineWithMonthly";
+export * from "./budgetLineWithMonthlyProjectionsItem";
 export * from "./categoryBreakdown";
 export * from "./createBudgetLineBody";
 export * from "./createEventBody";

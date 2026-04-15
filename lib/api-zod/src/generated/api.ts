@@ -431,6 +431,8 @@ export const ListBudgetLinesWithMonthlyQueryParams = zod.object({
   year: zod.coerce.number().default(listBudgetLinesWithMonthlyQueryYearDefault),
 });
 
+export const listBudgetLinesWithMonthlyResponseProjectionPctDefault = 0;
+
 export const ListBudgetLinesWithMonthlyResponseItem = zod.object({
   id: zod.number(),
   category: zod.string(),
@@ -439,6 +441,9 @@ export const ListBudgetLinesWithMonthlyResponseItem = zod.object({
   owner: zod.string().nullish(),
   region: zod.string().nullish(),
   costStatus: zod.string(),
+  projectionPct: zod
+    .number()
+    .default(listBudgetLinesWithMonthlyResponseProjectionPctDefault),
   plans: zod.array(
     zod.object({
       id: zod.number(),
@@ -463,6 +468,14 @@ export const ListBudgetLinesWithMonthlyResponseItem = zod.object({
       updatedAt: zod.coerce.date(),
     }),
   ),
+  projections: zod
+    .array(
+      zod.object({
+        month: zod.number(),
+        projected: zod.number().nullish(),
+      }),
+    )
+    .optional(),
 });
 export const ListBudgetLinesWithMonthlyResponse = zod.array(
   ListBudgetLinesWithMonthlyResponseItem,

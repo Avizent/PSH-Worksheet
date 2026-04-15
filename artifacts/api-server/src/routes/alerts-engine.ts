@@ -160,22 +160,25 @@ router.post("/alerts/evaluate", asyncHandler(async (req, res): Promise<void> => 
     .from(alertsTable)
     .where(isNull(alertsTable.resolvedAt));
 
+  const dedupeKey = (type: string, budgetLineId: number | null, month: number | null, yr: number | null) =>
+    `${type}|${budgetLineId ?? ""}|${month ?? ""}|${yr ?? ""}`;
+
+  const existingKeys = new Set(
+    existingAlerts.map(a => dedupeKey(a.type, a.budgetLineId, a.month, a.year))
+  );
+
   let created = 0;
   let existing = 0;
 
   for (const candidate of candidates) {
-    const isDuplicate = existingAlerts.some(
-      a =>
-        a.type === candidate.type &&
-        a.budgetLineId === candidate.budgetLineId &&
-        a.month === candidate.month &&
-        a.year === candidate.year
-    );
+    const key = dedupeKey(candidate.type, candidate.budgetLineId, candidate.month, candidate.year);
 
-    if (isDuplicate) {
+    if (existingKeys.has(key)) {
       existing++;
       continue;
     }
+
+    existingKeys.add(key);
 
     await db.insert(alertsTable).values({
       type: candidate.type,

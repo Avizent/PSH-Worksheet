@@ -152,6 +152,12 @@ export interface UpdateEventBody {
   budgetLineId?: number;
 }
 
+export type BudgetLineWithMonthlyProjectionsItem = {
+  month: number;
+  /** @nullable */
+  projected?: number | null;
+};
+
 export interface BudgetLineWithMonthly {
   id: number;
   category: string;
@@ -163,8 +169,10 @@ export interface BudgetLineWithMonthly {
   /** @nullable */
   region?: string | null;
   costStatus: string;
+  projectionPct?: number;
   plans: MonthlyPlan[];
   actuals: MonthlyActual[];
+  projections?: BudgetLineWithMonthlyProjectionsItem[];
 }
 
 export interface MonthlyChartPoint {

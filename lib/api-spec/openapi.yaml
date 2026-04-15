@@ -849,6 +849,9 @@ components:
           type: ["string", "null"]
         costStatus:
           type: string
+        projectionPct:
+          type: number
+          default: 0
         plans:
           type: array
           items:
@@ -857,6 +860,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MonthlyActual"
+        projections:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: integer
+              projected:
+                type: ["number", "null"]
+            required:
+              - month
       required:
         - id
         - category

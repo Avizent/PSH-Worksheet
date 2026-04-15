@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BudgetLineWithMonthlyProjectionsItem } from "./budgetLineWithMonthlyProjectionsItem";
 import type { MonthlyActual } from "./monthlyActual";
 import type { MonthlyPlan } from "./monthlyPlan";
 
@@ -19,6 +20,8 @@ export interface BudgetLineWithMonthly {
   /** @nullable */
   region?: string | null;
   costStatus: string;
+  projectionPct?: number;
   plans: MonthlyPlan[];
   actuals: MonthlyActual[];
+  projections?: BudgetLineWithMonthlyProjectionsItem[];
 }
