@@ -31,6 +31,7 @@ export interface BudgetLine {
   /** @nullable */
   region?: string | null;
   costStatus: string;
+  projectionPct: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,6 +43,7 @@ export interface CreateBudgetLineBody {
   owner?: string;
   region?: string;
   costStatus: string;
+  projectionPct?: number;
 }
 
 export interface UpdateBudgetLineBody {
@@ -51,6 +53,7 @@ export interface UpdateBudgetLineBody {
   owner?: string;
   region?: string;
   costStatus?: string;
+  projectionPct?: number;
 }
 
 export interface MonthlyPlan {
@@ -164,6 +167,55 @@ export interface BudgetLineWithMonthly {
   actuals: MonthlyActual[];
 }
 
+export interface MonthlyChartPoint {
+  month: number;
+  monthLabel: string;
+  planned: number;
+  actual: number;
+  cumPlanned: number;
+  cumActual: number;
+}
+
+export interface CategoryBreakdown {
+  category: string;
+  planned: number;
+  actual: number;
+}
+
+export interface DashboardCharts {
+  monthly: MonthlyChartPoint[];
+  categories: CategoryBreakdown[];
+}
+
+export type ProjectionLineItemMonthsItem = {
+  month: number;
+  planned: number;
+  /** @nullable */
+  actual?: number | null;
+  /** @nullable */
+  projected?: number | null;
+};
+
+export interface ProjectionLineItem {
+  budgetLineId: number;
+  lineItem: string;
+  category: string;
+  costStatus: string;
+  projectionPct: number;
+  months: ProjectionLineItemMonthsItem[];
+}
+
+export interface ProjectionData {
+  year: number;
+  items: ProjectionLineItem[];
+}
+
+export interface AlertEvaluationResult {
+  evaluated: number;
+  created: number;
+  existing: number;
+}
+
 export interface SeedResult {
   success: boolean;
   message: string;
@@ -193,6 +245,18 @@ export type ListMonthlyActualsParams = {
 
 export type ListAlertsParams = {
   resolved?: boolean;
+};
+
+export type GetDashboardChartsParams = {
+  year?: number;
+};
+
+export type GetProjectionsParams = {
+  year?: number;
+};
+
+export type EvaluateAlertsParams = {
+  year?: number;
 };
 
 export type ListBudgetLinesWithMonthlyParams = {

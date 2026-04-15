@@ -416,6 +416,66 @@ paths:
         "204":
           description: Deleted
 
+  /dashboard/charts:
+    get:
+      operationId: getDashboardCharts
+      tags: [dashboard]
+      summary: Get chart data for dashboard visualisations
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 2026
+      responses:
+        "200":
+          description: Chart data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardCharts"
+
+  /projections:
+    get:
+      operationId: getProjections
+      tags: [dashboard]
+      summary: Get forward projections for fixed cost lines
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 2026
+      responses:
+        "200":
+          description: Projection data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionData"
+
+  /alerts/evaluate:
+    post:
+      operationId: evaluateAlerts
+      tags: [alerts]
+      summary: Evaluate alert rules against current data
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 2026
+      responses:
+        "200":
+          description: Evaluation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertEvaluationResult"
+
   /budget-lines/with-monthly:
     get:
       operationId: listBudgetLinesWithMonthly
@@ -508,6 +568,9 @@ components:
           type: ["string", "null"]
         costStatus:
           type: string
+        projectionPct:
+          type: number
+          default: 0
         createdAt:
           type: string
           format: date-time
@@ -519,6 +582,7 @@ components:
         - category
         - lineItem
         - costStatus
+        - projectionPct
         - createdAt
         - updatedAt
 
@@ -537,6 +601,8 @@ components:
           type: string
         costStatus:
           type: string
+        projectionPct:
+          type: number
       required:
         - category
         - lineItem
@@ -557,6 +623,8 @@ components:
           type: string
         costStatus:
           type: string
+        projectionPct:
+          type: number
 
     MonthlyPlan:
       type: object
@@ -796,6 +864,122 @@ components:
         - costStatus
         - plans
         - actuals
+
+    MonthlyChartPoint:
+      type: object
+      properties:
+        month:
+          type: integer
+        monthLabel:
+          type: string
+        planned:
+          type: number
+        actual:
+          type: number
+        cumPlanned:
+          type: number
+        cumActual:
+          type: number
+      required:
+        - month
+        - monthLabel
+        - planned
+        - actual
+        - cumPlanned
+        - cumActual
+
+    CategoryBreakdown:
+      type: object
+      properties:
+        category:
+          type: string
+        planned:
+          type: number
+        actual:
+          type: number
+      required:
+        - category
+        - planned
+        - actual
+
+    DashboardCharts:
+      type: object
+      properties:
+        monthly:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyChartPoint"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryBreakdown"
+      required:
+        - monthly
+        - categories
+
+    ProjectionLineItem:
+      type: object
+      properties:
+        budgetLineId:
+          type: integer
+        lineItem:
+          type: string
+        category:
+          type: string
+        costStatus:
+          type: string
+        projectionPct:
+          type: number
+        months:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: integer
+              planned:
+                type: number
+              actual:
+                type: ["number", "null"]
+              projected:
+                type: ["number", "null"]
+            required:
+              - month
+              - planned
+      required:
+        - budgetLineId
+        - lineItem
+        - category
+        - costStatus
+        - projectionPct
+        - months
+
+    ProjectionData:
+      type: object
+      properties:
+        year:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectionLineItem"
+      required:
+        - year
+        - items
+
+    AlertEvaluationResult:
+      type: object
+      properties:
+        evaluated:
+          type: integer
+        created:
+          type: integer
+        existing:
+          type: integer
+      required:
+        - evaluated
+        - created
+        - existing
 
     SeedResult:
       type: object

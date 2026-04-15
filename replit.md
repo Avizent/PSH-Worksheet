@@ -32,21 +32,38 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 
 ### Database Schema (7 tables)
 - `users` — Auth-ready user table with role field
-- `budgetLines` — Budget line items with category, owner, region, cost status
+- `budgetLines` — Budget line items with category, owner, region, cost status, `projectionPct` (real, default 0)
 - `monthlyPlans` — Monthly planned amounts per budget line
 - `monthlyActuals` — Monthly actual spend per budget line
-- `alerts` — Budget alerts with severity levels
+- `alerts` — Budget alerts with severity levels (critical/warning/info), deduplication by type+budgetLineId+month+year
 - `events` — Marketing events with status tracking
 - `auditLogs` — Change audit trail
 
 ### API Routes (mounted at `/api`)
 - `GET/POST /budget-lines` — CRUD budget lines
+- `PATCH /budget-lines/:id` — Update budget line (including projectionPct)
 - `GET /budget-lines/with-monthly` — Budget lines with monthly plan/actual data
 - `GET/POST /monthly-plans`, `GET/POST /monthly-actuals` — Monthly data
 - `GET /alerts`, `PATCH /alerts/:id/resolve` — Alert management
+- `POST /alerts/evaluate` — Trigger server-side alert evaluation (6 alert types)
 - `GET/POST /events` — Event management
 - `GET /dashboard/summary` — KPI dashboard aggregation
+- `GET /dashboard/charts` — Monthly + category chart data
+- `GET /projections` — Fixed cost forward projection with % adjustment
 - `POST /seed` — Seed sample data (clears existing first)
+
+### Alert Types (6)
+- `underspend` — Spending below 50% of plan (warning)
+- `overspend` — Spending above 110% of plan (critical)
+- `budget_exhaustion` — Projected to exhaust budget before year end (critical)
+- `fixed_cost_variance` — Fixed cost deviates >5% from plan (warning)
+- `large_payment` — Single month actual > 25% of annual plan (warning)
+- `unbooked_event` — Event within 90 days still in "planned" status (info)
+
+### Chart Components (SVG-based, cross-platform)
+- `BarChart.tsx` — Plan vs Actual monthly comparison
+- `LineChart.tsx` — Cumulative spend over time
+- `DonutChart.tsx` — Category breakdown
 
 ### Expo Web API Proxy
 - Metro config includes middleware that proxies `/api/*` requests to the API server (port 8080)
@@ -64,7 +81,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 ## Project Phases
 
 1. **Foundation** (COMPLETE) — DB schema, API, app shell with dual layout
-2. **Intelligence Layer** (PENDING) — Threshold alerts, variance analysis, forecasting
+2. **Intelligence Layer** (COMPLETE) — Charts (bar/line/donut), projections engine, 6-type alert engine, projection editing
 3. **Actuals Integration** (PENDING) — CSV/manual actuals import
 4. **Board View** (PENDING) — Shareable token link, per-item visibility controls, exports
 5. **Admin & Governance** (PENDING) — Reforecast, audit trail, admin settings

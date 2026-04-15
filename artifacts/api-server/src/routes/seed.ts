@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, budgetLinesTable, monthlyPlansTable, monthlyActualsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { db, budgetLinesTable, monthlyPlansTable, monthlyActualsTable, alertsTable, eventsTable } from "@workspace/db";
 import { SeedDataResponse } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 
@@ -31,6 +32,8 @@ router.post("/seed", asyncHandler(async (_req, res): Promise<void> => {
     return;
   }
 
+  await db.delete(alertsTable);
+  await db.delete(eventsTable);
   await db.delete(monthlyActualsTable);
   await db.delete(monthlyPlansTable);
   await db.delete(budgetLinesTable);
@@ -73,9 +76,28 @@ router.post("/seed", asyncHandler(async (_req, res): Promise<void> => {
     }
   }
 
+  const cesLine = await db.select().from(budgetLinesTable).where(
+    eq(budgetLinesTable.lineItem, "CES 2026")
+  );
+  const mwcLine = await db.select().from(budgetLinesTable).where(
+    eq(budgetLinesTable.lineItem, "MWC Barcelona")
+  );
+
+  const eventEntries = [
+    { name: "CES 2026", eventDate: new Date("2026-01-10"), status: "Confirmed", estimatedCost: 300000, budgetLineId: cesLine[0]?.id ?? null },
+    { name: "MWC Barcelona 2026", eventDate: new Date("2026-02-25"), status: "Confirmed", estimatedCost: 240000, budgetLineId: mwcLine[0]?.id ?? null },
+    { name: "SaaStr Annual 2026", eventDate: new Date("2026-06-15"), status: "Planned", estimatedCost: 180000, budgetLineId: null },
+    { name: "Web Summit 2026", eventDate: new Date("2026-11-04"), status: "Planned", estimatedCost: 220000, budgetLineId: null },
+    { name: "Q3 Product Launch", eventDate: new Date("2026-07-20"), status: "Planned", estimatedCost: 95000, budgetLineId: null },
+  ];
+
+  for (const evt of eventEntries) {
+    await db.insert(eventsTable).values(evt);
+  }
+
   const result = {
     success: true,
-    message: `Seeded ${budgetLinesCreated} budget lines, ${monthlyPlansCreated} monthly plans, ${monthlyActualsCreated} monthly actuals`,
+    message: `Seeded ${budgetLinesCreated} budget lines, ${monthlyPlansCreated} monthly plans, ${monthlyActualsCreated} monthly actuals, ${eventEntries.length} events`,
     budgetLinesCreated,
     monthlyPlansCreated,
     monthlyActualsCreated,

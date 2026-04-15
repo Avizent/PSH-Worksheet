@@ -7,14 +7,20 @@
  */
 
 export * from "./alert";
+export * from "./alertEvaluationResult";
 export * from "./budgetLine";
 export * from "./budgetLineWithMonthly";
+export * from "./categoryBreakdown";
 export * from "./createBudgetLineBody";
 export * from "./createEventBody";
 export * from "./createMonthlyActualBody";
 export * from "./createMonthlyPlanBody";
+export * from "./dashboardCharts";
 export * from "./dashboardSummary";
+export * from "./evaluateAlertsParams";
+export * from "./getDashboardChartsParams";
 export * from "./getDashboardSummaryParams";
+export * from "./getProjectionsParams";
 export * from "./healthStatus";
 export * from "./listAlertsParams";
 export * from "./listBudgetLinesParams";
@@ -23,7 +29,11 @@ export * from "./listMonthlyActualsParams";
 export * from "./listMonthlyPlansParams";
 export * from "./marketingEvent";
 export * from "./monthlyActual";
+export * from "./monthlyChartPoint";
 export * from "./monthlyPlan";
+export * from "./projectionData";
+export * from "./projectionLineItem";
+export * from "./projectionLineItemMonthsItem";
 export * from "./seedResult";
 export * from "./updateBudgetLineBody";
 export * from "./updateEventBody";

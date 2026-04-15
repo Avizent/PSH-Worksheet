@@ -18,14 +18,19 @@ import type {
 
 import type {
   Alert,
+  AlertEvaluationResult,
   BudgetLine,
   BudgetLineWithMonthly,
   CreateBudgetLineBody,
   CreateEventBody,
   CreateMonthlyActualBody,
   CreateMonthlyPlanBody,
+  DashboardCharts,
   DashboardSummary,
+  EvaluateAlertsParams,
+  GetDashboardChartsParams,
   GetDashboardSummaryParams,
+  GetProjectionsParams,
   HealthStatus,
   ListAlertsParams,
   ListBudgetLinesParams,
@@ -35,6 +40,7 @@ import type {
   MarketingEvent,
   MonthlyActual,
   MonthlyPlan,
+  ProjectionData,
   SeedResult,
   UpdateBudgetLineBody,
   UpdateEventBody,
@@ -1714,6 +1720,293 @@ export const useDeleteEvent = <
   TContext
 > => {
   return useMutation(getDeleteEventMutationOptions(options));
+};
+
+/**
+ * @summary Get chart data for dashboard visualisations
+ */
+export const getGetDashboardChartsUrl = (params?: GetDashboardChartsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/dashboard/charts?${stringifiedParams}`
+    : `/api/dashboard/charts`;
+};
+
+export const getDashboardCharts = async (
+  params?: GetDashboardChartsParams,
+  options?: RequestInit,
+): Promise<DashboardCharts> => {
+  return customFetch<DashboardCharts>(getGetDashboardChartsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDashboardChartsQueryKey = (
+  params?: GetDashboardChartsParams,
+) => {
+  return [`/api/dashboard/charts`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetDashboardChartsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDashboardCharts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetDashboardChartsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDashboardCharts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetDashboardChartsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDashboardCharts>>
+  > = ({ signal }) => getDashboardCharts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardCharts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDashboardChartsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDashboardCharts>>
+>;
+export type GetDashboardChartsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get chart data for dashboard visualisations
+ */
+
+export function useGetDashboardCharts<
+  TData = Awaited<ReturnType<typeof getDashboardCharts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetDashboardChartsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDashboardCharts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDashboardChartsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get forward projections for fixed cost lines
+ */
+export const getGetProjectionsUrl = (params?: GetProjectionsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/projections?${stringifiedParams}`
+    : `/api/projections`;
+};
+
+export const getProjections = async (
+  params?: GetProjectionsParams,
+  options?: RequestInit,
+): Promise<ProjectionData> => {
+  return customFetch<ProjectionData>(getGetProjectionsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProjectionsQueryKey = (params?: GetProjectionsParams) => {
+  return [`/api/projections`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetProjectionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProjections>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetProjectionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProjections>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetProjectionsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjections>>> = ({
+    signal,
+  }) => getProjections(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProjections>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProjectionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProjections>>
+>;
+export type GetProjectionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get forward projections for fixed cost lines
+ */
+
+export function useGetProjections<
+  TData = Awaited<ReturnType<typeof getProjections>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetProjectionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProjections>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProjectionsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Evaluate alert rules against current data
+ */
+export const getEvaluateAlertsUrl = (params?: EvaluateAlertsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/alerts/evaluate?${stringifiedParams}`
+    : `/api/alerts/evaluate`;
+};
+
+export const evaluateAlerts = async (
+  params?: EvaluateAlertsParams,
+  options?: RequestInit,
+): Promise<AlertEvaluationResult> => {
+  return customFetch<AlertEvaluationResult>(getEvaluateAlertsUrl(params), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getEvaluateAlertsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof evaluateAlerts>>,
+    TError,
+    { params?: EvaluateAlertsParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof evaluateAlerts>>,
+  TError,
+  { params?: EvaluateAlertsParams },
+  TContext
+> => {
+  const mutationKey = ["evaluateAlerts"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof evaluateAlerts>>,
+    { params?: EvaluateAlertsParams }
+  > = (props) => {
+    const { params } = props ?? {};
+
+    return evaluateAlerts(params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EvaluateAlertsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof evaluateAlerts>>
+>;
+
+export type EvaluateAlertsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Evaluate alert rules against current data
+ */
+export const useEvaluateAlerts = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof evaluateAlerts>>,
+    TError,
+    { params?: EvaluateAlertsParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof evaluateAlerts>>,
+  TError,
+  { params?: EvaluateAlertsParams },
+  TContext
+> => {
+  return useMutation(getEvaluateAlertsMutationOptions(options));
 };
 
 /**

@@ -17,6 +17,7 @@ export interface BudgetLine {
   /** @nullable */
   region?: string | null;
   costStatus: string;
+  projectionPct: number;
   createdAt: Date;
   updatedAt: Date;
 }

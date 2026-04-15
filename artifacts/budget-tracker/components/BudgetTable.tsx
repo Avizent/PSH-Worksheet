@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, ScrollView, StyleSheet, Platform } from "react-native";
+import React, { useState } from "react";
+import { View, Text, ScrollView, StyleSheet, Platform, TextInput } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
 interface BudgetLineRow {
@@ -11,13 +11,14 @@ interface BudgetLineRow {
   totalPlan: number;
   totalActual: number;
   variance: number;
+  projectionPct?: number;
 }
 
 interface BudgetTableProps {
   data: BudgetLineRow[];
+  showProjection?: boolean;
+  onProjectionChange?: (lineId: number, value: string) => void;
 }
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function formatCurrency(val: number): string {
   if (Math.abs(val) >= 1000) {
@@ -26,7 +27,35 @@ function formatCurrency(val: number): string {
   return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
 }
 
-export function BudgetTable({ data }: BudgetTableProps) {
+function InlineProjectionInput({ lineId, value, onSave, colors }: {
+  lineId: number;
+  value: number;
+  onSave: (lineId: number, val: string) => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const [localVal, setLocalVal] = useState(String(value));
+
+  const handleBlur = () => {
+    if (localVal !== String(value)) {
+      onSave(lineId, localVal);
+    }
+  };
+
+  return (
+    <View style={styles.projInputContainer}>
+      <TextInput
+        style={[styles.projInput, { color: colors.foreground, borderColor: colors.border }]}
+        value={localVal}
+        onChangeText={setLocalVal}
+        onBlur={handleBlur}
+        keyboardType="numeric"
+      />
+      <Text style={[styles.projPct, { color: colors.mutedForeground }]}>%</Text>
+    </View>
+  );
+}
+
+export function BudgetTable({ data, showProjection, onProjectionChange }: BudgetTableProps) {
   const colors = useColors();
 
   return (
@@ -41,6 +70,9 @@ export function BudgetTable({ data }: BudgetTableProps) {
             <Text style={[styles.cellNumber, styles.headerText, { color: colors.mutedForeground }]}>Plan</Text>
             <Text style={[styles.cellNumber, styles.headerText, { color: colors.mutedForeground }]}>Actual</Text>
             <Text style={[styles.cellNumber, styles.headerText, { color: colors.mutedForeground }]}>Variance</Text>
+            {showProjection && (
+              <Text style={[styles.cellProjection, styles.headerText, { color: colors.mutedForeground }]}>Proj %</Text>
+            )}
           </View>
           {data.map((row) => {
             const varianceColor = row.variance > 0 ? colors.success : row.variance < 0 ? colors.destructive : colors.foreground;
@@ -59,6 +91,20 @@ export function BudgetTable({ data }: BudgetTableProps) {
                 <Text style={[styles.cellNumber, { color: colors.foreground }]}>{formatCurrency(row.totalPlan)}</Text>
                 <Text style={[styles.cellNumber, { color: colors.foreground }]}>{formatCurrency(row.totalActual)}</Text>
                 <Text style={[styles.cellNumber, { color: varianceColor }]}>{formatCurrency(row.variance)}</Text>
+                {showProjection && (
+                  <View style={styles.cellProjection}>
+                    {row.costStatus === "Fixed Cost" && onProjectionChange ? (
+                      <InlineProjectionInput
+                        lineId={row.id}
+                        value={row.projectionPct ?? 0}
+                        onSave={onProjectionChange}
+                        colors={colors}
+                      />
+                    ) : (
+                      <Text style={[styles.projDash, { color: colors.mutedForeground }]}>-</Text>
+                    )}
+                  </View>
+                )}
               </View>
             );
           })}
@@ -111,6 +157,11 @@ const styles = StyleSheet.create({
     textAlign: "right" as const,
     paddingRight: 8,
   },
+  cellProjection: {
+    width: 80,
+    paddingRight: 8,
+    justifyContent: "center",
+  },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -120,5 +171,29 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
+  },
+  projInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  projInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    width: 50,
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    textAlign: "right" as const,
+  },
+  projPct: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+  },
+  projDash: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center" as const,
   },
 });

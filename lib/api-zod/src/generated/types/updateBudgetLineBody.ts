@@ -13,4 +13,5 @@ export interface UpdateBudgetLineBody {
   owner?: string;
   region?: string;
   costStatus?: string;
+  projectionPct?: number;
 }

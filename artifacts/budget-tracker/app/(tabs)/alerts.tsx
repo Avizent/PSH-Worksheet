@@ -55,9 +55,9 @@ function AlertsContent() {
 
   const alerts = showResolved ? (resolvedAlerts || []) : (activeAlerts || []);
 
-  const dangerAlerts = alerts.filter((a) => a.severity === "Danger");
-  const warningAlerts = alerts.filter((a) => a.severity === "Warning");
-  const infoAlerts = alerts.filter((a) => a.severity === "Info");
+  const criticalAlerts = alerts.filter((a) => a.severity === "critical");
+  const warningAlerts = alerts.filter((a) => a.severity === "warning");
+  const infoAlerts = alerts.filter((a) => a.severity === "info");
 
   const renderGroup = (title: string, items: typeof alerts) => {
     if (items.length === 0) return null;
@@ -123,7 +123,7 @@ function AlertsContent() {
         />
       ) : (
         <>
-          {renderGroup("Critical", dangerAlerts)}
+          {renderGroup("Critical", criticalAlerts)}
           {renderGroup("Warnings", warningAlerts)}
           {renderGroup("Information", infoAlerts)}
         </>

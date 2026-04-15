@@ -3,7 +3,6 @@ import { eq, isNull, isNotNull } from "drizzle-orm";
 import { db, alertsTable } from "@workspace/db";
 import {
   ResolveAlertParams,
-  ListAlertsQueryParams,
   ListAlertsResponse,
   ResolveAlertResponse,
 } from "@workspace/api-zod";
@@ -12,19 +11,17 @@ import { asyncHandler } from "../middleware/asyncHandler";
 const router: IRouter = Router();
 
 router.get("/alerts", asyncHandler(async (req, res): Promise<void> => {
-  const queryParsed = ListAlertsQueryParams.safeParse(req.query);
-  if (!queryParsed.success) {
-    res.status(400).json({ error: queryParsed.error.message });
-    return;
-  }
-  const { resolved } = queryParsed.data;
+  const resolvedParam = req.query.resolved;
   let rows;
-  if (resolved === true) {
+  if (resolvedParam === "true") {
     rows = await db.select().from(alertsTable).where(isNotNull(alertsTable.resolvedAt)).orderBy(alertsTable.createdAt);
-  } else if (resolved === false) {
+  } else if (resolvedParam === "false") {
     rows = await db.select().from(alertsTable).where(isNull(alertsTable.resolvedAt)).orderBy(alertsTable.createdAt);
-  } else {
+  } else if (resolvedParam === undefined) {
     rows = await db.select().from(alertsTable).orderBy(alertsTable.createdAt);
+  } else {
+    res.status(400).json({ error: "resolved must be 'true' or 'false'" });
+    return;
   }
   res.json(ListAlertsResponse.parse(rows));
 }));

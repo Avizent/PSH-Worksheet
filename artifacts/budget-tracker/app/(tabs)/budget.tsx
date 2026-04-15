@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, ScrollView, StyleSheet, Text, Platform, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
+import { View, ScrollView, StyleSheet, Text, Platform, ActivityIndicator, RefreshControl, TextInput, Modal, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
@@ -7,7 +7,16 @@ import { BudgetTable } from "@/components/BudgetTable";
 import { EmptyState } from "@/components/EmptyState";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
-import { useListBudgetLinesWithMonthly, useListAlerts } from "@workspace/api-client-react";
+import {
+  useListBudgetLinesWithMonthly,
+  useListAlerts,
+  useListBudgetLines,
+  useUpdateBudgetLine,
+  getListBudgetLinesWithMonthlyQueryKey,
+  getListBudgetLinesQueryKey,
+  getGetProjectionsQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 function formatCurrency(val: number): string {
   if (Math.abs(val) >= 1000) {
@@ -16,20 +25,101 @@ function formatCurrency(val: number): string {
   return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
 }
 
+function ProjectionEditor({ lineId, lineItem, currentPct, onClose }: {
+  lineId: number;
+  lineItem: string;
+  currentPct: number;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const queryClient = useQueryClient();
+  const updateMutation = useUpdateBudgetLine();
+  const [pctValue, setPctValue] = useState(String(currentPct));
+
+  const handleSave = () => {
+    const numVal = parseFloat(pctValue) || 0;
+    updateMutation.mutate(
+      { id: lineId, data: { projectionPct: numVal } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListBudgetLinesQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetProjectionsQueryKey() });
+          onClose();
+        },
+      }
+    );
+  };
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+          <View style={styles.modalHandle}>
+            <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
+          </View>
+          <Text style={[styles.modalTitle, { color: colors.foreground }]}>Projection Assumption</Text>
+          <Text style={[styles.modalSubtitle, { color: colors.mutedForeground }]}>{lineItem}</Text>
+          <Text style={[styles.modalLabel, { color: colors.mutedForeground }]}>Annual % change for forward projection</Text>
+          <View style={styles.modalInputRow}>
+            <TextInput
+              style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+              value={pctValue}
+              onChangeText={setPctValue}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor={colors.mutedForeground}
+              autoFocus
+            />
+            <Text style={[styles.modalPctSign, { color: colors.mutedForeground }]}>%</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.modalSaveButton, { backgroundColor: colors.primary }]}
+            onPress={handleSave}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.modalSaveText, { color: colors.primaryForeground }]}>
+              {updateMutation.isPending ? "Saving..." : "Save"}
+            </Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 function BudgetContent() {
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
   const isWeb = Platform.OS === "web";
+  const queryClient = useQueryClient();
 
   const { data: budgetLines, isLoading, refetch } = useListBudgetLinesWithMonthly();
+  const { data: allLines } = useListBudgetLines();
   const { data: alerts } = useListAlerts({ resolved: false });
+  const updateMutation = useUpdateBudgetLine();
   const [refreshing, setRefreshing] = useState(false);
+  const [editingLine, setEditingLine] = useState<{ id: number; lineItem: string; pct: number } | null>(null);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
+  };
+
+  const handleDesktopPctChange = (lineId: number, val: string) => {
+    const numVal = parseFloat(val) || 0;
+    updateMutation.mutate(
+      { id: lineId, data: { projectionPct: numVal } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListBudgetLinesQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetProjectionsQueryKey() });
+        },
+      }
+    );
   };
 
   if (isLoading) {
@@ -39,6 +129,11 @@ function BudgetContent() {
       </View>
     );
   }
+
+  const linesWithPct = (allLines || []).reduce<Record<number, number>>((acc, l) => {
+    acc[l.id] = l.projectionPct ?? 0;
+    return acc;
+  }, {});
 
   const tableData = (budgetLines || []).map((line) => {
     const totalPlan = (line.plans || []).reduce((sum, p) => sum + (p.plannedAmount || 0), 0);
@@ -52,6 +147,7 @@ function BudgetContent() {
       totalPlan,
       totalActual,
       variance: totalPlan - totalActual,
+      projectionPct: linesWithPct[line.id] ?? 0,
     };
   });
 
@@ -79,7 +175,11 @@ function BudgetContent() {
       {tableData.length === 0 ? (
         <EmptyState icon="list" title="No budget lines" message="Budget line items will appear here once data is seeded." />
       ) : isDesktop ? (
-        <BudgetTable data={tableData} />
+        <BudgetTable
+          data={tableData}
+          showProjection
+          onProjectionChange={handleDesktopPctChange}
+        />
       ) : (
         <View style={styles.mobileList}>
           {categories.map((cat) => {
@@ -117,6 +217,18 @@ function BudgetContent() {
                           <Text style={[styles.mobileMetricValue, { color: varianceColor }]}>{formatCurrency(item.variance)}</Text>
                         </View>
                       </View>
+                      {item.costStatus === "Fixed Cost" && (
+                        <TouchableOpacity
+                          onPress={() => setEditingLine({ id: item.id, lineItem: item.lineItem, pct: item.projectionPct })}
+                          style={[styles.projectionRow, { borderTopColor: colors.border }]}
+                          activeOpacity={0.7}
+                        >
+                          <Feather name="trending-up" size={13} color={colors.primary} />
+                          <Text style={[styles.projectionLabel, { color: colors.mutedForeground }]}>Projection</Text>
+                          <Text style={[styles.projectionValue, { color: colors.primary }]}>{item.projectionPct}%</Text>
+                          <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   );
                 })}
@@ -124,6 +236,15 @@ function BudgetContent() {
             );
           })}
         </View>
+      )}
+
+      {editingLine && (
+        <ProjectionEditor
+          lineId={editingLine.id}
+          lineItem={editingLine.lineItem}
+          currentPct={editingLine.pct}
+          onClose={() => setEditingLine(null)}
+        />
       )}
     </ScrollView>
   );
@@ -215,6 +336,86 @@ const styles = StyleSheet.create({
   },
   mobileMetricValue: {
     fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+  },
+  projectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderTopWidth: 1,
+    marginTop: 10,
+    paddingTop: 10,
+  },
+  projectionLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    flex: 1,
+  },
+  projectionValue: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHandle: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 16,
+  },
+  modalLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 8,
+  },
+  modalInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 20,
+  },
+  modalInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 18,
+    fontFamily: "Inter_600SemiBold",
+  },
+  modalPctSign: {
+    fontSize: 18,
+    fontFamily: "Inter_600SemiBold",
+  },
+  modalSaveButton: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  modalSaveText: {
+    fontSize: 16,
     fontFamily: "Inter_600SemiBold",
   },
   desktopContainer: {

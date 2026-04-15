@@ -44,6 +44,8 @@ export const ListBudgetLinesQueryParams = zod.object({
   costStatus: zod.coerce.string().optional(),
 });
 
+export const listBudgetLinesResponseProjectionPctDefault = 0;
+
 export const ListBudgetLinesResponseItem = zod.object({
   id: zod.number(),
   category: zod.string(),
@@ -52,6 +54,9 @@ export const ListBudgetLinesResponseItem = zod.object({
   owner: zod.string().nullish(),
   region: zod.string().nullish(),
   costStatus: zod.string(),
+  projectionPct: zod
+    .number()
+    .default(listBudgetLinesResponseProjectionPctDefault),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -67,6 +72,7 @@ export const CreateBudgetLineBody = zod.object({
   owner: zod.string().optional(),
   region: zod.string().optional(),
   costStatus: zod.string(),
+  projectionPct: zod.number().optional(),
 });
 
 /**
@@ -76,6 +82,8 @@ export const GetBudgetLineParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const getBudgetLineResponseProjectionPctDefault = 0;
+
 export const GetBudgetLineResponse = zod.object({
   id: zod.number(),
   category: zod.string(),
@@ -84,6 +92,9 @@ export const GetBudgetLineResponse = zod.object({
   owner: zod.string().nullish(),
   region: zod.string().nullish(),
   costStatus: zod.string(),
+  projectionPct: zod
+    .number()
+    .default(getBudgetLineResponseProjectionPctDefault),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -102,7 +113,10 @@ export const UpdateBudgetLineBody = zod.object({
   owner: zod.string().optional(),
   region: zod.string().optional(),
   costStatus: zod.string().optional(),
+  projectionPct: zod.number().optional(),
 });
+
+export const updateBudgetLineResponseProjectionPctDefault = 0;
 
 export const UpdateBudgetLineResponse = zod.object({
   id: zod.number(),
@@ -112,6 +126,9 @@ export const UpdateBudgetLineResponse = zod.object({
   owner: zod.string().nullish(),
   region: zod.string().nullish(),
   costStatus: zod.string(),
+  projectionPct: zod
+    .number()
+    .default(updateBudgetLineResponseProjectionPctDefault),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -329,6 +346,80 @@ export const UpdateEventResponse = zod.object({
  */
 export const DeleteEventParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Get chart data for dashboard visualisations
+ */
+export const getDashboardChartsQueryYearDefault = 2026;
+
+export const GetDashboardChartsQueryParams = zod.object({
+  year: zod.coerce.number().default(getDashboardChartsQueryYearDefault),
+});
+
+export const GetDashboardChartsResponse = zod.object({
+  monthly: zod.array(
+    zod.object({
+      month: zod.number(),
+      monthLabel: zod.string(),
+      planned: zod.number(),
+      actual: zod.number(),
+      cumPlanned: zod.number(),
+      cumActual: zod.number(),
+    }),
+  ),
+  categories: zod.array(
+    zod.object({
+      category: zod.string(),
+      planned: zod.number(),
+      actual: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get forward projections for fixed cost lines
+ */
+export const getProjectionsQueryYearDefault = 2026;
+
+export const GetProjectionsQueryParams = zod.object({
+  year: zod.coerce.number().default(getProjectionsQueryYearDefault),
+});
+
+export const GetProjectionsResponse = zod.object({
+  year: zod.number(),
+  items: zod.array(
+    zod.object({
+      budgetLineId: zod.number(),
+      lineItem: zod.string(),
+      category: zod.string(),
+      costStatus: zod.string(),
+      projectionPct: zod.number(),
+      months: zod.array(
+        zod.object({
+          month: zod.number(),
+          planned: zod.number(),
+          actual: zod.number().nullish(),
+          projected: zod.number().nullish(),
+        }),
+      ),
+    }),
+  ),
+});
+
+/**
+ * @summary Evaluate alert rules against current data
+ */
+export const evaluateAlertsQueryYearDefault = 2026;
+
+export const EvaluateAlertsQueryParams = zod.object({
+  year: zod.coerce.number().default(evaluateAlertsQueryYearDefault),
+});
+
+export const EvaluateAlertsResponse = zod.object({
+  evaluated: zod.number(),
+  created: zod.number(),
+  existing: zod.number(),
 });
 
 /**

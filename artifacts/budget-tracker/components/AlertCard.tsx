@@ -15,12 +15,12 @@ export function AlertCard({ type, severity, message, onResolve, resolved }: Aler
   const colors = useColors();
 
   const severityConfig: Record<string, { color: string; icon: keyof typeof Feather.glyphMap; bg: string }> = {
-    Danger: { color: colors.destructive, icon: "alert-circle", bg: colors.destructive + "12" },
-    Warning: { color: colors.warning, icon: "alert-triangle", bg: colors.warning + "15" },
-    Info: { color: colors.primary, icon: "info", bg: colors.primary + "12" },
+    critical: { color: colors.destructive, icon: "alert-circle", bg: colors.destructive + "12" },
+    warning: { color: colors.warning, icon: "alert-triangle", bg: colors.warning + "15" },
+    info: { color: colors.primary, icon: "info", bg: colors.primary + "12" },
   };
 
-  const config = severityConfig[severity] || severityConfig.Info;
+  const config = severityConfig[severity] || severityConfig.info;
 
   return (
     <View style={[styles.card, { backgroundColor: config.bg, borderRadius: colors.radius, opacity: resolved ? 0.5 : 1 }]}>

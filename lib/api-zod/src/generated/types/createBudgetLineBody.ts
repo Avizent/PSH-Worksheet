@@ -13,4 +13,5 @@ export interface CreateBudgetLineBody {
   owner?: string;
   region?: string;
   costStatus: string;
+  projectionPct?: number;
 }
