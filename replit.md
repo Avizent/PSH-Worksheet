@@ -17,6 +17,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - **Build**: esbuild (CJS bundle)
 - **Frontend**: Expo (React Native + React Native Web)
 - **State management**: React Query (@tanstack/react-query)
+- **File uploads**: multer (multipart/form-data)
 
 ## Architecture
 
@@ -30,7 +31,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `artifacts/budget-tracker` — Expo app (port 25099, Expo dev domain)
 - `artifacts/mockup-sandbox` — Design sandbox
 
-### Database Schema (7 tables)
+### Database Schema (9 tables)
 - `users` — Auth-ready user table with role field
 - `budgetLines` — Budget line items with category, owner, region, cost status, `projectionPct` (real, default 0)
 - `monthlyPlans` — Monthly planned amounts per budget line
@@ -38,6 +39,8 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `alerts` — Budget alerts with severity levels (critical/warning/info), deduplication by type+budgetLineId+month+year
 - `events` — Marketing events with status tracking
 - `auditLogs` — Change audit trail
+- `csvImports` — CSV import records (filename, status, row counts)
+- `csvImportRows` — Individual parsed CSV rows (raw data, match status, budget line assignment, row hash for idempotency)
 
 ### API Routes (mounted at `/api`)
 - `GET/POST /budget-lines` — CRUD budget lines
@@ -50,7 +53,21 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `GET /dashboard/summary` — KPI dashboard aggregation
 - `GET /dashboard/charts` — Monthly + category chart data
 - `GET /projections` — Fixed cost forward projection with % adjustment
+- `GET /imports` — List CSV imports with summary counts
+- `POST /imports/upload` — Upload CSV, parse, match rows to budget lines
+- `GET /imports/:id` — Get import with all rows
+- `PATCH /imports/rows/:id/assign` — Assign unmatched row to a budget line
+- `POST /imports/:id/confirm` — Confirm import, create MonthlyActual records (idempotent by row hash)
 - `POST /seed` — Seed sample data (clears existing first)
+
+### CSV Import Flow
+1. Upload CSV with columns: Category, Line Item, Month, Year, Amount, Invoice Ref
+2. Server parses rows, matches to budget lines by normalised category+lineItem name
+3. Matched rows get green status; unmatched rows get amber status with "Assign" button
+4. User assigns unmatched rows to budget lines via searchable dropdown modal
+5. User confirms import → creates MonthlyActual records
+6. Row hash (SHA-256 of category|lineItem|month|year|amount|invoiceRef) prevents duplicate imports
+7. Re-confirming a confirmed import returns 0 created, N skipped
 
 ### Alert Types (6)
 - `underspend` — Spending below 70% of plan in closed months (warning)
@@ -90,7 +107,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 
 1. **Foundation** (COMPLETE) — DB schema, API, app shell with dual layout
 2. **Intelligence Layer** (COMPLETE) — Charts (bar/line/donut), projections engine, 6-type alert engine, projection editing
-3. **Actuals Integration** (PENDING) — CSV/manual actuals import
+3. **Actuals Integration** (COMPLETE) — CSV import with auto-matching, manual assignment, idempotent confirmation
 4. **Board View** (PENDING) — Shareable token link, per-item visibility controls, exports
 5. **Admin & Governance** (PENDING) — Reforecast, audit trail, admin settings
 

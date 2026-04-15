@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "budget", label: "Budget Lines", icon: "list", route: "/budget" },
   { key: "alerts", label: "Alerts", icon: "bell", route: "/alerts" },
   { key: "events", label: "Events", icon: "calendar", route: "/events" },
+  { key: "import", label: "Import", icon: "upload", route: "/import" },
 ];
 
 interface DesktopSidebarProps {

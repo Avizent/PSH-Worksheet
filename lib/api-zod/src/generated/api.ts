@@ -482,6 +482,101 @@ export const ListBudgetLinesWithMonthlyResponse = zod.array(
 );
 
 /**
+ * @summary List CSV imports
+ */
+export const ListImportsResponseItem = zod.object({
+  id: zod.number(),
+  filename: zod.string(),
+  status: zod.string(),
+  totalRows: zod.number(),
+  matchedRows: zod.number(),
+  unmatchedRows: zod.number(),
+  errorRows: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListImportsResponse = zod.array(ListImportsResponseItem);
+
+/**
+ * @summary Get an import with its rows
+ */
+export const GetImportParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetImportResponse = zod.object({
+  id: zod.number(),
+  filename: zod.string(),
+  status: zod.string(),
+  totalRows: zod.number(),
+  matchedRows: zod.number(),
+  unmatchedRows: zod.number(),
+  errorRows: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  rows: zod.array(
+    zod.object({
+      id: zod.number(),
+      importId: zod.number(),
+      rowIndex: zod.number(),
+      rawCategory: zod.string().nullish(),
+      rawLineItem: zod.string().nullish(),
+      rawMonth: zod.number().nullish(),
+      rawYear: zod.number().nullish(),
+      rawAmount: zod.number().nullish(),
+      rawInvoiceRef: zod.string().nullish(),
+      status: zod.string(),
+      budgetLineId: zod.number().nullish(),
+      errorMessage: zod.string().nullish(),
+      rowHash: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Confirm import and create MonthlyActual records
+ */
+export const ConfirmImportParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ConfirmImportResponse = zod.object({
+  importId: zod.number(),
+  created: zod.number(),
+  skippedDuplicate: zod.number(),
+  skippedUnmatched: zod.number(),
+});
+
+/**
+ * @summary Assign an unmatched import row to a budget line
+ */
+export const AssignImportRowParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AssignImportRowBody = zod.object({
+  budgetLineId: zod.number(),
+});
+
+export const AssignImportRowResponse = zod.object({
+  id: zod.number(),
+  importId: zod.number(),
+  rowIndex: zod.number(),
+  rawCategory: zod.string().nullish(),
+  rawLineItem: zod.string().nullish(),
+  rawMonth: zod.number().nullish(),
+  rawYear: zod.number().nullish(),
+  rawAmount: zod.number().nullish(),
+  rawInvoiceRef: zod.string().nullish(),
+  status: zod.string(),
+  budgetLineId: zod.number().nullish(),
+  errorMessage: zod.string().nullish(),
+  rowHash: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
  * Populates the database with sample marketing budget data for FY26
  * @summary Seed budget data from sample data
  */

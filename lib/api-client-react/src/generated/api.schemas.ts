@@ -232,6 +232,68 @@ export interface SeedResult {
   monthlyActualsCreated?: number;
 }
 
+export interface CsvImport {
+  id: number;
+  filename: string;
+  status: string;
+  totalRows: number;
+  matchedRows: number;
+  unmatchedRows: number;
+  errorRows: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CsvImportRow {
+  id: number;
+  importId: number;
+  rowIndex: number;
+  /** @nullable */
+  rawCategory?: string | null;
+  /** @nullable */
+  rawLineItem?: string | null;
+  /** @nullable */
+  rawMonth?: number | null;
+  /** @nullable */
+  rawYear?: number | null;
+  /** @nullable */
+  rawAmount?: number | null;
+  /** @nullable */
+  rawInvoiceRef?: string | null;
+  status: string;
+  /** @nullable */
+  budgetLineId?: number | null;
+  /** @nullable */
+  errorMessage?: string | null;
+  /** @nullable */
+  rowHash?: string | null;
+  createdAt: string;
+}
+
+export interface CsvImportWithRows {
+  id: number;
+  filename: string;
+  status: string;
+  totalRows: number;
+  matchedRows: number;
+  unmatchedRows: number;
+  errorRows: number;
+  createdAt: string;
+  updatedAt: string;
+  rows: CsvImportRow[];
+}
+
+export interface AssignImportRowBody {
+  budgetLineId: number;
+}
+
+export interface ImportConfirmResult {
+  importId: number;
+  created: number;
+  skippedDuplicate: number;
+  skippedUnmatched: number;
+}
+
 export type GetDashboardSummaryParams = {
   year?: number;
 };

@@ -10,6 +10,7 @@ import eventsRouter from "./events";
 import dashboardRouter from "./dashboard";
 import chartsRouter from "./charts";
 import projectionsRouter from "./projections";
+import importsRouter from "./imports";
 import seedRouter from "./seed";
 
 const router: IRouter = Router();
@@ -25,6 +26,7 @@ router.use(monthlyActualsRouter);
 router.use(alertsRouter);
 router.use(alertsEngineRouter);
 router.use(eventsRouter);
+router.use(importsRouter);
 router.use(seedRouter);
 
 export default router;

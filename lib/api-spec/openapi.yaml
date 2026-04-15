@@ -498,6 +498,103 @@ paths:
                 items:
                   $ref: "#/components/schemas/BudgetLineWithMonthly"
 
+  /imports:
+    get:
+      operationId: listImports
+      tags: [imports]
+      summary: List CSV imports
+      responses:
+        "200":
+          description: List of imports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CsvImport"
+
+  /imports/upload:
+    post:
+      operationId: uploadCsvImport
+      tags: [imports]
+      summary: Upload and parse a CSV file of monthly actuals
+      responses:
+        "201":
+          description: Import created with matched/unmatched rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CsvImportWithRows"
+
+  /imports/{id}:
+    get:
+      operationId: getImport
+      tags: [imports]
+      summary: Get an import with its rows
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Import with rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CsvImportWithRows"
+        "404":
+          description: Not found
+
+  /imports/{id}/confirm:
+    post:
+      operationId: confirmImport
+      tags: [imports]
+      summary: Confirm import and create MonthlyActual records
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Confirmation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportConfirmResult"
+        "404":
+          description: Not found
+
+  /imports/rows/{id}/assign:
+    patch:
+      operationId: assignImportRow
+      tags: [imports]
+      summary: Assign an unmatched import row to a budget line
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignImportRowBody"
+      responses:
+        "200":
+          description: Updated row
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CsvImportRow"
+        "404":
+          description: Not found
+
   /seed:
     post:
       operationId: seedData
@@ -1011,3 +1108,140 @@ components:
       required:
         - success
         - message
+
+    CsvImport:
+      type: object
+      properties:
+        id:
+          type: integer
+        filename:
+          type: string
+        status:
+          type: string
+        totalRows:
+          type: integer
+        matchedRows:
+          type: integer
+        unmatchedRows:
+          type: integer
+        errorRows:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - filename
+        - status
+        - totalRows
+        - matchedRows
+        - unmatchedRows
+        - errorRows
+        - createdAt
+        - updatedAt
+
+    CsvImportRow:
+      type: object
+      properties:
+        id:
+          type: integer
+        importId:
+          type: integer
+        rowIndex:
+          type: integer
+        rawCategory:
+          type: ["string", "null"]
+        rawLineItem:
+          type: ["string", "null"]
+        rawMonth:
+          type: ["integer", "null"]
+        rawYear:
+          type: ["integer", "null"]
+        rawAmount:
+          type: ["number", "null"]
+        rawInvoiceRef:
+          type: ["string", "null"]
+        status:
+          type: string
+        budgetLineId:
+          type: ["integer", "null"]
+        errorMessage:
+          type: ["string", "null"]
+        rowHash:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - importId
+        - rowIndex
+        - status
+        - createdAt
+
+    CsvImportWithRows:
+      type: object
+      properties:
+        id:
+          type: integer
+        filename:
+          type: string
+        status:
+          type: string
+        totalRows:
+          type: integer
+        matchedRows:
+          type: integer
+        unmatchedRows:
+          type: integer
+        errorRows:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/CsvImportRow"
+      required:
+        - id
+        - filename
+        - status
+        - totalRows
+        - matchedRows
+        - unmatchedRows
+        - errorRows
+        - createdAt
+        - updatedAt
+        - rows
+
+    AssignImportRowBody:
+      type: object
+      properties:
+        budgetLineId:
+          type: integer
+      required:
+        - budgetLineId
+
+    ImportConfirmResult:
+      type: object
+      properties:
+        importId:
+          type: integer
+        created:
+          type: integer
+        skippedDuplicate:
+          type: integer
+        skippedUnmatched:
+          type: integer
+      required:
+        - importId
+        - created
+        - skippedDuplicate
+        - skippedUnmatched

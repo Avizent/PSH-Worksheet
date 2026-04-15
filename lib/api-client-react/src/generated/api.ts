@@ -19,12 +19,16 @@ import type {
 import type {
   Alert,
   AlertEvaluationResult,
+  AssignImportRowBody,
   BudgetLine,
   BudgetLineWithMonthly,
   CreateBudgetLineBody,
   CreateEventBody,
   CreateMonthlyActualBody,
   CreateMonthlyPlanBody,
+  CsvImport,
+  CsvImportRow,
+  CsvImportWithRows,
   DashboardCharts,
   DashboardSummary,
   EvaluateAlertsParams,
@@ -32,6 +36,7 @@ import type {
   GetDashboardSummaryParams,
   GetProjectionsParams,
   HealthStatus,
+  ImportConfirmResult,
   ListAlertsParams,
   ListBudgetLinesParams,
   ListBudgetLinesWithMonthlyParams,
@@ -2117,6 +2122,418 @@ export function useListBudgetLinesWithMonthly<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List CSV imports
+ */
+export const getListImportsUrl = () => {
+  return `/api/imports`;
+};
+
+export const listImports = async (
+  options?: RequestInit,
+): Promise<CsvImport[]> => {
+  return customFetch<CsvImport[]>(getListImportsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListImportsQueryKey = () => {
+  return [`/api/imports`] as const;
+};
+
+export const getListImportsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listImports>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listImports>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListImportsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listImports>>> = ({
+    signal,
+  }) => listImports({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listImports>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListImportsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listImports>>
+>;
+export type ListImportsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List CSV imports
+ */
+
+export function useListImports<
+  TData = Awaited<ReturnType<typeof listImports>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listImports>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListImportsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Upload and parse a CSV file of monthly actuals
+ */
+export const getUploadCsvImportUrl = () => {
+  return `/api/imports/upload`;
+};
+
+export const uploadCsvImport = async (
+  options?: RequestInit,
+): Promise<CsvImportWithRows> => {
+  return customFetch<CsvImportWithRows>(getUploadCsvImportUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getUploadCsvImportMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCsvImport>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadCsvImport>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["uploadCsvImport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadCsvImport>>,
+    void
+  > = () => {
+    return uploadCsvImport(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadCsvImportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadCsvImport>>
+>;
+
+export type UploadCsvImportMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Upload and parse a CSV file of monthly actuals
+ */
+export const useUploadCsvImport = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCsvImport>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadCsvImport>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getUploadCsvImportMutationOptions(options));
+};
+
+/**
+ * @summary Get an import with its rows
+ */
+export const getGetImportUrl = (id: number) => {
+  return `/api/imports/${id}`;
+};
+
+export const getImport = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CsvImportWithRows> => {
+  return customFetch<CsvImportWithRows>(getGetImportUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetImportQueryKey = (id: number) => {
+  return [`/api/imports/${id}`] as const;
+};
+
+export const getGetImportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getImport>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getImport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetImportQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getImport>>> = ({
+    signal,
+  }) => getImport(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getImport>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetImportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getImport>>
+>;
+export type GetImportQueryError = ErrorType<void>;
+
+/**
+ * @summary Get an import with its rows
+ */
+
+export function useGetImport<
+  TData = Awaited<ReturnType<typeof getImport>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getImport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetImportQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Confirm import and create MonthlyActual records
+ */
+export const getConfirmImportUrl = (id: number) => {
+  return `/api/imports/${id}/confirm`;
+};
+
+export const confirmImport = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ImportConfirmResult> => {
+  return customFetch<ImportConfirmResult>(getConfirmImportUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getConfirmImportMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmImport>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmImport>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["confirmImport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmImport>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return confirmImport(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmImportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmImport>>
+>;
+
+export type ConfirmImportMutationError = ErrorType<void>;
+
+/**
+ * @summary Confirm import and create MonthlyActual records
+ */
+export const useConfirmImport = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmImport>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof confirmImport>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getConfirmImportMutationOptions(options));
+};
+
+/**
+ * @summary Assign an unmatched import row to a budget line
+ */
+export const getAssignImportRowUrl = (id: number) => {
+  return `/api/imports/rows/${id}/assign`;
+};
+
+export const assignImportRow = async (
+  id: number,
+  assignImportRowBody: AssignImportRowBody,
+  options?: RequestInit,
+): Promise<CsvImportRow> => {
+  return customFetch<CsvImportRow>(getAssignImportRowUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(assignImportRowBody),
+  });
+};
+
+export const getAssignImportRowMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof assignImportRow>>,
+    TError,
+    { id: number; data: BodyType<AssignImportRowBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof assignImportRow>>,
+  TError,
+  { id: number; data: BodyType<AssignImportRowBody> },
+  TContext
+> => {
+  const mutationKey = ["assignImportRow"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof assignImportRow>>,
+    { id: number; data: BodyType<AssignImportRowBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return assignImportRow(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AssignImportRowMutationResult = NonNullable<
+  Awaited<ReturnType<typeof assignImportRow>>
+>;
+export type AssignImportRowMutationBody = BodyType<AssignImportRowBody>;
+export type AssignImportRowMutationError = ErrorType<void>;
+
+/**
+ * @summary Assign an unmatched import row to a budget line
+ */
+export const useAssignImportRow = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof assignImportRow>>,
+    TError,
+    { id: number; data: BodyType<AssignImportRowBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof assignImportRow>>,
+  TError,
+  { id: number; data: BodyType<AssignImportRowBody> },
+  TContext
+> => {
+  return useMutation(getAssignImportRowMutationOptions(options));
+};
 
 /**
  * Populates the database with sample marketing budget data for FY26

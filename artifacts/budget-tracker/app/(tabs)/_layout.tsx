@@ -29,6 +29,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "calendar", selected: "calendar" }} />
         <Label>Events</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="import">
+        <Icon sf={{ default: "square.and.arrow.up", selected: "square.and.arrow.up.fill" }} />
+        <Label>Import</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -120,6 +124,18 @@ function ClassicTabLayout() {
               <SymbolView name="calendar" tintColor={color} size={24} />
             ) : (
               <Feather name="calendar" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="import"
+        options={{
+          title: "Import",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="square.and.arrow.up" tintColor={color} size={24} />
+            ) : (
+              <Feather name="upload" size={22} color={color} />
             ),
         }}
       />
