@@ -252,6 +252,30 @@ async function buildBoardViewData(year: number) {
   };
 }
 
+function filterByVisibility(data: Awaited<ReturnType<typeof buildBoardViewData>>) {
+  const visible = new Set(data.visibleSections);
+  return {
+    summary: {
+      totalBudget: visible.has("kpi_total_budget") ? data.summary.totalBudget : 0,
+      spentYtd: visible.has("kpi_spent_ytd") ? data.summary.spentYtd : 0,
+      remaining: visible.has("kpi_remaining") ? data.summary.remaining : 0,
+      fixedRunRate: visible.has("kpi_fixed_run_rate") ? data.summary.fixedRunRate : 0,
+      activeAlerts: visible.has("section_alerts") ? data.summary.activeAlerts : 0,
+      budgetUtilisation: visible.has("kpi_spent_ytd") ? data.summary.budgetUtilisation : 0,
+      monthsElapsed: data.summary.monthsElapsed,
+      totalMonths: data.summary.totalMonths,
+    },
+    charts: {
+      monthly: visible.has("chart_plan_vs_actual") || visible.has("chart_cumulative") ? data.charts.monthly : [],
+      categories: visible.has("chart_categories") ? data.charts.categories : [],
+    },
+    alerts: visible.has("section_alerts") ? data.alerts : [],
+    events: visible.has("section_events") ? data.events : [],
+    projections: visible.has("chart_projections") ? data.projections : { year: data.projections.year, items: [] },
+    visibleSections: data.visibleSections,
+  };
+}
+
 async function validateToken(tokenStr: string): Promise<boolean> {
   const [tokenRow] = await db.select().from(shareTokensTable)
     .where(and(eq(shareTokensTable.token, tokenStr), eq(shareTokensTable.revoked, false)));
@@ -275,7 +299,8 @@ router.get("/board/view", asyncHandler(async (req, res): Promise<void> => {
   }
 
   const data = await buildBoardViewData(2026);
-  res.json(GetBoardViewResponse.parse(data));
+  const filtered = filterByVisibility(data);
+  res.json(GetBoardViewResponse.parse(filtered));
 }));
 
 router.get("/board/preview", asyncHandler(async (_req, res): Promise<void> => {
@@ -293,76 +318,132 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
   const data = await buildBoardViewData(2026);
   const visible = new Set(data.visibleSections);
 
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Hubert Marketing Budget - Board Report</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 40px; color: #1a1a2e; background: #fff; }
-  h1 { font-size: 24px; margin-bottom: 4px; }
-  .subtitle { color: #6b7280; font-size: 13px; margin-bottom: 24px; }
-  .kpi-row { display: flex; gap: 16px; margin-bottom: 24px; }
-  .kpi { flex: 1; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; }
-  .kpi-value { font-size: 22px; font-weight: 700; }
-  .kpi-label { font-size: 11px; color: #6b7280; text-transform: uppercase; margin-top: 4px; }
-  .section { margin-bottom: 20px; }
-  .section-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #f0f0f0; }
-  th { background: #f9fafb; font-weight: 600; }
-  .alert-row { padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
-  .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
-  .badge-critical { background: #fee2e2; color: #dc2626; }
-  .badge-warning { background: #fef3c7; color: #d97706; }
-  @media print { body { padding: 20px; } }
-</style></head><body>
-<h1>Hubert Marketing Budget</h1>
-<p class="subtitle">FY2026 Board Report \u2014 Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
+  const PDFDocument = (await import("pdfkit")).default;
+  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
 
-<div class="kpi-row">
-${visible.has("kpi_total_budget") ? `<div class="kpi"><div class="kpi-value">\u00a3${(data.summary.totalBudget / 1000000).toFixed(2)}M</div><div class="kpi-label">Total Budget</div></div>` : ""}
-${visible.has("kpi_spent_ytd") ? `<div class="kpi"><div class="kpi-value">\u00a3${(data.summary.spentYtd / 1000).toFixed(1)}k</div><div class="kpi-label">Spent YTD</div></div>` : ""}
-${visible.has("kpi_remaining") ? `<div class="kpi"><div class="kpi-value">\u00a3${(data.summary.remaining / 1000000).toFixed(2)}M</div><div class="kpi-label">Remaining</div></div>` : ""}
-${visible.has("kpi_fixed_run_rate") ? `<div class="kpi"><div class="kpi-value">\u00a3${(data.summary.fixedRunRate / 1000).toFixed(1)}k</div><div class="kpi-label">Fixed Run Rate /mo</div></div>` : ""}
-</div>
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'attachment; filename="hubert-board-report.pdf"');
+  doc.pipe(res);
 
-${visible.has("chart_plan_vs_actual") ? `
-<div class="section">
-  <div class="section-title">Plan vs Actual (Monthly)</div>
-  <table>
-    <tr><th>Month</th><th>Planned</th><th>Actual</th><th>Variance</th></tr>
-    ${data.charts.monthly.map(m => `<tr><td>${m.monthLabel}</td><td>\u00a3${Number(m.planned).toLocaleString("en-GB")}</td><td>\u00a3${Number(m.actual).toLocaleString("en-GB")}</td><td>${m.planned > 0 ? ((Number(m.actual) - Number(m.planned)) / Number(m.planned) * 100).toFixed(1) + "%" : "-"}</td></tr>`).join("\n    ")}
-  </table>
-</div>` : ""}
+  const fmt = (v: number) => {
+    if (Math.abs(v) >= 1000000) return "\u00a3" + (v / 1000000).toFixed(2) + "M";
+    if (Math.abs(v) >= 1000) return "\u00a3" + (v / 1000).toFixed(1) + "k";
+    return "\u00a3" + v.toFixed(0);
+  };
 
-${visible.has("chart_categories") ? `
-<div class="section">
-  <div class="section-title">Category Breakdown</div>
-  <table>
-    <tr><th>Category</th><th>Planned</th><th>Actual</th><th>Utilisation</th></tr>
-    ${data.charts.categories.map(c => `<tr><td>${c.category}</td><td>\u00a3${Number(c.planned).toLocaleString("en-GB")}</td><td>\u00a3${Number(c.actual).toLocaleString("en-GB")}</td><td>${Number(c.planned) > 0 ? ((Number(c.actual) / Number(c.planned)) * 100).toFixed(0) + "%" : "-"}</td></tr>`).join("\n    ")}
-  </table>
-</div>` : ""}
+  doc.fontSize(22).font("Helvetica-Bold").text("Hubert Marketing Budget", { align: "center" });
+  doc.moveDown(0.3);
+  doc.fontSize(11).font("Helvetica").fillColor("#6b7280")
+    .text(`FY2026 Board Report \u2014 Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, { align: "center" });
+  doc.moveDown(1);
+  doc.fillColor("#1a1a2e");
 
-${visible.has("section_alerts") ? `
-<div class="section">
-  <div class="section-title">Active Alerts (${data.alerts.length})</div>
-  ${data.alerts.map(a => `<div class="alert-row"><span class="badge ${a.severity === "critical" ? "badge-critical" : "badge-warning"}">${a.severity.toUpperCase()}</span> ${a.message}</div>`).join("\n  ")}
-</div>` : ""}
+  const kpis: { label: string; value: string; key: string }[] = [
+    { key: "kpi_total_budget", label: "TOTAL BUDGET", value: fmt(data.summary.totalBudget) },
+    { key: "kpi_spent_ytd", label: "SPENT YTD", value: fmt(data.summary.spentYtd) },
+    { key: "kpi_remaining", label: "REMAINING", value: fmt(data.summary.remaining) },
+    { key: "kpi_fixed_run_rate", label: "FIXED RUN RATE /MO", value: fmt(data.summary.fixedRunRate) },
+  ];
+  const visibleKpis = kpis.filter(k => visible.has(k.key));
+  if (visibleKpis.length > 0) {
+    const kpiW = (doc.page.width - 80 - (visibleKpis.length - 1) * 12) / visibleKpis.length;
+    const startY = doc.y;
+    visibleKpis.forEach((k, i) => {
+      const x = 40 + i * (kpiW + 12);
+      doc.rect(x, startY, kpiW, 50).lineWidth(0.5).strokeColor("#e5e7eb").stroke();
+      doc.fontSize(16).font("Helvetica-Bold").fillColor("#1a1a2e").text(k.value, x + 10, startY + 10, { width: kpiW - 20 });
+      doc.fontSize(8).font("Helvetica").fillColor("#6b7280").text(k.label, x + 10, startY + 32, { width: kpiW - 20 });
+    });
+    doc.y = startY + 60;
+    doc.fillColor("#1a1a2e");
+  }
 
-${visible.has("section_events") ? `
-<div class="section">
-  <div class="section-title">Marketing Events</div>
-  <table>
-    <tr><th>Event</th><th>Date</th><th>Status</th><th>Est. Cost</th></tr>
-    ${data.events.map(e => `<tr><td>${e.name}</td><td>${e.eventDate ? new Date(e.eventDate).toLocaleDateString("en-GB") : "-"}</td><td>${e.status}</td><td>${e.estimatedCost ? "\u00a3" + Number(e.estimatedCost).toLocaleString("en-GB") : "-"}</td></tr>`).join("\n    ")}
-  </table>
-</div>` : ""}
+  const drawTable = (headers: string[], rows: string[][], colWidths: number[]) => {
+    const tableX = 40;
+    const rowH = 18;
+    let y = doc.y;
+    doc.rect(tableX, y, colWidths.reduce((a, b) => a + b, 0), rowH).fill("#f3f4f6");
+    let cx = tableX;
+    headers.forEach((h, i) => {
+      doc.fontSize(8).font("Helvetica-Bold").fillColor("#374151").text(h, cx + 4, y + 5, { width: colWidths[i] - 8 });
+      cx += colWidths[i];
+    });
+    y += rowH;
+    for (const row of rows) {
+      if (y > doc.page.height - 60) { doc.addPage(); y = 40; }
+      cx = tableX;
+      row.forEach((cell, i) => {
+        doc.fontSize(8).font("Helvetica").fillColor("#1a1a2e").text(cell, cx + 4, y + 4, { width: colWidths[i] - 8 });
+        cx += colWidths[i];
+      });
+      doc.moveTo(tableX, y + rowH - 1).lineTo(tableX + colWidths.reduce((a, b) => a + b, 0), y + rowH - 1).strokeColor("#f0f0f0").lineWidth(0.5).stroke();
+      y += rowH;
+    }
+    doc.y = y + 8;
+  };
 
-</body></html>`;
+  if (visible.has("chart_plan_vs_actual")) {
+    doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text("Plan vs Actual (Monthly)");
+    doc.moveDown(0.3);
+    const colW = [80, 100, 100, 100, 135];
+    drawTable(
+      ["Month", "Planned", "Actual", "Variance", "Var %"],
+      data.charts.monthly.map(m => [
+        m.monthLabel,
+        fmt(Number(m.planned)),
+        fmt(Number(m.actual)),
+        fmt(Number(m.actual) - Number(m.planned)),
+        Number(m.planned) > 0 ? ((Number(m.actual) - Number(m.planned)) / Number(m.planned) * 100).toFixed(1) + "%" : "-",
+      ]),
+      colW,
+    );
+  }
 
-  res.setHeader("Content-Type", "text/html");
-  res.setHeader("Content-Disposition", 'attachment; filename="hubert-board-report.html"');
-  res.send(html);
+  if (visible.has("chart_categories")) {
+    doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text("Category Breakdown");
+    doc.moveDown(0.3);
+    drawTable(
+      ["Category", "Planned", "Actual", "Utilisation"],
+      data.charts.categories.map(c => [
+        c.category,
+        fmt(Number(c.planned)),
+        fmt(Number(c.actual)),
+        Number(c.planned) > 0 ? ((Number(c.actual) / Number(c.planned)) * 100).toFixed(0) + "%" : "-",
+      ]),
+      [160, 110, 110, 135],
+    );
+  }
+
+  if (visible.has("section_alerts") && data.alerts.length > 0) {
+    doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text(`Active Alerts (${data.alerts.length})`);
+    doc.moveDown(0.3);
+    for (const a of data.alerts) {
+      const sevColor = a.severity === "critical" ? "#dc2626" : "#d97706";
+      doc.fontSize(8).font("Helvetica-Bold").fillColor(sevColor).text(a.severity.toUpperCase(), { continued: true });
+      doc.font("Helvetica").fillColor("#1a1a2e").text("  " + a.message);
+      doc.moveDown(0.2);
+    }
+  }
+
+  if (visible.has("section_events") && data.events.length > 0) {
+    doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text("Marketing Events");
+    doc.moveDown(0.3);
+    drawTable(
+      ["Event", "Date", "Status", "Est. Cost"],
+      data.events.map(e => [
+        e.name,
+        e.eventDate ? new Date(e.eventDate).toLocaleDateString("en-GB") : "TBD",
+        e.status,
+        e.estimatedCost ? fmt(Number(e.estimatedCost)) : "-",
+      ]),
+      [180, 100, 90, 145],
+    );
+  }
+
+  doc.moveDown(1);
+  doc.fontSize(8).font("Helvetica").fillColor("#9ca3af").text("Hubert Marketing \u00b7 Confidential", { align: "center" });
+
+  doc.end();
 }));
 
 router.get("/exports/excel", asyncHandler(async (req, res): Promise<void> => {
@@ -379,38 +460,54 @@ router.get("/exports/excel", asyncHandler(async (req, res): Promise<void> => {
   const plans = await db.select().from(monthlyPlansTable).where(eq(monthlyPlansTable.year, 2026));
   const actuals = await db.select().from(monthlyActualsTable).where(eq(monthlyActualsTable.year, 2026));
 
+  const currentMonth = new Date().getMonth() + 1;
+
   const sheet = workbook.addWorksheet("FY2026 Budget Tracker");
 
-  const headerRow = ["Category", "Line Item", "Owner", "Cost Status"];
+  const headerRow = ["Category", "Line Item", "Owner", "Cost Status", "Projection %"];
   const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  for (const ml of monthLabels) { headerRow.push(`${ml} Plan`, `${ml} Actual`); }
-  headerRow.push("Total Plan", "Total Actual", "Variance");
+  for (const ml of monthLabels) { headerRow.push(`${ml} Plan`, `${ml} Actual`, `${ml} Projected`); }
+  headerRow.push("Total Plan", "Total Actual", "Total Projected", "Variance (Actual)", "Variance (Projected)");
 
   sheet.addRow(headerRow);
   const hRow = sheet.getRow(1);
-  hRow.font = { bold: true, size: 10 };
-  hRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1e3a5f" } };
   hRow.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+  hRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1e3a5f" } };
 
   for (const bl of budgetLines) {
-    const row: (string | number)[] = [bl.category, bl.lineItem, bl.owner || "", bl.costStatus];
-    let totalPlan = 0, totalActual = 0;
+    const blPlans = plans.filter(p => p.budgetLineId === bl.id);
+    const blActuals = actuals.filter(a => a.budgetLineId === bl.id);
+    const planMap = new Map(blPlans.map(p => [p.month, Number(p.plannedAmount)]));
+    const actualMap = new Map(blActuals.map(a => [a.month, Number(a.actualAmount)]));
+
+    let lastActual: number | null = null;
     for (let m = 1; m <= 12; m++) {
-      const p = plans.find(p => p.budgetLineId === bl.id && p.month === m);
-      const a = actuals.find(a => a.budgetLineId === bl.id && a.month === m);
-      const pv = p ? Number(p.plannedAmount) : 0;
-      const av = a ? Number(a.actualAmount) : 0;
+      if (actualMap.has(m)) lastActual = actualMap.get(m)!;
+    }
+
+    const row: (string | number)[] = [bl.category, bl.lineItem, bl.owner || "", bl.costStatus, bl.projectionPct || 0];
+    let totalPlan = 0, totalActual = 0, totalProjected = 0;
+    for (let m = 1; m <= 12; m++) {
+      const pv = planMap.get(m) || 0;
+      const av = actualMap.get(m) || 0;
+      let proj = 0;
+      if (bl.costStatus === "Fixed Cost" && m > currentMonth && lastActual !== null) {
+        proj = lastActual * (1 + (bl.projectionPct || 0) / 100);
+      } else if (actualMap.has(m)) {
+        proj = av;
+      }
       totalPlan += pv;
       totalActual += av;
-      row.push(pv, av);
+      totalProjected += proj;
+      row.push(pv, av, proj);
     }
-    row.push(totalPlan, totalActual, totalActual - totalPlan);
+    row.push(totalPlan, totalActual, totalProjected, totalActual - totalPlan, totalProjected - totalPlan);
     sheet.addRow(row);
   }
 
   for (let i = 1; i <= sheet.columnCount; i++) {
     const col = sheet.getColumn(i);
-    col.width = i <= 4 ? 18 : 12;
+    col.width = i <= 4 ? 18 : (i === 5 ? 12 : 11);
     if (i > 4) {
       col.numFmt = '#,##0';
     }
