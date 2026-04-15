@@ -294,6 +294,28 @@ function BoardContent() {
           </View>
         )}
 
+        {!isDesktop && (
+          <View style={styles.mobileExportSection}>
+            <Text style={[styles.mobileExportTitle, { color: colors.foreground }]}>Export Report</Text>
+            <View style={styles.mobileExportRow}>
+              <TouchableOpacity
+                onPress={handleExportPdf}
+                style={[styles.mobileExportButton, { backgroundColor: colors.foreground }]}
+              >
+                <Feather name="file-text" size={18} color="#fff" />
+                <Text style={styles.mobileExportButtonText}>Download PDF</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleExportExcel}
+                style={[styles.mobileExportButton, { backgroundColor: "#16a34a" }]}
+              >
+                <Feather name="download" size={18} color="#fff" />
+                <Text style={styles.mobileExportButtonText}>Download Excel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         <View style={{ height: 80 }} />
       </ScrollView>
     );
@@ -572,6 +594,35 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   eventName: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  mobileExportSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  mobileExportTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  mobileExportRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  mobileExportButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  mobileExportButtonText: {
+    color: "#fff",
     fontSize: 14,
     fontWeight: "600",
   },

@@ -310,9 +310,13 @@ router.get("/board/preview", asyncHandler(async (_req, res): Promise<void> => {
 
 router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
   const queryParsed = ExportPdfQueryParams.safeParse(req.query);
-  if (queryParsed.data?.token) {
-    const valid = await validateToken(queryParsed.data.token);
+  const hasToken = !!queryParsed.data?.token;
+  const isInternal = req.headers["x-requested-with"] === "budget-tracker" || req.headers.referer?.includes("/board");
+  if (hasToken) {
+    const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }
+  } else if (!isInternal) {
+    res.status(401).json({ error: "Authentication required" }); return;
   }
 
   const data = await buildBoardViewData(2026);
@@ -448,9 +452,13 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
 
 router.get("/exports/excel", asyncHandler(async (req, res): Promise<void> => {
   const queryParsed = ExportExcelQueryParams.safeParse(req.query);
-  if (queryParsed.data?.token) {
-    const valid = await validateToken(queryParsed.data.token);
+  const hasToken = !!queryParsed.data?.token;
+  const isInternal = req.headers["x-requested-with"] === "budget-tracker" || req.headers.referer?.includes("/board");
+  if (hasToken) {
+    const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }
+  } else if (!isInternal) {
+    res.status(401).json({ error: "Authentication required" }); return;
   }
 
   const ExcelJS = (await import("exceljs")).default;
