@@ -7,3 +7,5 @@ export * from "./events";
 export * from "./auditLogs";
 export * from "./csvImports";
 export * from "./csvImportRows";
+export * from "./boardSettings";
+export * from "./shareTokens";

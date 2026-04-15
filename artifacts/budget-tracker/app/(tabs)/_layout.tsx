@@ -33,6 +33,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "square.and.arrow.up", selected: "square.and.arrow.up.fill" }} />
         <Label>Import</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="board">
+        <Icon sf={{ default: "rectangle.on.rectangle", selected: "rectangle.on.rectangle.fill" }} />
+        <Label>Board</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -136,6 +140,18 @@ function ClassicTabLayout() {
               <SymbolView name="square.and.arrow.up" tintColor={color} size={24} />
             ) : (
               <Feather name="upload" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="board"
+        options={{
+          title: "Board",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="rectangle.on.rectangle" tintColor={color} size={24} />
+            ) : (
+              <Feather name="monitor" size={22} color={color} />
             ),
         }}
       />

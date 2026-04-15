@@ -17,6 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "alerts", label: "Alerts", icon: "bell", route: "/alerts" },
   { key: "events", label: "Events", icon: "calendar", route: "/events" },
   { key: "import", label: "Import", icon: "upload", route: "/import" },
+  { key: "board", label: "Board View", icon: "monitor", route: "/board" },
 ];
 
 interface DesktopSidebarProps {

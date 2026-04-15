@@ -22,6 +22,10 @@ tags:
     description: Budget alerts
   - name: events
     description: Marketing events
+  - name: board
+    description: Board view settings, tokens, and data
+  - name: exports
+    description: PDF and Excel exports
   - name: seed
     description: Data seeding
 paths:
@@ -594,6 +598,171 @@ paths:
                 $ref: "#/components/schemas/CsvImportRow"
         "404":
           description: Not found
+
+  /board/settings:
+    get:
+      operationId: listBoardSettings
+      tags: [board]
+      summary: List all board visibility settings
+      responses:
+        "200":
+          description: Board settings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BoardSetting"
+    put:
+      operationId: updateBoardSettings
+      tags: [board]
+      summary: Update board visibility settings (batch)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/UpdateBoardSettingBody"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BoardSetting"
+
+  /board/tokens:
+    get:
+      operationId: listShareTokens
+      tags: [board]
+      summary: List share tokens
+      responses:
+        "200":
+          description: Share tokens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShareToken"
+    post:
+      operationId: createShareToken
+      tags: [board]
+      summary: Create a new share token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShareTokenBody"
+      responses:
+        "201":
+          description: Created share token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareToken"
+
+  /board/tokens/{id}/revoke:
+    patch:
+      operationId: revokeShareToken
+      tags: [board]
+      summary: Revoke a share token
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Revoked token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareToken"
+        "404":
+          description: Not found
+
+  /board/view:
+    get:
+      operationId: getBoardView
+      tags: [board]
+      summary: Get the board view data (token-authenticated)
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Board view data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardViewData"
+        "401":
+          description: Invalid or expired token
+        "403":
+          description: Token revoked
+
+  /board/preview:
+    get:
+      operationId: getBoardPreview
+      tags: [board]
+      summary: Get the board preview data (VP Marketing - no token needed)
+      responses:
+        "200":
+          description: Board preview data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardViewData"
+
+  /exports/pdf:
+    get:
+      operationId: exportPdf
+      tags: [exports]
+      summary: Export board view as PDF
+      parameters:
+        - name: token
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PDF file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /exports/excel:
+    get:
+      operationId: exportExcel
+      tags: [exports]
+      summary: Export actuals and projections as Excel
+      parameters:
+        - name: token
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
 
   /seed:
     post:
@@ -1245,3 +1414,108 @@ components:
         - created
         - skippedDuplicate
         - skippedUnmatched
+
+    BoardSetting:
+      type: object
+      properties:
+        id:
+          type: integer
+        sectionKey:
+          type: string
+        label:
+          type: string
+        visible:
+          type: boolean
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - sectionKey
+        - label
+        - visible
+        - sortOrder
+        - createdAt
+        - updatedAt
+
+    UpdateBoardSettingBody:
+      type: object
+      properties:
+        sectionKey:
+          type: string
+        visible:
+          type: boolean
+      required:
+        - sectionKey
+        - visible
+
+    ShareToken:
+      type: object
+      properties:
+        id:
+          type: integer
+        token:
+          type: string
+        label:
+          type: string
+        expiresAt:
+          type: ["string", "null"]
+          format: date-time
+        revoked:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - token
+        - label
+        - revoked
+        - createdAt
+        - updatedAt
+
+    CreateShareTokenBody:
+      type: object
+      properties:
+        label:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    BoardViewData:
+      type: object
+      properties:
+        summary:
+          $ref: "#/components/schemas/DashboardSummary"
+        charts:
+          $ref: "#/components/schemas/DashboardCharts"
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alert"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/MarketingEvent"
+        projections:
+          $ref: "#/components/schemas/ProjectionData"
+        visibleSections:
+          type: array
+          items:
+            type: string
+      required:
+        - summary
+        - charts
+        - alerts
+        - events
+        - projections
+        - visibleSections

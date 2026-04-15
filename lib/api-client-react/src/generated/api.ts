@@ -20,18 +20,24 @@ import type {
   Alert,
   AlertEvaluationResult,
   AssignImportRowBody,
+  BoardSetting,
+  BoardViewData,
   BudgetLine,
   BudgetLineWithMonthly,
   CreateBudgetLineBody,
   CreateEventBody,
   CreateMonthlyActualBody,
   CreateMonthlyPlanBody,
+  CreateShareTokenBody,
   CsvImport,
   CsvImportRow,
   CsvImportWithRows,
   DashboardCharts,
   DashboardSummary,
   EvaluateAlertsParams,
+  ExportExcelParams,
+  ExportPdfParams,
+  GetBoardViewParams,
   GetDashboardChartsParams,
   GetDashboardSummaryParams,
   GetProjectionsParams,
@@ -47,6 +53,8 @@ import type {
   MonthlyPlan,
   ProjectionData,
   SeedResult,
+  ShareToken,
+  UpdateBoardSettingBody,
   UpdateBudgetLineBody,
   UpdateEventBody,
   UpdateMonthlyActualBody,
@@ -2534,6 +2542,771 @@ export const useAssignImportRow = <
 > => {
   return useMutation(getAssignImportRowMutationOptions(options));
 };
+
+/**
+ * @summary List all board visibility settings
+ */
+export const getListBoardSettingsUrl = () => {
+  return `/api/board/settings`;
+};
+
+export const listBoardSettings = async (
+  options?: RequestInit,
+): Promise<BoardSetting[]> => {
+  return customFetch<BoardSetting[]>(getListBoardSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBoardSettingsQueryKey = () => {
+  return [`/api/board/settings`] as const;
+};
+
+export const getListBoardSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBoardSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBoardSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBoardSettings>>
+  > = ({ signal }) => listBoardSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBoardSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBoardSettings>>
+>;
+export type ListBoardSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all board visibility settings
+ */
+
+export function useListBoardSettings<
+  TData = Awaited<ReturnType<typeof listBoardSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBoardSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update board visibility settings (batch)
+ */
+export const getUpdateBoardSettingsUrl = () => {
+  return `/api/board/settings`;
+};
+
+export const updateBoardSettings = async (
+  updateBoardSettingBody: UpdateBoardSettingBody[],
+  options?: RequestInit,
+): Promise<BoardSetting[]> => {
+  return customFetch<BoardSetting[]>(getUpdateBoardSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateBoardSettingBody),
+  });
+};
+
+export const getUpdateBoardSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBoardSettings>>,
+    TError,
+    { data: BodyType<UpdateBoardSettingBody[]> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBoardSettings>>,
+  TError,
+  { data: BodyType<UpdateBoardSettingBody[]> },
+  TContext
+> => {
+  const mutationKey = ["updateBoardSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBoardSettings>>,
+    { data: BodyType<UpdateBoardSettingBody[]> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateBoardSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBoardSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBoardSettings>>
+>;
+export type UpdateBoardSettingsMutationBody = BodyType<
+  UpdateBoardSettingBody[]
+>;
+export type UpdateBoardSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update board visibility settings (batch)
+ */
+export const useUpdateBoardSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBoardSettings>>,
+    TError,
+    { data: BodyType<UpdateBoardSettingBody[]> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBoardSettings>>,
+  TError,
+  { data: BodyType<UpdateBoardSettingBody[]> },
+  TContext
+> => {
+  return useMutation(getUpdateBoardSettingsMutationOptions(options));
+};
+
+/**
+ * @summary List share tokens
+ */
+export const getListShareTokensUrl = () => {
+  return `/api/board/tokens`;
+};
+
+export const listShareTokens = async (
+  options?: RequestInit,
+): Promise<ShareToken[]> => {
+  return customFetch<ShareToken[]>(getListShareTokensUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListShareTokensQueryKey = () => {
+  return [`/api/board/tokens`] as const;
+};
+
+export const getListShareTokensQueryOptions = <
+  TData = Awaited<ReturnType<typeof listShareTokens>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listShareTokens>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListShareTokensQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listShareTokens>>> = ({
+    signal,
+  }) => listShareTokens({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listShareTokens>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListShareTokensQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listShareTokens>>
+>;
+export type ListShareTokensQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List share tokens
+ */
+
+export function useListShareTokens<
+  TData = Awaited<ReturnType<typeof listShareTokens>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listShareTokens>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListShareTokensQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new share token
+ */
+export const getCreateShareTokenUrl = () => {
+  return `/api/board/tokens`;
+};
+
+export const createShareToken = async (
+  createShareTokenBody: CreateShareTokenBody,
+  options?: RequestInit,
+): Promise<ShareToken> => {
+  return customFetch<ShareToken>(getCreateShareTokenUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createShareTokenBody),
+  });
+};
+
+export const getCreateShareTokenMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createShareToken>>,
+    TError,
+    { data: BodyType<CreateShareTokenBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createShareToken>>,
+  TError,
+  { data: BodyType<CreateShareTokenBody> },
+  TContext
+> => {
+  const mutationKey = ["createShareToken"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createShareToken>>,
+    { data: BodyType<CreateShareTokenBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createShareToken(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateShareTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createShareToken>>
+>;
+export type CreateShareTokenMutationBody = BodyType<CreateShareTokenBody>;
+export type CreateShareTokenMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new share token
+ */
+export const useCreateShareToken = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createShareToken>>,
+    TError,
+    { data: BodyType<CreateShareTokenBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createShareToken>>,
+  TError,
+  { data: BodyType<CreateShareTokenBody> },
+  TContext
+> => {
+  return useMutation(getCreateShareTokenMutationOptions(options));
+};
+
+/**
+ * @summary Revoke a share token
+ */
+export const getRevokeShareTokenUrl = (id: number) => {
+  return `/api/board/tokens/${id}/revoke`;
+};
+
+export const revokeShareToken = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ShareToken> => {
+  return customFetch<ShareToken>(getRevokeShareTokenUrl(id), {
+    ...options,
+    method: "PATCH",
+  });
+};
+
+export const getRevokeShareTokenMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeShareToken>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeShareToken>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["revokeShareToken"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeShareToken>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return revokeShareToken(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeShareTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeShareToken>>
+>;
+
+export type RevokeShareTokenMutationError = ErrorType<void>;
+
+/**
+ * @summary Revoke a share token
+ */
+export const useRevokeShareToken = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeShareToken>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof revokeShareToken>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRevokeShareTokenMutationOptions(options));
+};
+
+/**
+ * @summary Get the board view data (token-authenticated)
+ */
+export const getGetBoardViewUrl = (params: GetBoardViewParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/board/view?${stringifiedParams}`
+    : `/api/board/view`;
+};
+
+export const getBoardView = async (
+  params: GetBoardViewParams,
+  options?: RequestInit,
+): Promise<BoardViewData> => {
+  return customFetch<BoardViewData>(getGetBoardViewUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBoardViewQueryKey = (params?: GetBoardViewParams) => {
+  return [`/api/board/view`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetBoardViewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBoardView>>,
+  TError = ErrorType<void>,
+>(
+  params: GetBoardViewParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBoardView>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBoardViewQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBoardView>>> = ({
+    signal,
+  }) => getBoardView(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardView>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBoardViewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBoardView>>
+>;
+export type GetBoardViewQueryError = ErrorType<void>;
+
+/**
+ * @summary Get the board view data (token-authenticated)
+ */
+
+export function useGetBoardView<
+  TData = Awaited<ReturnType<typeof getBoardView>>,
+  TError = ErrorType<void>,
+>(
+  params: GetBoardViewParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBoardView>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBoardViewQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the board preview data (VP Marketing - no token needed)
+ */
+export const getGetBoardPreviewUrl = () => {
+  return `/api/board/preview`;
+};
+
+export const getBoardPreview = async (
+  options?: RequestInit,
+): Promise<BoardViewData> => {
+  return customFetch<BoardViewData>(getGetBoardPreviewUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBoardPreviewQueryKey = () => {
+  return [`/api/board/preview`] as const;
+};
+
+export const getGetBoardPreviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBoardPreview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardPreview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBoardPreviewQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBoardPreview>>> = ({
+    signal,
+  }) => getBoardPreview({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardPreview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBoardPreviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBoardPreview>>
+>;
+export type GetBoardPreviewQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the board preview data (VP Marketing - no token needed)
+ */
+
+export function useGetBoardPreview<
+  TData = Awaited<ReturnType<typeof getBoardPreview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardPreview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBoardPreviewQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Export board view as PDF
+ */
+export const getExportPdfUrl = (params?: ExportPdfParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exports/pdf?${stringifiedParams}`
+    : `/api/exports/pdf`;
+};
+
+export const exportPdf = async (
+  params?: ExportPdfParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getExportPdfUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportPdfQueryKey = (params?: ExportPdfParams) => {
+  return [`/api/exports/pdf`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportPdfQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportPdf>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportPdfParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportPdf>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportPdfQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportPdf>>> = ({
+    signal,
+  }) => exportPdf(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportPdf>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportPdfQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportPdf>>
+>;
+export type ExportPdfQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Export board view as PDF
+ */
+
+export function useExportPdf<
+  TData = Awaited<ReturnType<typeof exportPdf>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportPdfParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportPdf>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportPdfQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Export actuals and projections as Excel
+ */
+export const getExportExcelUrl = (params?: ExportExcelParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exports/excel?${stringifiedParams}`
+    : `/api/exports/excel`;
+};
+
+export const exportExcel = async (
+  params?: ExportExcelParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getExportExcelUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportExcelQueryKey = (params?: ExportExcelParams) => {
+  return [`/api/exports/excel`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportExcelQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportExcel>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportExcelParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportExcel>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportExcelQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportExcel>>> = ({
+    signal,
+  }) => exportExcel(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportExcel>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportExcelQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportExcel>>
+>;
+export type ExportExcelQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Export actuals and projections as Excel
+ */
+
+export function useExportExcel<
+  TData = Awaited<ReturnType<typeof exportExcel>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportExcelParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportExcel>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportExcelQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Populates the database with sample marketing budget data for FY26

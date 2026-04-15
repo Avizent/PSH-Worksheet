@@ -294,6 +294,46 @@ export interface ImportConfirmResult {
   skippedUnmatched: number;
 }
 
+export interface BoardSetting {
+  id: number;
+  sectionKey: string;
+  label: string;
+  visible: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateBoardSettingBody {
+  sectionKey: string;
+  visible: boolean;
+}
+
+export interface ShareToken {
+  id: number;
+  token: string;
+  label: string;
+  /** @nullable */
+  expiresAt?: string | null;
+  revoked: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateShareTokenBody {
+  label?: string;
+  expiresAt?: string;
+}
+
+export interface BoardViewData {
+  summary: DashboardSummary;
+  charts: DashboardCharts;
+  alerts: Alert[];
+  events: MarketingEvent[];
+  projections: ProjectionData;
+  visibleSections: string[];
+}
+
 export type GetDashboardSummaryParams = {
   year?: number;
 };
@@ -331,4 +371,16 @@ export type EvaluateAlertsParams = {
 
 export type ListBudgetLinesWithMonthlyParams = {
   year?: number;
+};
+
+export type GetBoardViewParams = {
+  token: string;
+};
+
+export type ExportPdfParams = {
+  token?: string;
+};
+
+export type ExportExcelParams = {
+  token?: string;
 };

@@ -31,7 +31,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `artifacts/budget-tracker` — Expo app (port 25099, Expo dev domain)
 - `artifacts/mockup-sandbox` — Design sandbox
 
-### Database Schema (9 tables)
+### Database Schema (11 tables)
 - `users` — Auth-ready user table with role field
 - `budgetLines` — Budget line items with category, owner, region, cost status, `projectionPct` (real, default 0)
 - `monthlyPlans` — Monthly planned amounts per budget line
@@ -41,6 +41,8 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `auditLogs` — Change audit trail
 - `csvImports` — CSV import records (filename, status, row counts)
 - `csvImportRows` — Individual parsed CSV rows (raw data, match status, budget line assignment, row hash for idempotency)
+- `boardSettings` — Board visibility settings (sectionKey, label, visible toggle, sortOrder)
+- `shareTokens` — Shareable access tokens (token UUID, label, expiresAt, revoked flag)
 
 ### API Routes (mounted at `/api`)
 - `GET/POST /budget-lines` — CRUD budget lines
@@ -58,6 +60,15 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `GET /imports/:id` — Get import with all rows
 - `PATCH /imports/rows/:id/assign` — Assign unmatched row to a budget line
 - `POST /imports/:id/confirm` — Confirm import, create MonthlyActual records (idempotent by row hash)
+- `GET /board/settings` — List board visibility settings
+- `PUT /board/settings` — Update board visibility settings (batch toggle)
+- `GET /board/tokens` — List share tokens
+- `POST /board/tokens` — Create share token
+- `PATCH /board/tokens/:id/revoke` — Revoke share token
+- `GET /board/view?token=...` — Get board view data (token-authenticated)
+- `GET /board/preview` — Get board preview data (VP Marketing, no token)
+- `GET /exports/pdf` — Export board view as downloadable HTML report
+- `GET /exports/excel` — Export actuals + projections as Excel spreadsheet
 - `POST /seed` — Seed sample data (clears existing first)
 
 ### CSV Import Flow
@@ -108,7 +119,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 1. **Foundation** (COMPLETE) — DB schema, API, app shell with dual layout
 2. **Intelligence Layer** (COMPLETE) — Charts (bar/line/donut), projections engine, 6-type alert engine, projection editing
 3. **Actuals Integration** (COMPLETE) — CSV import with auto-matching, manual assignment, idempotent confirmation
-4. **Board View** (PENDING) — Shareable token link, per-item visibility controls, exports
+4. **Board View** (COMPLETE) — Board visibility settings, shareable token links, iPhone-optimized board view, PDF/Excel exports
 5. **Admin & Governance** (PENDING) — Reforecast, audit trail, admin settings
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

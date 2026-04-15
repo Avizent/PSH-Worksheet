@@ -577,6 +577,263 @@ export const AssignImportRowResponse = zod.object({
 });
 
 /**
+ * @summary List all board visibility settings
+ */
+export const ListBoardSettingsResponseItem = zod.object({
+  id: zod.number(),
+  sectionKey: zod.string(),
+  label: zod.string(),
+  visible: zod.boolean(),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListBoardSettingsResponse = zod.array(
+  ListBoardSettingsResponseItem,
+);
+
+/**
+ * @summary Update board visibility settings (batch)
+ */
+export const UpdateBoardSettingsBodyItem = zod.object({
+  sectionKey: zod.string(),
+  visible: zod.boolean(),
+});
+export const UpdateBoardSettingsBody = zod.array(UpdateBoardSettingsBodyItem);
+
+export const UpdateBoardSettingsResponseItem = zod.object({
+  id: zod.number(),
+  sectionKey: zod.string(),
+  label: zod.string(),
+  visible: zod.boolean(),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const UpdateBoardSettingsResponse = zod.array(
+  UpdateBoardSettingsResponseItem,
+);
+
+/**
+ * @summary List share tokens
+ */
+export const ListShareTokensResponseItem = zod.object({
+  id: zod.number(),
+  token: zod.string(),
+  label: zod.string(),
+  expiresAt: zod.coerce.date().nullish(),
+  revoked: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListShareTokensResponse = zod.array(ListShareTokensResponseItem);
+
+/**
+ * @summary Create a new share token
+ */
+export const CreateShareTokenBody = zod.object({
+  label: zod.string().optional(),
+  expiresAt: zod.coerce.date().optional(),
+});
+
+/**
+ * @summary Revoke a share token
+ */
+export const RevokeShareTokenParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RevokeShareTokenResponse = zod.object({
+  id: zod.number(),
+  token: zod.string(),
+  label: zod.string(),
+  expiresAt: zod.coerce.date().nullish(),
+  revoked: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Get the board view data (token-authenticated)
+ */
+export const GetBoardViewQueryParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetBoardViewResponse = zod.object({
+  summary: zod.object({
+    totalBudget: zod.number(),
+    spentYtd: zod.number(),
+    remaining: zod.number(),
+    fixedRunRate: zod.number(),
+    activeAlerts: zod.number(),
+    budgetUtilisation: zod.number(),
+    monthsElapsed: zod.number(),
+    totalMonths: zod.number(),
+  }),
+  charts: zod.object({
+    monthly: zod.array(
+      zod.object({
+        month: zod.number(),
+        monthLabel: zod.string(),
+        planned: zod.number(),
+        actual: zod.number(),
+        cumPlanned: zod.number(),
+        cumActual: zod.number(),
+      }),
+    ),
+    categories: zod.array(
+      zod.object({
+        category: zod.string(),
+        planned: zod.number(),
+        actual: zod.number(),
+      }),
+    ),
+  }),
+  alerts: zod.array(
+    zod.object({
+      id: zod.number(),
+      type: zod.string(),
+      severity: zod.string(),
+      message: zod.string(),
+      month: zod.number().nullish(),
+      year: zod.number().nullish(),
+      budgetLineId: zod.number().nullish(),
+      resolvedAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  events: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      eventDate: zod.coerce.date().nullish(),
+      status: zod.string(),
+      estimatedCost: zod.number().nullish(),
+      budgetLineId: zod.number().nullish(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+  projections: zod.object({
+    year: zod.number(),
+    items: zod.array(
+      zod.object({
+        budgetLineId: zod.number(),
+        lineItem: zod.string(),
+        category: zod.string(),
+        costStatus: zod.string(),
+        projectionPct: zod.number(),
+        months: zod.array(
+          zod.object({
+            month: zod.number(),
+            planned: zod.number(),
+            actual: zod.number().nullish(),
+            projected: zod.number().nullish(),
+          }),
+        ),
+      }),
+    ),
+  }),
+  visibleSections: zod.array(zod.string()),
+});
+
+/**
+ * @summary Get the board preview data (VP Marketing - no token needed)
+ */
+export const GetBoardPreviewResponse = zod.object({
+  summary: zod.object({
+    totalBudget: zod.number(),
+    spentYtd: zod.number(),
+    remaining: zod.number(),
+    fixedRunRate: zod.number(),
+    activeAlerts: zod.number(),
+    budgetUtilisation: zod.number(),
+    monthsElapsed: zod.number(),
+    totalMonths: zod.number(),
+  }),
+  charts: zod.object({
+    monthly: zod.array(
+      zod.object({
+        month: zod.number(),
+        monthLabel: zod.string(),
+        planned: zod.number(),
+        actual: zod.number(),
+        cumPlanned: zod.number(),
+        cumActual: zod.number(),
+      }),
+    ),
+    categories: zod.array(
+      zod.object({
+        category: zod.string(),
+        planned: zod.number(),
+        actual: zod.number(),
+      }),
+    ),
+  }),
+  alerts: zod.array(
+    zod.object({
+      id: zod.number(),
+      type: zod.string(),
+      severity: zod.string(),
+      message: zod.string(),
+      month: zod.number().nullish(),
+      year: zod.number().nullish(),
+      budgetLineId: zod.number().nullish(),
+      resolvedAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  events: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      eventDate: zod.coerce.date().nullish(),
+      status: zod.string(),
+      estimatedCost: zod.number().nullish(),
+      budgetLineId: zod.number().nullish(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+  projections: zod.object({
+    year: zod.number(),
+    items: zod.array(
+      zod.object({
+        budgetLineId: zod.number(),
+        lineItem: zod.string(),
+        category: zod.string(),
+        costStatus: zod.string(),
+        projectionPct: zod.number(),
+        months: zod.array(
+          zod.object({
+            month: zod.number(),
+            planned: zod.number(),
+            actual: zod.number().nullish(),
+            projected: zod.number().nullish(),
+          }),
+        ),
+      }),
+    ),
+  }),
+  visibleSections: zod.array(zod.string()),
+});
+
+/**
+ * @summary Export board view as PDF
+ */
+export const ExportPdfQueryParams = zod.object({
+  token: zod.coerce.string().optional(),
+});
+
+/**
+ * @summary Export actuals and projections as Excel
+ */
+export const ExportExcelQueryParams = zod.object({
+  token: zod.coerce.string().optional(),
+});
+
+/**
  * Populates the database with sample marketing budget data for FY26
  * @summary Seed budget data from sample data
  */

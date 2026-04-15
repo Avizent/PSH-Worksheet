@@ -11,6 +11,7 @@ import dashboardRouter from "./dashboard";
 import chartsRouter from "./charts";
 import projectionsRouter from "./projections";
 import importsRouter from "./imports";
+import boardRouter from "./board";
 import seedRouter from "./seed";
 
 const router: IRouter = Router();
@@ -27,6 +28,7 @@ router.use(alertsRouter);
 router.use(alertsEngineRouter);
 router.use(eventsRouter);
 router.use(importsRouter);
+router.use(boardRouter);
 router.use(seedRouter);
 
 export default router;
