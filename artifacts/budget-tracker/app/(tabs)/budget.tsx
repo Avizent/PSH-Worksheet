@@ -131,7 +131,7 @@ function BudgetContent() {
   if (isDesktop) {
     return (
       <View style={[styles.desktopContainer, { backgroundColor: colors.background }]}>
-        <DesktopSidebar activeTab="budget" onTabChange={() => {}} alertCount={(alerts || []).length} />
+        <DesktopSidebar alertCount={(alerts || []).length} />
         <View style={styles.desktopContent}>{content}</View>
       </View>
     );

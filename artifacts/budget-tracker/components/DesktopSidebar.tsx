@@ -1,29 +1,39 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useRouter, usePathname } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 
 interface NavItem {
   key: string;
   label: string;
   icon: keyof typeof Feather.glyphMap;
+  route: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: "dashboard", label: "Dashboard", icon: "bar-chart-2" },
-  { key: "budget", label: "Budget Lines", icon: "list" },
-  { key: "alerts", label: "Alerts", icon: "bell" },
-  { key: "events", label: "Events", icon: "calendar" },
+  { key: "dashboard", label: "Dashboard", icon: "bar-chart-2", route: "/" },
+  { key: "budget", label: "Budget Lines", icon: "list", route: "/budget" },
+  { key: "alerts", label: "Alerts", icon: "bell", route: "/alerts" },
+  { key: "events", label: "Events", icon: "calendar", route: "/events" },
 ];
 
 interface DesktopSidebarProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
   alertCount?: number;
 }
 
-export function DesktopSidebar({ activeTab, onTabChange, alertCount = 0 }: DesktopSidebarProps) {
+export function DesktopSidebar({ alertCount = 0 }: DesktopSidebarProps) {
   const colors = useColors();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const getActiveKey = (): string => {
+    if (pathname === "/" || pathname === "/index") return "dashboard";
+    const segment = pathname.replace(/^\//, "").split("/")[0];
+    return segment || "dashboard";
+  };
+
+  const activeKey = getActiveKey();
 
   return (
     <View style={[styles.sidebar, { backgroundColor: colors.card, borderRightColor: colors.border }]}>
@@ -37,11 +47,11 @@ export function DesktopSidebar({ activeTab, onTabChange, alertCount = 0 }: Deskt
 
       <View style={styles.nav}>
         {NAV_ITEMS.map((item) => {
-          const isActive = activeTab === item.key;
+          const isActive = activeKey === item.key;
           return (
             <TouchableOpacity
               key={item.key}
-              onPress={() => onTabChange(item.key)}
+              onPress={() => router.push(item.route as any)}
               style={[
                 styles.navItem,
                 isActive && { backgroundColor: colors.primary + "10" },

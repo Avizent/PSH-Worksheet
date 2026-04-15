@@ -134,7 +134,7 @@ function AlertsContent() {
   if (isDesktop) {
     return (
       <View style={[styles.desktopContainer, { backgroundColor: colors.background }]}>
-        <DesktopSidebar activeTab="alerts" onTabChange={() => {}} alertCount={(activeAlerts || []).length} />
+        <DesktopSidebar alertCount={(activeAlerts || []).length} />
         <View style={styles.desktopContent}>{content}</View>
       </View>
     );

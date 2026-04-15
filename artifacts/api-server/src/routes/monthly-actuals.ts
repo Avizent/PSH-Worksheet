@@ -5,6 +5,7 @@ import {
   CreateMonthlyActualBody,
   UpdateMonthlyActualBody,
   UpdateMonthlyActualParams,
+  ListMonthlyActualsQueryParams,
   ListMonthlyActualsResponse,
   ListMonthlyActualsResponseItem,
   UpdateMonthlyActualResponse,
@@ -14,12 +15,18 @@ import { asyncHandler } from "../middleware/asyncHandler";
 const router: IRouter = Router();
 
 router.get("/monthly-actuals", asyncHandler(async (req, res): Promise<void> => {
-  const conditions = [];
-  if (req.query.budgetLineId) {
-    conditions.push(eq(monthlyActualsTable.budgetLineId, Number(req.query.budgetLineId)));
+  const queryParsed = ListMonthlyActualsQueryParams.safeParse(req.query);
+  if (!queryParsed.success) {
+    res.status(400).json({ error: queryParsed.error.message });
+    return;
   }
-  if (req.query.year) {
-    conditions.push(eq(monthlyActualsTable.year, Number(req.query.year)));
+  const { budgetLineId, year } = queryParsed.data;
+  const conditions = [];
+  if (budgetLineId != null) {
+    conditions.push(eq(monthlyActualsTable.budgetLineId, budgetLineId));
+  }
+  if (year != null) {
+    conditions.push(eq(monthlyActualsTable.year, year));
   }
   const rows = conditions.length > 0
     ? await db.select().from(monthlyActualsTable).where(and(...conditions)).orderBy(monthlyActualsTable.month)

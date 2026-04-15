@@ -3,6 +3,7 @@ import { eq, isNull, isNotNull } from "drizzle-orm";
 import { db, alertsTable } from "@workspace/db";
 import {
   ResolveAlertParams,
+  ListAlertsQueryParams,
   ListAlertsResponse,
   ResolveAlertResponse,
 } from "@workspace/api-zod";
@@ -11,10 +12,16 @@ import { asyncHandler } from "../middleware/asyncHandler";
 const router: IRouter = Router();
 
 router.get("/alerts", asyncHandler(async (req, res): Promise<void> => {
+  const queryParsed = ListAlertsQueryParams.safeParse(req.query);
+  if (!queryParsed.success) {
+    res.status(400).json({ error: queryParsed.error.message });
+    return;
+  }
+  const { resolved } = queryParsed.data;
   let rows;
-  if (req.query.resolved === "true") {
+  if (resolved === true) {
     rows = await db.select().from(alertsTable).where(isNotNull(alertsTable.resolvedAt)).orderBy(alertsTable.createdAt);
-  } else if (req.query.resolved === "false") {
+  } else if (resolved === false) {
     rows = await db.select().from(alertsTable).where(isNull(alertsTable.resolvedAt)).orderBy(alertsTable.createdAt);
   } else {
     rows = await db.select().from(alertsTable).orderBy(alertsTable.createdAt);
