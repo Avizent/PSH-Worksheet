@@ -55,7 +55,7 @@ function DashboardContent() {
   };
 
   const handleSeed = () => {
-    seedMutation.mutate({ data: undefined as never }, {
+    seedMutation.mutate(undefined, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });

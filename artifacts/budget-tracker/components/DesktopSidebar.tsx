@@ -1,14 +1,14 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useRouter, usePathname } from "expo-router";
+import { useRouter, usePathname, type Href } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 
 interface NavItem {
   key: string;
   label: string;
   icon: keyof typeof Feather.glyphMap;
-  route: string;
+  route: Href;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -51,7 +51,7 @@ export function DesktopSidebar({ alertCount = 0 }: DesktopSidebarProps) {
           return (
             <TouchableOpacity
               key={item.key}
-              onPress={() => router.push(item.route as any)}
+              onPress={() => router.push(item.route)}
               style={[
                 styles.navItem,
                 isActive && { backgroundColor: colors.primary + "10" },
