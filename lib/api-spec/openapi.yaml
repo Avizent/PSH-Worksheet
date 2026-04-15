@@ -10,6 +10,20 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Dashboard summary
+  - name: budget-lines
+    description: Budget line items
+  - name: monthly-plans
+    description: Monthly plan amounts
+  - name: monthly-actuals
+    description: Monthly actual amounts
+  - name: alerts
+    description: Budget alerts
+  - name: events
+    description: Marketing events
+  - name: seed
+    description: Data seeding
 paths:
   /healthz:
     get:
@@ -24,6 +38,420 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard KPI summary
+      description: Returns aggregated KPI data for the budget dashboard
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 2026
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /budget-lines:
+    get:
+      operationId: listBudgetLines
+      tags: [budget-lines]
+      summary: List all budget lines
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: costStatus
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of budget lines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BudgetLine"
+    post:
+      operationId: createBudgetLine
+      tags: [budget-lines]
+      summary: Create a budget line
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBudgetLineBody"
+      responses:
+        "201":
+          description: Created budget line
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetLine"
+
+  /budget-lines/{id}:
+    get:
+      operationId: getBudgetLine
+      tags: [budget-lines]
+      summary: Get a budget line
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Budget line
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetLine"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateBudgetLine
+      tags: [budget-lines]
+      summary: Update a budget line
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBudgetLineBody"
+      responses:
+        "200":
+          description: Updated budget line
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetLine"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteBudgetLine
+      tags: [budget-lines]
+      summary: Delete a budget line
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /monthly-plans:
+    get:
+      operationId: listMonthlyPlans
+      tags: [monthly-plans]
+      summary: List monthly plans
+      parameters:
+        - name: budgetLineId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of monthly plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MonthlyPlan"
+    post:
+      operationId: createMonthlyPlan
+      tags: [monthly-plans]
+      summary: Create a monthly plan entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMonthlyPlanBody"
+      responses:
+        "201":
+          description: Created monthly plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyPlan"
+
+  /monthly-plans/{id}:
+    patch:
+      operationId: updateMonthlyPlan
+      tags: [monthly-plans]
+      summary: Update a monthly plan entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMonthlyPlanBody"
+      responses:
+        "200":
+          description: Updated monthly plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyPlan"
+        "404":
+          description: Not found
+
+  /monthly-actuals:
+    get:
+      operationId: listMonthlyActuals
+      tags: [monthly-actuals]
+      summary: List monthly actuals
+      parameters:
+        - name: budgetLineId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of monthly actuals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MonthlyActual"
+    post:
+      operationId: createMonthlyActual
+      tags: [monthly-actuals]
+      summary: Create a monthly actual entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMonthlyActualBody"
+      responses:
+        "201":
+          description: Created monthly actual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyActual"
+
+  /monthly-actuals/{id}:
+    patch:
+      operationId: updateMonthlyActual
+      tags: [monthly-actuals]
+      summary: Update a monthly actual entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMonthlyActualBody"
+      responses:
+        "200":
+          description: Updated monthly actual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyActual"
+        "404":
+          description: Not found
+
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [alerts]
+      summary: List alerts
+      parameters:
+        - name: resolved
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  /alerts/{id}/resolve:
+    patch:
+      operationId: resolveAlert
+      tags: [alerts]
+      summary: Resolve an alert
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resolved alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+        "404":
+          description: Not found
+
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: List marketing events
+      responses:
+        "200":
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketingEvent"
+    post:
+      operationId: createEvent
+      tags: [events]
+      summary: Create a marketing event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventBody"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketingEvent"
+
+  /events/{id}:
+    patch:
+      operationId: updateEvent
+      tags: [events]
+      summary: Update a marketing event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEventBody"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketingEvent"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteEvent
+      tags: [events]
+      summary: Delete a marketing event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /budget-lines/with-monthly:
+    get:
+      operationId: listBudgetLinesWithMonthly
+      tags: [budget-lines]
+      summary: List budget lines with their monthly plan and actual data
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 2026
+      responses:
+        "200":
+          description: Budget lines with monthly data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BudgetLineWithMonthly"
+
+  /seed:
+    post:
+      operationId: seedData
+      tags: [seed]
+      summary: Seed budget data from sample data
+      description: Populates the database with sample marketing budget data for FY26
+      responses:
+        "200":
+          description: Seed completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeedResult"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +462,354 @@ components:
       required:
         - status
 
+    DashboardSummary:
+      type: object
+      properties:
+        totalBudget:
+          type: number
+        spentYtd:
+          type: number
+        remaining:
+          type: number
+        fixedRunRate:
+          type: number
+        activeAlerts:
+          type: integer
+        budgetUtilisation:
+          type: number
+        monthsElapsed:
+          type: integer
+        totalMonths:
+          type: integer
+      required:
+        - totalBudget
+        - spentYtd
+        - remaining
+        - fixedRunRate
+        - activeAlerts
+        - budgetUtilisation
+        - monthsElapsed
+        - totalMonths
+
+    BudgetLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        subcategory:
+          type: ["string", "null"]
+        lineItem:
+          type: string
+        owner:
+          type: ["string", "null"]
+        region:
+          type: ["string", "null"]
+        costStatus:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - category
+        - lineItem
+        - costStatus
+        - createdAt
+        - updatedAt
+
+    CreateBudgetLineBody:
+      type: object
+      properties:
+        category:
+          type: string
+        subcategory:
+          type: string
+        lineItem:
+          type: string
+        owner:
+          type: string
+        region:
+          type: string
+        costStatus:
+          type: string
+      required:
+        - category
+        - lineItem
+        - costStatus
+
+    UpdateBudgetLineBody:
+      type: object
+      properties:
+        category:
+          type: string
+        subcategory:
+          type: string
+        lineItem:
+          type: string
+        owner:
+          type: string
+        region:
+          type: string
+        costStatus:
+          type: string
+
+    MonthlyPlan:
+      type: object
+      properties:
+        id:
+          type: integer
+        budgetLineId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        plannedAmount:
+          type: number
+        boardAmount:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - budgetLineId
+        - month
+        - year
+        - plannedAmount
+        - createdAt
+        - updatedAt
+
+    CreateMonthlyPlanBody:
+      type: object
+      properties:
+        budgetLineId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        plannedAmount:
+          type: number
+        boardAmount:
+          type: number
+      required:
+        - budgetLineId
+        - month
+        - year
+        - plannedAmount
+
+    UpdateMonthlyPlanBody:
+      type: object
+      properties:
+        plannedAmount:
+          type: number
+        boardAmount:
+          type: number
+
+    MonthlyActual:
+      type: object
+      properties:
+        id:
+          type: integer
+        budgetLineId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        actualAmount:
+          type: number
+        invoiceRef:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - budgetLineId
+        - month
+        - year
+        - actualAmount
+        - createdAt
+        - updatedAt
+
+    CreateMonthlyActualBody:
+      type: object
+      properties:
+        budgetLineId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        actualAmount:
+          type: number
+        invoiceRef:
+          type: string
+      required:
+        - budgetLineId
+        - month
+        - year
+        - actualAmount
+
+    UpdateMonthlyActualBody:
+      type: object
+      properties:
+        actualAmount:
+          type: number
+        invoiceRef:
+          type: string
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        severity:
+          type: string
+        message:
+          type: string
+        month:
+          type: ["integer", "null"]
+        year:
+          type: ["integer", "null"]
+        budgetLineId:
+          type: ["integer", "null"]
+        resolvedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - severity
+        - message
+        - createdAt
+
+    MarketingEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        eventDate:
+          type: ["string", "null"]
+          format: date-time
+        status:
+          type: string
+        estimatedCost:
+          type: ["number", "null"]
+        budgetLineId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateEventBody:
+      type: object
+      properties:
+        name:
+          type: string
+        eventDate:
+          type: string
+          format: date-time
+        status:
+          type: string
+        estimatedCost:
+          type: number
+        budgetLineId:
+          type: integer
+      required:
+        - name
+        - status
+
+    UpdateEventBody:
+      type: object
+      properties:
+        name:
+          type: string
+        eventDate:
+          type: string
+          format: date-time
+        status:
+          type: string
+        estimatedCost:
+          type: number
+        budgetLineId:
+          type: integer
+
+    BudgetLineWithMonthly:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        subcategory:
+          type: ["string", "null"]
+        lineItem:
+          type: string
+        owner:
+          type: ["string", "null"]
+        region:
+          type: ["string", "null"]
+        costStatus:
+          type: string
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyPlan"
+        actuals:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyActual"
+      required:
+        - id
+        - category
+        - lineItem
+        - costStatus
+        - plans
+        - actuals
+
+    SeedResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        budgetLinesCreated:
+          type: integer
+        monthlyPlansCreated:
+          type: integer
+        monthlyActualsCreated:
+          type: integer
+      required:
+        - success
+        - message

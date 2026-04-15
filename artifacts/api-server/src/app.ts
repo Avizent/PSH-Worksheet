@@ -31,4 +31,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
+import { errorHandler } from "./middleware/errorHandler";
+app.use(errorHandler);
+
 export default app;

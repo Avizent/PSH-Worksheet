@@ -8,3 +8,193 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface DashboardSummary {
+  totalBudget: number;
+  spentYtd: number;
+  remaining: number;
+  fixedRunRate: number;
+  activeAlerts: number;
+  budgetUtilisation: number;
+  monthsElapsed: number;
+  totalMonths: number;
+}
+
+export interface BudgetLine {
+  id: number;
+  category: string;
+  /** @nullable */
+  subcategory?: string | null;
+  lineItem: string;
+  /** @nullable */
+  owner?: string | null;
+  /** @nullable */
+  region?: string | null;
+  costStatus: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBudgetLineBody {
+  category: string;
+  subcategory?: string;
+  lineItem: string;
+  owner?: string;
+  region?: string;
+  costStatus: string;
+}
+
+export interface UpdateBudgetLineBody {
+  category?: string;
+  subcategory?: string;
+  lineItem?: string;
+  owner?: string;
+  region?: string;
+  costStatus?: string;
+}
+
+export interface MonthlyPlan {
+  id: number;
+  budgetLineId: number;
+  month: number;
+  year: number;
+  plannedAmount: number;
+  /** @nullable */
+  boardAmount?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMonthlyPlanBody {
+  budgetLineId: number;
+  month: number;
+  year: number;
+  plannedAmount: number;
+  boardAmount?: number;
+}
+
+export interface UpdateMonthlyPlanBody {
+  plannedAmount?: number;
+  boardAmount?: number;
+}
+
+export interface MonthlyActual {
+  id: number;
+  budgetLineId: number;
+  month: number;
+  year: number;
+  actualAmount: number;
+  /** @nullable */
+  invoiceRef?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMonthlyActualBody {
+  budgetLineId: number;
+  month: number;
+  year: number;
+  actualAmount: number;
+  invoiceRef?: string;
+}
+
+export interface UpdateMonthlyActualBody {
+  actualAmount?: number;
+  invoiceRef?: string;
+}
+
+export interface Alert {
+  id: number;
+  type: string;
+  severity: string;
+  message: string;
+  /** @nullable */
+  month?: number | null;
+  /** @nullable */
+  year?: number | null;
+  /** @nullable */
+  budgetLineId?: number | null;
+  /** @nullable */
+  resolvedAt?: string | null;
+  createdAt: string;
+}
+
+export interface MarketingEvent {
+  id: number;
+  name: string;
+  /** @nullable */
+  eventDate?: string | null;
+  status: string;
+  /** @nullable */
+  estimatedCost?: number | null;
+  /** @nullable */
+  budgetLineId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEventBody {
+  name: string;
+  eventDate?: string;
+  status: string;
+  estimatedCost?: number;
+  budgetLineId?: number;
+}
+
+export interface UpdateEventBody {
+  name?: string;
+  eventDate?: string;
+  status?: string;
+  estimatedCost?: number;
+  budgetLineId?: number;
+}
+
+export interface BudgetLineWithMonthly {
+  id: number;
+  category: string;
+  /** @nullable */
+  subcategory?: string | null;
+  lineItem: string;
+  /** @nullable */
+  owner?: string | null;
+  /** @nullable */
+  region?: string | null;
+  costStatus: string;
+  plans: MonthlyPlan[];
+  actuals: MonthlyActual[];
+}
+
+export interface SeedResult {
+  success: boolean;
+  message: string;
+  budgetLinesCreated?: number;
+  monthlyPlansCreated?: number;
+  monthlyActualsCreated?: number;
+}
+
+export type GetDashboardSummaryParams = {
+  year?: number;
+};
+
+export type ListBudgetLinesParams = {
+  category?: string;
+  costStatus?: string;
+};
+
+export type ListMonthlyPlansParams = {
+  budgetLineId?: number;
+  year?: number;
+};
+
+export type ListMonthlyActualsParams = {
+  budgetLineId?: number;
+  year?: number;
+};
+
+export type ListAlertsParams = {
+  resolved?: boolean;
+};
+
+export type ListBudgetLinesWithMonthlyParams = {
+  year?: number;
+};

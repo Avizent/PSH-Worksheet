@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "tfHab-pEorD_bQ_rsgKsF"
+uri = "file://artifacts/budget-tracker/assets/images/icon.png"
+type = "image"
+title = "generated_image"

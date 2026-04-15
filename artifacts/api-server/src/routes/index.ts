@@ -1,8 +1,24 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import budgetLinesRouter from "./budget-lines";
+import budgetLinesWithMonthlyRouter from "./budget-lines-with-monthly";
+import monthlyPlansRouter from "./monthly-plans";
+import monthlyActualsRouter from "./monthly-actuals";
+import alertsRouter from "./alerts";
+import eventsRouter from "./events";
+import dashboardRouter from "./dashboard";
+import seedRouter from "./seed";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(dashboardRouter);
+router.use(budgetLinesWithMonthlyRouter);
+router.use(budgetLinesRouter);
+router.use(monthlyPlansRouter);
+router.use(monthlyActualsRouter);
+router.use(alertsRouter);
+router.use(eventsRouter);
+router.use(seedRouter);
 
 export default router;

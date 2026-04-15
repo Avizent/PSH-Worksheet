@@ -14,3 +14,377 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Returns aggregated KPI data for the budget dashboard
+ * @summary Get dashboard KPI summary
+ */
+export const getDashboardSummaryQueryYearDefault = 2026;
+
+export const GetDashboardSummaryQueryParams = zod.object({
+  year: zod.coerce.number().default(getDashboardSummaryQueryYearDefault),
+});
+
+export const GetDashboardSummaryResponse = zod.object({
+  totalBudget: zod.number(),
+  spentYtd: zod.number(),
+  remaining: zod.number(),
+  fixedRunRate: zod.number(),
+  activeAlerts: zod.number(),
+  budgetUtilisation: zod.number(),
+  monthsElapsed: zod.number(),
+  totalMonths: zod.number(),
+});
+
+/**
+ * @summary List all budget lines
+ */
+export const ListBudgetLinesQueryParams = zod.object({
+  category: zod.coerce.string().optional(),
+  costStatus: zod.coerce.string().optional(),
+});
+
+export const ListBudgetLinesResponseItem = zod.object({
+  id: zod.number(),
+  category: zod.string(),
+  subcategory: zod.string().nullish(),
+  lineItem: zod.string(),
+  owner: zod.string().nullish(),
+  region: zod.string().nullish(),
+  costStatus: zod.string(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListBudgetLinesResponse = zod.array(ListBudgetLinesResponseItem);
+
+/**
+ * @summary Create a budget line
+ */
+export const CreateBudgetLineBody = zod.object({
+  category: zod.string(),
+  subcategory: zod.string().optional(),
+  lineItem: zod.string(),
+  owner: zod.string().optional(),
+  region: zod.string().optional(),
+  costStatus: zod.string(),
+});
+
+/**
+ * @summary Get a budget line
+ */
+export const GetBudgetLineParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetBudgetLineResponse = zod.object({
+  id: zod.number(),
+  category: zod.string(),
+  subcategory: zod.string().nullish(),
+  lineItem: zod.string(),
+  owner: zod.string().nullish(),
+  region: zod.string().nullish(),
+  costStatus: zod.string(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Update a budget line
+ */
+export const UpdateBudgetLineParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateBudgetLineBody = zod.object({
+  category: zod.string().optional(),
+  subcategory: zod.string().optional(),
+  lineItem: zod.string().optional(),
+  owner: zod.string().optional(),
+  region: zod.string().optional(),
+  costStatus: zod.string().optional(),
+});
+
+export const UpdateBudgetLineResponse = zod.object({
+  id: zod.number(),
+  category: zod.string(),
+  subcategory: zod.string().nullish(),
+  lineItem: zod.string(),
+  owner: zod.string().nullish(),
+  region: zod.string().nullish(),
+  costStatus: zod.string(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a budget line
+ */
+export const DeleteBudgetLineParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List monthly plans
+ */
+export const ListMonthlyPlansQueryParams = zod.object({
+  budgetLineId: zod.coerce.number().optional(),
+  year: zod.coerce.number().optional(),
+});
+
+export const ListMonthlyPlansResponseItem = zod.object({
+  id: zod.number(),
+  budgetLineId: zod.number(),
+  month: zod.number(),
+  year: zod.number(),
+  plannedAmount: zod.number(),
+  boardAmount: zod.number().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListMonthlyPlansResponse = zod.array(ListMonthlyPlansResponseItem);
+
+/**
+ * @summary Create a monthly plan entry
+ */
+export const CreateMonthlyPlanBody = zod.object({
+  budgetLineId: zod.number(),
+  month: zod.number(),
+  year: zod.number(),
+  plannedAmount: zod.number(),
+  boardAmount: zod.number().optional(),
+});
+
+/**
+ * @summary Update a monthly plan entry
+ */
+export const UpdateMonthlyPlanParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateMonthlyPlanBody = zod.object({
+  plannedAmount: zod.number().optional(),
+  boardAmount: zod.number().optional(),
+});
+
+export const UpdateMonthlyPlanResponse = zod.object({
+  id: zod.number(),
+  budgetLineId: zod.number(),
+  month: zod.number(),
+  year: zod.number(),
+  plannedAmount: zod.number(),
+  boardAmount: zod.number().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List monthly actuals
+ */
+export const ListMonthlyActualsQueryParams = zod.object({
+  budgetLineId: zod.coerce.number().optional(),
+  year: zod.coerce.number().optional(),
+});
+
+export const ListMonthlyActualsResponseItem = zod.object({
+  id: zod.number(),
+  budgetLineId: zod.number(),
+  month: zod.number(),
+  year: zod.number(),
+  actualAmount: zod.number(),
+  invoiceRef: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListMonthlyActualsResponse = zod.array(
+  ListMonthlyActualsResponseItem,
+);
+
+/**
+ * @summary Create a monthly actual entry
+ */
+export const CreateMonthlyActualBody = zod.object({
+  budgetLineId: zod.number(),
+  month: zod.number(),
+  year: zod.number(),
+  actualAmount: zod.number(),
+  invoiceRef: zod.string().optional(),
+});
+
+/**
+ * @summary Update a monthly actual entry
+ */
+export const UpdateMonthlyActualParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateMonthlyActualBody = zod.object({
+  actualAmount: zod.number().optional(),
+  invoiceRef: zod.string().optional(),
+});
+
+export const UpdateMonthlyActualResponse = zod.object({
+  id: zod.number(),
+  budgetLineId: zod.number(),
+  month: zod.number(),
+  year: zod.number(),
+  actualAmount: zod.number(),
+  invoiceRef: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List alerts
+ */
+export const ListAlertsQueryParams = zod.object({
+  resolved: zod.coerce.boolean().optional(),
+});
+
+export const ListAlertsResponseItem = zod.object({
+  id: zod.number(),
+  type: zod.string(),
+  severity: zod.string(),
+  message: zod.string(),
+  month: zod.number().nullish(),
+  year: zod.number().nullish(),
+  budgetLineId: zod.number().nullish(),
+  resolvedAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+});
+export const ListAlertsResponse = zod.array(ListAlertsResponseItem);
+
+/**
+ * @summary Resolve an alert
+ */
+export const ResolveAlertParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ResolveAlertResponse = zod.object({
+  id: zod.number(),
+  type: zod.string(),
+  severity: zod.string(),
+  message: zod.string(),
+  month: zod.number().nullish(),
+  year: zod.number().nullish(),
+  budgetLineId: zod.number().nullish(),
+  resolvedAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List marketing events
+ */
+export const ListEventsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  eventDate: zod.coerce.date().nullish(),
+  status: zod.string(),
+  estimatedCost: zod.number().nullish(),
+  budgetLineId: zod.number().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListEventsResponse = zod.array(ListEventsResponseItem);
+
+/**
+ * @summary Create a marketing event
+ */
+export const CreateEventBody = zod.object({
+  name: zod.string(),
+  eventDate: zod.coerce.date().optional(),
+  status: zod.string(),
+  estimatedCost: zod.number().optional(),
+  budgetLineId: zod.number().optional(),
+});
+
+/**
+ * @summary Update a marketing event
+ */
+export const UpdateEventParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateEventBody = zod.object({
+  name: zod.string().optional(),
+  eventDate: zod.coerce.date().optional(),
+  status: zod.string().optional(),
+  estimatedCost: zod.number().optional(),
+  budgetLineId: zod.number().optional(),
+});
+
+export const UpdateEventResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  eventDate: zod.coerce.date().nullish(),
+  status: zod.string(),
+  estimatedCost: zod.number().nullish(),
+  budgetLineId: zod.number().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a marketing event
+ */
+export const DeleteEventParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List budget lines with their monthly plan and actual data
+ */
+export const listBudgetLinesWithMonthlyQueryYearDefault = 2026;
+
+export const ListBudgetLinesWithMonthlyQueryParams = zod.object({
+  year: zod.coerce.number().default(listBudgetLinesWithMonthlyQueryYearDefault),
+});
+
+export const ListBudgetLinesWithMonthlyResponseItem = zod.object({
+  id: zod.number(),
+  category: zod.string(),
+  subcategory: zod.string().nullish(),
+  lineItem: zod.string(),
+  owner: zod.string().nullish(),
+  region: zod.string().nullish(),
+  costStatus: zod.string(),
+  plans: zod.array(
+    zod.object({
+      id: zod.number(),
+      budgetLineId: zod.number(),
+      month: zod.number(),
+      year: zod.number(),
+      plannedAmount: zod.number(),
+      boardAmount: zod.number().nullish(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+  actuals: zod.array(
+    zod.object({
+      id: zod.number(),
+      budgetLineId: zod.number(),
+      month: zod.number(),
+      year: zod.number(),
+      actualAmount: zod.number(),
+      invoiceRef: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+});
+export const ListBudgetLinesWithMonthlyResponse = zod.array(
+  ListBudgetLinesWithMonthlyResponseItem,
+);
+
+/**
+ * Populates the database with sample marketing budget data for FY26
+ * @summary Seed budget data from sample data
+ */
+export const SeedDataResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+  budgetLinesCreated: zod.number().optional(),
+  monthlyPlansCreated: zod.number().optional(),
+  monthlyActualsCreated: zod.number().optional(),
+});
