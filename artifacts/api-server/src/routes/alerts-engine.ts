@@ -80,11 +80,14 @@ router.post("/alerts/evaluate", asyncHandler(async (req, res): Promise<void> => 
     const totalActual = lineActuals.reduce((s, a) => s + Number(a.actualAmount), 0);
     const remaining = totalPlan - totalActual;
 
-    if (totalPlan > 0 && remaining / totalPlan < 0.15 && remaining > 0) {
+    if (totalPlan > 0 && remaining / totalPlan < 0.15) {
+      const pctRemaining = Math.round((remaining / totalPlan) * 100);
       candidates.push({
         type: "budget_exhaustion",
         severity: "critical",
-        message: `${line.lineItem}: only ${Math.round((remaining / totalPlan) * 100)}% budget remaining`,
+        message: remaining <= 0
+          ? `${line.lineItem}: budget fully exhausted (${pctRemaining}% remaining)`
+          : `${line.lineItem}: only ${pctRemaining}% budget remaining`,
         month: null,
         year,
         budgetLineId: line.id,
