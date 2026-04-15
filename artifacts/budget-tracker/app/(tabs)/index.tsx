@@ -1,6 +1,8 @@
 import React, { useState, useRef } from "react";
 import { View, ScrollView, StyleSheet, Platform, ActivityIndicator, RefreshControl, useWindowDimensions, Text, TouchableOpacity, FlatList } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { KpiCard } from "@/components/KpiCard";
@@ -21,6 +23,7 @@ import {
   useGetDashboardCharts,
   useGetProjections,
   useListEvents,
+  useListImports,
   useResolveAlert,
   useSeedData,
   useEvaluateAlerts,
@@ -55,6 +58,7 @@ function DashboardContent() {
   const isWeb = Platform.OS === "web";
   const { width: windowWidth } = useWindowDimensions();
 
+  const router = useRouter();
   const [extraTab, setExtraTab] = useState<ExtraChartTab>("Projections");
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
 
@@ -64,6 +68,7 @@ function DashboardContent() {
   const { data: charts, refetch: refetchCharts } = useGetDashboardCharts();
   const { data: projections } = useGetProjections();
   const { data: events } = useListEvents();
+  const { data: imports } = useListImports();
 
   const seedMutation = useSeedData();
   const evaluateAlertsMutation = useEvaluateAlerts();
@@ -320,6 +325,39 @@ function DashboardContent() {
             </View>
           )}
 
+          {!isDesktop && imports && imports.length > 0 && (() => {
+            const pendingImports = imports.filter((i: { status: string }) => i.status !== "confirmed");
+            const latestImport = imports[imports.length - 1] as { filename: string; status: string; totalRows: number; matchedRows: number; unmatchedRows: number; createdAt: string };
+            return (
+              <View style={styles.section}>
+                <SectionHeader title="Recent Imports" subtitle={pendingImports.length > 0 ? `${pendingImports.length} pending` : "All confirmed"} />
+                <TouchableOpacity
+                  onPress={() => router.push("/import")}
+                  style={[styles.importStatusCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <View style={[styles.importIcon, { backgroundColor: colors.primary + "15" }]}>
+                        <Feather name="upload-cloud" size={18} color={colors.primary} />
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: colors.foreground }}>{latestImport.filename}</Text>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
+                          {latestImport.matchedRows}/{latestImport.totalRows} matched
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.importBadge, { backgroundColor: latestImport.status === "confirmed" ? "#dcfce7" : "#fef3c7" }]}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: latestImport.status === "confirmed" ? "#16a34a" : "#d97706" }}>
+                        {latestImport.status === "confirmed" ? "Confirmed" : "Pending"}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            );
+          })()}
+
           {isDesktop && (
             <View style={styles.section}>
               <SectionHeader title="Budget Lines" subtitle={`${tableData.length} line items`} />
@@ -413,5 +451,23 @@ const styles = StyleSheet.create({
   },
   desktopContent: {
     flex: 1,
+  },
+  importStatusCard: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  importIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  importBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
 });

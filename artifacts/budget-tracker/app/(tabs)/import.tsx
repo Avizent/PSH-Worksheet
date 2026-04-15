@@ -131,8 +131,8 @@ function ImportContent() {
       const result: CsvImportType = await response.json();
       setActiveImportId(result.id);
       queryClient.invalidateQueries({ queryKey: getListImportsQueryKey() });
-    } catch (e: any) {
-      alert("Upload error: " + e.message);
+    } catch (e: unknown) {
+      alert("Upload error: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setUploading(false);
     }
@@ -155,24 +155,24 @@ function ImportContent() {
         const file = new File([blob], asset.name || "import.csv", { type: "text/csv" });
         uploadFile(file);
       }
-    } catch (e: any) {
-      alert("Error picking file: " + e.message);
+    } catch (e: unknown) {
+      alert("Error picking file: " + (e instanceof Error ? e.message : String(e)));
     }
   };
 
-  const handleFileChange = (e: any) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target?.files?.[0];
     if (file) uploadFile(file);
   };
 
-  const handleDrop = (e: any) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer?.files?.[0];
     if (file) uploadFile(file);
   };
 
-  const handleDragOver = (e: any) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragOver(true);
   };
@@ -240,7 +240,7 @@ function ImportContent() {
     <View style={{ marginBottom: 24 }}>
       {Platform.OS === "web" && (
         <input
-          ref={fileInputRef as any}
+          ref={fileInputRef as React.RefObject<HTMLInputElement>}
           type="file"
           accept=".csv"
           style={{ display: "none" }}
@@ -258,11 +258,11 @@ function ImportContent() {
           },
         ]}
         {...(Platform.OS === "web"
-          ? {
+          ? ({
               onDrop: handleDrop,
               onDragOver: handleDragOver,
               onDragLeave: handleDragLeave,
-            } as any
+            } as Record<string, unknown>)
           : {})}
       >
         {uploading ? (
