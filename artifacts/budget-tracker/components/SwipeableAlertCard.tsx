@@ -55,22 +55,23 @@ export function SwipeableAlertCard({ type, severity, message, onResolve, resolve
   return (
     <View style={styles.wrapper}>
       <View style={[styles.resolveAction, { backgroundColor: colors.success }]}>
-        <Feather name="check" size={20} color="#fff" />
+        <Feather name="check" size={16} color="#fff" />
         <Text style={styles.resolveText}>Resolve</Text>
       </View>
       <Animated.View
         style={[
           styles.card,
-          { backgroundColor: config.bg, borderRadius: colors.radius, opacity: resolved ? 0.5 : 1 },
+          { backgroundColor: colors.card, borderRadius: colors.radius, opacity: resolved ? 0.5 : 1 },
           { transform: [{ translateX }] },
         ]}
         {...panResponder.panHandlers}
       >
+        <View style={[styles.tint, { backgroundColor: config.bg, borderRadius: colors.radius }]} />
         <View style={styles.content}>
           <Feather name={config.icon} size={18} color={config.color} style={styles.icon} />
           <View style={styles.textContainer}>
             <Text style={[styles.type, { color: config.color }]}>{type}</Text>
-            <Text style={[styles.message, { color: colors.foreground }]}>{message}</Text>
+            <Text style={[styles.message, { color: colors.foreground }]} numberOfLines={2}>{message}</Text>
           </View>
         </View>
       </Animated.View>
@@ -90,16 +91,16 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    width: 100,
+    width: 72,
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row",
-    gap: 4,
+    flexDirection: "column",
+    gap: 2,
     borderRadius: 8,
   },
   resolveText: {
     color: "#fff",
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: "Inter_600SemiBold",
   },
   card: {
@@ -107,6 +108,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     padding: 14,
+    overflow: "hidden",
+  },
+  tint: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   content: {
     flexDirection: "row",
