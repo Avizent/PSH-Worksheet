@@ -141,6 +141,114 @@ export const DeleteBudgetLineParams = zod.object({
 });
 
 /**
+ * @summary List distinct categories used by budget lines
+ */
+export const ListBudgetLineCategoriesResponseItem = zod.string();
+export const ListBudgetLineCategoriesResponse = zod.array(
+  ListBudgetLineCategoriesResponseItem,
+);
+
+/**
+ * @summary Upsert a monthly plan amount for a budget line by month/year
+ */
+export const UpsertMonthlyPlanByLineParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpsertMonthlyPlanByLineBody = zod.object({
+  month: zod.number(),
+  year: zod.number(),
+  plannedAmount: zod.number(),
+});
+
+export const UpsertMonthlyPlanByLineResponse = zod.object({
+  id: zod.number(),
+  budgetLineId: zod.number(),
+  month: zod.number(),
+  year: zod.number(),
+  plannedAmount: zod.number(),
+  boardAmount: zod.number().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Upsert a monthly actual amount for a budget line by month/year
+ */
+export const UpsertMonthlyActualByLineParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpsertMonthlyActualByLineBody = zod.object({
+  month: zod.number(),
+  year: zod.number(),
+  actualAmount: zod.number(),
+  invoiceRef: zod.string().optional(),
+});
+
+export const UpsertMonthlyActualByLineResponse = zod.object({
+  id: zod.number(),
+  budgetLineId: zod.number(),
+  month: zod.number(),
+  year: zod.number(),
+  actualAmount: zod.number(),
+  invoiceRef: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List all owners
+ */
+export const ListOwnersResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  initials: zod.string(),
+  color: zod.string(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListOwnersResponse = zod.array(ListOwnersResponseItem);
+
+/**
+ * @summary Create an owner
+ */
+export const CreateOwnerBody = zod.object({
+  name: zod.string(),
+  initials: zod.string(),
+  color: zod.string(),
+});
+
+/**
+ * @summary Update an owner
+ */
+export const UpdateOwnerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateOwnerBody = zod.object({
+  name: zod.string().optional(),
+  initials: zod.string().optional(),
+  color: zod.string().optional(),
+});
+
+export const UpdateOwnerResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  initials: zod.string(),
+  color: zod.string(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete an owner
+ */
+export const DeleteOwnerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List monthly plans
  */
 export const ListMonthlyPlansQueryParams = zod.object({

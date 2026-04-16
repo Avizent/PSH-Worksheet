@@ -9,6 +9,9 @@ import {
   ListMonthlyActualsResponse,
   ListMonthlyActualsResponseItem,
   UpdateMonthlyActualResponse,
+  UpsertMonthlyActualByLineParams,
+  UpsertMonthlyActualByLineBody,
+  UpsertMonthlyActualByLineResponse,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { writeAuditLog, writeAuditDiff } from "../middleware/auditLog";
@@ -73,6 +76,57 @@ router.patch("/monthly-actuals/:id", asyncHandler(async (req, res): Promise<void
     await writeAuditDiff("update", "monthly_actual", row.id, existing, row, ["actualAmount", "invoiceRef"]);
   }
   res.json(UpdateMonthlyActualResponse.parse(row));
+}));
+
+router.put("/budget-lines/:id/actuals", asyncHandler(async (req, res): Promise<void> => {
+  const params = UpsertMonthlyActualByLineParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = UpsertMonthlyActualByLineBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { month, year, actualAmount, invoiceRef } = parsed.data;
+  const budgetLineId = params.data.id;
+
+  const [existing] = await db.select().from(monthlyActualsTable).where(
+    and(
+      eq(monthlyActualsTable.budgetLineId, budgetLineId),
+      eq(monthlyActualsTable.month, month),
+      eq(monthlyActualsTable.year, year),
+    ),
+  );
+
+  if (existing && existing.importId != null && actualAmount === 0) {
+    res.status(409).json({ error: "Cannot blank an import-linked actual; delete the import instead." });
+    return;
+  }
+
+  let row;
+  if (existing) {
+    const setObj: { actualAmount: number; invoiceRef?: string | null } = { actualAmount };
+    if (invoiceRef !== undefined) setObj.invoiceRef = invoiceRef;
+    [row] = await db.update(monthlyActualsTable)
+      .set(setObj)
+      .where(eq(monthlyActualsTable.id, existing.id))
+      .returning();
+    await writeAuditDiff("update", "monthly_actual", row.id, existing, row, ["actualAmount", "invoiceRef"]);
+  } else {
+    [row] = await db.insert(monthlyActualsTable)
+      .values({ budgetLineId, month, year, actualAmount, invoiceRef: invoiceRef ?? null })
+      .returning();
+    await writeAuditLog({
+      action: "create",
+      entityType: "monthly_actual",
+      entityId: row.id,
+      field: "actualAmount",
+      newValue: String(actualAmount),
+    });
+  }
+  res.json(UpsertMonthlyActualByLineResponse.parse(row));
 }));
 
 export default router;

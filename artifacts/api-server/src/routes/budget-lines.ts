@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, budgetLinesTable } from "@workspace/db";
+import { ListBudgetLineCategoriesResponse } from "@workspace/api-zod";
 import {
   CreateBudgetLineBody,
   UpdateBudgetLineBody,
@@ -47,6 +48,15 @@ router.post("/budget-lines", asyncHandler(async (req, res): Promise<void> => {
     newValue: row.lineItem,
   });
   res.status(201).json(GetBudgetLineResponse.parse(row));
+}));
+
+router.get("/budget-lines/categories", asyncHandler(async (_req, res): Promise<void> => {
+  const rows = await db
+    .selectDistinct({ category: budgetLinesTable.category })
+    .from(budgetLinesTable)
+    .orderBy(budgetLinesTable.category);
+  const list = rows.map((r) => r.category).filter((c): c is string => !!c);
+  res.json(ListBudgetLineCategoriesResponse.parse(list));
 }));
 
 router.get("/budget-lines/:id", asyncHandler(async (req, res): Promise<void> => {

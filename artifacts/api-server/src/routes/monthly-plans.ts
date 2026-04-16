@@ -9,6 +9,9 @@ import {
   ListMonthlyPlansResponse,
   ListMonthlyPlansResponseItem,
   UpdateMonthlyPlanResponse,
+  UpsertMonthlyPlanByLineParams,
+  UpsertMonthlyPlanByLineBody,
+  UpsertMonthlyPlanByLineResponse,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { writeAuditLog } from "../middleware/auditLog";
@@ -80,6 +83,59 @@ router.patch("/monthly-plans/:id", asyncHandler(async (req, res): Promise<void> 
     });
   }
   res.json(UpdateMonthlyPlanResponse.parse(row));
+}));
+
+router.put("/budget-lines/:id/plans", asyncHandler(async (req, res): Promise<void> => {
+  const params = UpsertMonthlyPlanByLineParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = UpsertMonthlyPlanByLineBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { month, year, plannedAmount } = parsed.data;
+  const budgetLineId = params.data.id;
+
+  const [existing] = await db.select().from(monthlyPlansTable).where(
+    and(
+      eq(monthlyPlansTable.budgetLineId, budgetLineId),
+      eq(monthlyPlansTable.month, month),
+      eq(monthlyPlansTable.year, year),
+    ),
+  );
+
+  let row;
+  if (existing) {
+    [row] = await db.update(monthlyPlansTable)
+      .set({ plannedAmount })
+      .where(eq(monthlyPlansTable.id, existing.id))
+      .returning();
+    if (existing.plannedAmount !== plannedAmount) {
+      await writeAuditLog({
+        action: "update",
+        entityType: "monthly_plan",
+        entityId: row.id,
+        field: "plannedAmount",
+        oldValue: String(existing.plannedAmount),
+        newValue: String(plannedAmount),
+      });
+    }
+  } else {
+    [row] = await db.insert(monthlyPlansTable)
+      .values({ budgetLineId, month, year, plannedAmount })
+      .returning();
+    await writeAuditLog({
+      action: "create",
+      entityType: "monthly_plan",
+      entityId: row.id,
+      field: "plannedAmount",
+      newValue: String(plannedAmount),
+    });
+  }
+  res.json(UpsertMonthlyPlanByLineResponse.parse(row));
 }));
 
 export default router;

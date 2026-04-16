@@ -18,6 +18,7 @@ import auditLogsRouter from "./audit-logs";
 import adminRouter from "./admin";
 import seedRouter from "./seed";
 import analyticsRouter from "./analytics";
+import ownersRouter from "./owners";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(reforecastRouter);
 router.use(auditLogsRouter);
 router.use(adminRouter);
 router.use(seedRouter);
+router.use(ownersRouter);
 
 export default router;

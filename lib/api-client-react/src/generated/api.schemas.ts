@@ -106,6 +106,40 @@ export interface UpdateMonthlyActualBody {
   invoiceRef?: string;
 }
 
+export interface UpsertMonthlyPlanByLineBody {
+  month: number;
+  year: number;
+  plannedAmount: number;
+}
+
+export interface UpsertMonthlyActualByLineBody {
+  month: number;
+  year: number;
+  actualAmount: number;
+  invoiceRef?: string;
+}
+
+export interface Owner {
+  id: number;
+  name: string;
+  initials: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOwnerBody {
+  name: string;
+  initials: string;
+  color: string;
+}
+
+export interface UpdateOwnerBody {
+  name?: string;
+  initials?: string;
+  color?: string;
+}
+
 export interface Alert {
   id: number;
   type: string;

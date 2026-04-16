@@ -33,6 +33,7 @@ import type {
   CreateForecastVersionBody,
   CreateMonthlyActualBody,
   CreateMonthlyPlanBody,
+  CreateOwnerBody,
   CreateShareTokenBody,
   CsvImport,
   CsvImportRow,
@@ -62,6 +63,7 @@ import type {
   MarketingEvent,
   MonthlyActual,
   MonthlyPlan,
+  Owner,
   ProjectionData,
   SeedResult,
   ShareToken,
@@ -70,6 +72,9 @@ import type {
   UpdateEventBody,
   UpdateMonthlyActualBody,
   UpdateMonthlyPlanBody,
+  UpdateOwnerBody,
+  UpsertMonthlyActualByLineBody,
+  UpsertMonthlyPlanByLineBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -694,6 +699,588 @@ export const useDeleteBudgetLine = <
   TContext
 > => {
   return useMutation(getDeleteBudgetLineMutationOptions(options));
+};
+
+/**
+ * @summary List distinct categories used by budget lines
+ */
+export const getListBudgetLineCategoriesUrl = () => {
+  return `/api/budget-lines/categories`;
+};
+
+export const listBudgetLineCategories = async (
+  options?: RequestInit,
+): Promise<string[]> => {
+  return customFetch<string[]>(getListBudgetLineCategoriesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBudgetLineCategoriesQueryKey = () => {
+  return [`/api/budget-lines/categories`] as const;
+};
+
+export const getListBudgetLineCategoriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBudgetLineCategories>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgetLineCategories>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListBudgetLineCategoriesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBudgetLineCategories>>
+  > = ({ signal }) => listBudgetLineCategories({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgetLineCategories>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBudgetLineCategoriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBudgetLineCategories>>
+>;
+export type ListBudgetLineCategoriesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List distinct categories used by budget lines
+ */
+
+export function useListBudgetLineCategories<
+  TData = Awaited<ReturnType<typeof listBudgetLineCategories>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgetLineCategories>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBudgetLineCategoriesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Upsert a monthly plan amount for a budget line by month/year
+ */
+export const getUpsertMonthlyPlanByLineUrl = (id: number) => {
+  return `/api/budget-lines/${id}/plans`;
+};
+
+export const upsertMonthlyPlanByLine = async (
+  id: number,
+  upsertMonthlyPlanByLineBody: UpsertMonthlyPlanByLineBody,
+  options?: RequestInit,
+): Promise<MonthlyPlan> => {
+  return customFetch<MonthlyPlan>(getUpsertMonthlyPlanByLineUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertMonthlyPlanByLineBody),
+  });
+};
+
+export const getUpsertMonthlyPlanByLineMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertMonthlyPlanByLine>>,
+    TError,
+    { id: number; data: BodyType<UpsertMonthlyPlanByLineBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertMonthlyPlanByLine>>,
+  TError,
+  { id: number; data: BodyType<UpsertMonthlyPlanByLineBody> },
+  TContext
+> => {
+  const mutationKey = ["upsertMonthlyPlanByLine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertMonthlyPlanByLine>>,
+    { id: number; data: BodyType<UpsertMonthlyPlanByLineBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return upsertMonthlyPlanByLine(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertMonthlyPlanByLineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertMonthlyPlanByLine>>
+>;
+export type UpsertMonthlyPlanByLineMutationBody =
+  BodyType<UpsertMonthlyPlanByLineBody>;
+export type UpsertMonthlyPlanByLineMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Upsert a monthly plan amount for a budget line by month/year
+ */
+export const useUpsertMonthlyPlanByLine = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertMonthlyPlanByLine>>,
+    TError,
+    { id: number; data: BodyType<UpsertMonthlyPlanByLineBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertMonthlyPlanByLine>>,
+  TError,
+  { id: number; data: BodyType<UpsertMonthlyPlanByLineBody> },
+  TContext
+> => {
+  return useMutation(getUpsertMonthlyPlanByLineMutationOptions(options));
+};
+
+/**
+ * @summary Upsert a monthly actual amount for a budget line by month/year
+ */
+export const getUpsertMonthlyActualByLineUrl = (id: number) => {
+  return `/api/budget-lines/${id}/actuals`;
+};
+
+export const upsertMonthlyActualByLine = async (
+  id: number,
+  upsertMonthlyActualByLineBody: UpsertMonthlyActualByLineBody,
+  options?: RequestInit,
+): Promise<MonthlyActual> => {
+  return customFetch<MonthlyActual>(getUpsertMonthlyActualByLineUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertMonthlyActualByLineBody),
+  });
+};
+
+export const getUpsertMonthlyActualByLineMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertMonthlyActualByLine>>,
+    TError,
+    { id: number; data: BodyType<UpsertMonthlyActualByLineBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertMonthlyActualByLine>>,
+  TError,
+  { id: number; data: BodyType<UpsertMonthlyActualByLineBody> },
+  TContext
+> => {
+  const mutationKey = ["upsertMonthlyActualByLine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertMonthlyActualByLine>>,
+    { id: number; data: BodyType<UpsertMonthlyActualByLineBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return upsertMonthlyActualByLine(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertMonthlyActualByLineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertMonthlyActualByLine>>
+>;
+export type UpsertMonthlyActualByLineMutationBody =
+  BodyType<UpsertMonthlyActualByLineBody>;
+export type UpsertMonthlyActualByLineMutationError = ErrorType<void>;
+
+/**
+ * @summary Upsert a monthly actual amount for a budget line by month/year
+ */
+export const useUpsertMonthlyActualByLine = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertMonthlyActualByLine>>,
+    TError,
+    { id: number; data: BodyType<UpsertMonthlyActualByLineBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertMonthlyActualByLine>>,
+  TError,
+  { id: number; data: BodyType<UpsertMonthlyActualByLineBody> },
+  TContext
+> => {
+  return useMutation(getUpsertMonthlyActualByLineMutationOptions(options));
+};
+
+/**
+ * @summary List all owners
+ */
+export const getListOwnersUrl = () => {
+  return `/api/owners`;
+};
+
+export const listOwners = async (options?: RequestInit): Promise<Owner[]> => {
+  return customFetch<Owner[]>(getListOwnersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListOwnersQueryKey = () => {
+  return [`/api/owners`] as const;
+};
+
+export const getListOwnersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listOwners>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listOwners>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListOwnersQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listOwners>>> = ({
+    signal,
+  }) => listOwners({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listOwners>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListOwnersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listOwners>>
+>;
+export type ListOwnersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all owners
+ */
+
+export function useListOwners<
+  TData = Awaited<ReturnType<typeof listOwners>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listOwners>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListOwnersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create an owner
+ */
+export const getCreateOwnerUrl = () => {
+  return `/api/owners`;
+};
+
+export const createOwner = async (
+  createOwnerBody: CreateOwnerBody,
+  options?: RequestInit,
+): Promise<Owner> => {
+  return customFetch<Owner>(getCreateOwnerUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createOwnerBody),
+  });
+};
+
+export const getCreateOwnerMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOwner>>,
+    TError,
+    { data: BodyType<CreateOwnerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createOwner>>,
+  TError,
+  { data: BodyType<CreateOwnerBody> },
+  TContext
+> => {
+  const mutationKey = ["createOwner"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createOwner>>,
+    { data: BodyType<CreateOwnerBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createOwner(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateOwnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createOwner>>
+>;
+export type CreateOwnerMutationBody = BodyType<CreateOwnerBody>;
+export type CreateOwnerMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create an owner
+ */
+export const useCreateOwner = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOwner>>,
+    TError,
+    { data: BodyType<CreateOwnerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createOwner>>,
+  TError,
+  { data: BodyType<CreateOwnerBody> },
+  TContext
+> => {
+  return useMutation(getCreateOwnerMutationOptions(options));
+};
+
+/**
+ * @summary Update an owner
+ */
+export const getUpdateOwnerUrl = (id: number) => {
+  return `/api/owners/${id}`;
+};
+
+export const updateOwner = async (
+  id: number,
+  updateOwnerBody: UpdateOwnerBody,
+  options?: RequestInit,
+): Promise<Owner> => {
+  return customFetch<Owner>(getUpdateOwnerUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateOwnerBody),
+  });
+};
+
+export const getUpdateOwnerMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOwner>>,
+    TError,
+    { id: number; data: BodyType<UpdateOwnerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateOwner>>,
+  TError,
+  { id: number; data: BodyType<UpdateOwnerBody> },
+  TContext
+> => {
+  const mutationKey = ["updateOwner"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateOwner>>,
+    { id: number; data: BodyType<UpdateOwnerBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateOwner(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateOwnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateOwner>>
+>;
+export type UpdateOwnerMutationBody = BodyType<UpdateOwnerBody>;
+export type UpdateOwnerMutationError = ErrorType<void>;
+
+/**
+ * @summary Update an owner
+ */
+export const useUpdateOwner = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOwner>>,
+    TError,
+    { id: number; data: BodyType<UpdateOwnerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateOwner>>,
+  TError,
+  { id: number; data: BodyType<UpdateOwnerBody> },
+  TContext
+> => {
+  return useMutation(getUpdateOwnerMutationOptions(options));
+};
+
+/**
+ * @summary Delete an owner
+ */
+export const getDeleteOwnerUrl = (id: number) => {
+  return `/api/owners/${id}`;
+};
+
+export const deleteOwner = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteOwnerUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteOwnerMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteOwner>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteOwner>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteOwner"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteOwner>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteOwner(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteOwnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteOwner>>
+>;
+
+export type DeleteOwnerMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete an owner
+ */
+export const useDeleteOwner = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteOwner>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteOwner>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteOwnerMutationOptions(options));
 };
 
 /**

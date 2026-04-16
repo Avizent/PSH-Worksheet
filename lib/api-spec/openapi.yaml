@@ -172,6 +172,145 @@ paths:
         "204":
           description: Deleted
 
+  /budget-lines/categories:
+    get:
+      operationId: listBudgetLineCategories
+      tags: [budget-lines]
+      summary: List distinct categories used by budget lines
+      responses:
+        "200":
+          description: List of category names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /budget-lines/{id}/plans:
+    put:
+      operationId: upsertMonthlyPlanByLine
+      tags: [monthly-plans]
+      summary: Upsert a monthly plan amount for a budget line by month/year
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertMonthlyPlanByLineBody"
+      responses:
+        "200":
+          description: Upserted monthly plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyPlan"
+
+  /budget-lines/{id}/actuals:
+    put:
+      operationId: upsertMonthlyActualByLine
+      tags: [monthly-actuals]
+      summary: Upsert a monthly actual amount for a budget line by month/year
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertMonthlyActualByLineBody"
+      responses:
+        "200":
+          description: Upserted monthly actual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyActual"
+        "409":
+          description: Cannot blank an import-linked actual
+
+  /owners:
+    get:
+      operationId: listOwners
+      tags: [admin]
+      summary: List all owners
+      responses:
+        "200":
+          description: List of owners
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Owner"
+    post:
+      operationId: createOwner
+      tags: [admin]
+      summary: Create an owner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOwnerBody"
+      responses:
+        "201":
+          description: Created owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Owner"
+
+  /owners/{id}:
+    patch:
+      operationId: updateOwner
+      tags: [admin]
+      summary: Update an owner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOwnerBody"
+      responses:
+        "200":
+          description: Updated owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Owner"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteOwner
+      tags: [admin]
+      summary: Delete an owner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /monthly-plans:
     get:
       operationId: listMonthlyPlans
@@ -1186,6 +1325,85 @@ components:
         actualAmount:
           type: number
         invoiceRef:
+          type: string
+
+    UpsertMonthlyPlanByLineBody:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        plannedAmount:
+          type: number
+      required:
+        - month
+        - year
+        - plannedAmount
+
+    UpsertMonthlyActualByLineBody:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        actualAmount:
+          type: number
+        invoiceRef:
+          type: string
+      required:
+        - month
+        - year
+        - actualAmount
+
+    Owner:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        initials:
+          type: string
+        color:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - initials
+        - color
+        - createdAt
+        - updatedAt
+
+    CreateOwnerBody:
+      type: object
+      properties:
+        name:
+          type: string
+        initials:
+          type: string
+        color:
+          type: string
+      required:
+        - name
+        - initials
+        - color
+
+    UpdateOwnerBody:
+      type: object
+      properties:
+        name:
+          type: string
+        initials:
+          type: string
+        color:
           type: string
 
     Alert:
