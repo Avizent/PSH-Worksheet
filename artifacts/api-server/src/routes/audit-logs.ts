@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, type SQL } from "drizzle-orm";
 import { db, auditLogsTable } from "@workspace/db";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { requireVpAuth } from "../middleware/vpAuth";
@@ -11,7 +11,7 @@ router.get("/audit-logs", requireVpAuth, asyncHandler(async (req, res): Promise<
   const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
   const offset = parseInt(req.query.offset as string) || 0;
 
-  const conditions: any[] = [];
+  const conditions: SQL[] = [];
   if (entityType) conditions.push(eq(auditLogsTable.entityType, entityType as string));
   if (startDate) conditions.push(gte(auditLogsTable.createdAt, new Date(startDate as string)));
   if (endDate) conditions.push(lte(auditLogsTable.createdAt, new Date(endDate as string)));

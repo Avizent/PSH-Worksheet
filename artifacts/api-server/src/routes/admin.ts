@@ -4,6 +4,7 @@ import {
   db,
   budgetLinesTable,
   monthlyPlansTable,
+  monthlyActualsTable,
   auditLogsTable,
 } from "@workspace/db";
 import { AnnualRolloverBody } from "@workspace/api-zod";
@@ -48,6 +49,21 @@ router.post("/admin/rollover", requireVpAuth, asyncHandler(async (req, res): Pro
     monthlyPlansCreated = newPlans.length;
   }
 
+  const newActuals = budgetLines.flatMap(bl =>
+    Array.from({ length: 12 }, (_, i) => ({
+      budgetLineId: bl.id,
+      month: i + 1,
+      year: targetYear,
+      actualAmount: 0,
+    }))
+  );
+
+  let monthlyActualsCreated = 0;
+  if (newActuals.length > 0) {
+    await db.insert(monthlyActualsTable).values(newActuals);
+    monthlyActualsCreated = newActuals.length;
+  }
+
   await db.insert(auditLogsTable).values({
     action: "rollover",
     entityType: "annual_rollover",
@@ -62,6 +78,7 @@ router.post("/admin/rollover", requireVpAuth, asyncHandler(async (req, res): Pro
     targetYear,
     budgetLinesCopied: budgetLines.length,
     monthlyPlansCreated,
+    monthlyActualsCreated,
   });
 }));
 

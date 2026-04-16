@@ -23,6 +23,7 @@ export async function writeAuditLog(entry: AuditEntry): Promise<void> {
     });
   } catch (err) {
     console.error("Failed to write audit log:", err);
+    throw err;
   }
 }
 
