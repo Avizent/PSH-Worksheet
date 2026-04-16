@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
   View,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -10,6 +9,7 @@ import {
   Modal,
   TextInput,
   Platform,
+  FlatList,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -159,14 +159,14 @@ export default function OwnersScreen() {
     });
   };
 
-  const goToBudgetForOwner = (_o: Owner) => {
-    router.push("/budget");
+  const goToBudgetForOwner = (o: Owner) => {
+    router.push({ pathname: "/budget", params: { owner: o.name } });
   };
 
-  const renderRow = (o: Owner) => {
+  const renderRow = ({ item: o }: { item: Owner }) => {
     const count = lineCountByName.get(o.name) ?? 0;
     return (
-      <View key={o.id} style={[styles.ownerRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.ownerRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => goToBudgetForOwner(o)} style={styles.ownerMain} activeOpacity={0.7}>
           <View style={[styles.initialsChip, { backgroundColor: o.color }]}>
             <Text style={styles.initialsText}>{o.initials}</Text>
@@ -198,14 +198,9 @@ export default function OwnersScreen() {
     );
   };
 
-  const content = (
-    <ScrollView
-      style={[styles.scroll, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ padding: isDesktop ? 32 : 16, paddingBottom: isDesktop ? 32 : 120 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
-    >
+  const ListHeader = (
+    <View>
       {!isDesktop && <AdminSubnav active="owners" />}
-
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <SectionHeader title="Owners" subtitle="Registry of people who can own budget lines" />
@@ -214,33 +209,47 @@ export default function OwnersScreen() {
           onPress={openCreate}
           style={[styles.addBtn, { backgroundColor: colors.primary }]}
           accessibilityLabel="Add owner"
+          accessibilityRole="button"
         >
           <Feather name="plus" size={16} color={colors.primaryForeground} />
           <Text style={[styles.addBtnText, { color: colors.primaryForeground }]}>Add owner</Text>
         </TouchableOpacity>
       </View>
+    </View>
+  );
 
-      {isLoading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
-      ) : isError ? (
-        <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="alert-circle" size={28} color={colors.destructive} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to load owners</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.primary, borderRadius: 8 }}>
-            <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : owners.length === 0 ? (
-        <EmptyState
-          icon="users"
-          title="No owners yet"
-          message="Add the first owner so budget lines can be assigned to a person."
-          actionLabel="Add owner"
-          onAction={openCreate}
-        />
-      ) : (
-        <View style={{ gap: 8 }}>{owners.map(renderRow)}</View>
-      )}
+  const ListEmpty = isLoading ? (
+    <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+  ) : isError ? (
+    <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Feather name="alert-circle" size={28} color={colors.destructive} />
+      <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Failed to load owners</Text>
+      <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.primary, borderRadius: 8 }}>
+        <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>Retry</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <EmptyState
+      icon="users"
+      title="No owners yet"
+      message="Add the first owner so budget lines can be assigned to a person."
+      actionLabel="Add owner"
+      onAction={openCreate}
+    />
+  );
+
+  const content = (
+    <View style={[styles.scroll, { backgroundColor: colors.background }]}>
+      <FlatList
+        data={owners}
+        keyExtractor={(o) => String(o.id)}
+        renderItem={renderRow}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={ListEmpty}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        contentContainerStyle={{ padding: isDesktop ? 32 : 16, paddingBottom: isDesktop ? 32 : 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
+      />
 
       {/* Add / Edit modal */}
       <Modal visible={showForm} transparent animationType="fade" onRequestClose={() => setShowForm(false)}>
@@ -386,7 +395,7 @@ export default function OwnersScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-    </ScrollView>
+    </View>
   );
 
   if (isDesktop) {

@@ -50,11 +50,11 @@ function NativeTabLayout() {
         <Icon sf={{ default: "arrow.triangle.2.circlepath", selected: "arrow.triangle.2.circlepath" }} />
         <Label>Reforecast</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="audit">
+      <NativeTabs.Trigger name="audit" hidden>
         <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
         <Label>Audit</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="import">
+      <NativeTabs.Trigger name="import" hidden>
         <Icon sf={{ default: "square.and.arrow.up", selected: "square.and.arrow.up.fill" }} />
         <Label>Import</Label>
       </NativeTabs.Trigger>

@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { View, ScrollView, StyleSheet, Text, Platform, ActivityIndicator, RefreshControl, TextInput, Modal, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { BudgetTable, confirmDelete, type SortField, type SortDir, type BudgetLineRow } from "@/components/BudgetTable";
@@ -104,8 +105,22 @@ function BudgetContent() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [editingLine, setEditingLine] = useState<{ id: number; lineItem: string; pct: number } | null>(null);
+  const params = useLocalSearchParams<{ owner?: string }>();
+  const router = useRouter();
+  const initialOwner = typeof params.owner === "string" ? params.owner : "";
   const [filterCategory, setFilterCategory] = useState<string>("All");
   const [filterMonth, setFilterMonth] = useState<number>(0);
+  const [filterOwner, setFilterOwner] = useState<string>(initialOwner);
+  useEffect(() => {
+    if (typeof params.owner === "string" && params.owner !== filterOwner) {
+      setFilterOwner(params.owner);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.owner]);
+  const clearOwnerFilter = () => {
+    setFilterOwner("");
+    router.setParams({ owner: undefined });
+  };
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [amountMode, setAmountMode] = useState<"plan" | "actual">("plan");
@@ -246,7 +261,8 @@ function BudgetContent() {
         projectionPct: linesWithPct[line.id] ?? 0,
       };
     })
-    .filter(d => filterCategory === "All" || d.category === filterCategory);
+    .filter(d => filterCategory === "All" || d.category === filterCategory)
+    .filter(d => !filterOwner || (d.owner ?? "") === filterOwner);
 
   const sorted = useMemo(() => {
     if (!sortField || !sortDir) return tableData;
@@ -290,6 +306,18 @@ function BudgetContent() {
       refreshControl={Platform.OS !== "web" ? <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} /> : undefined}
     >
       <SectionHeader title="Budget Lines" subtitle={`${sorted.length} line items across ${categories.length} categories`} />
+
+      {filterOwner ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: colors.primary + "15", borderWidth: 1, borderColor: colors.primary + "40" }}>
+            <Feather name="user" size={12} color={colors.primary} />
+            <Text style={{ color: colors.primary, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>Owner: {filterOwner}</Text>
+            <TouchableOpacity onPress={clearOwnerFilter} accessibilityLabel="Clear owner filter" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <Feather name="x" size={12} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       <View style={[styles.filterBar, { borderColor: colors.border }]}>
         <View style={styles.filterGroup}>
