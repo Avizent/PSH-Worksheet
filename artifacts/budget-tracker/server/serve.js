@@ -126,6 +126,10 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  if (pathname === "/login" || pathname === "/budget-tracker/login" || pathname === "/budget-tracker/") {
+    return serveStaticFile("/index.html", res);
+  }
+
   serveStaticFile(pathname, res);
 });
 
