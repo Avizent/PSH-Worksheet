@@ -46,14 +46,10 @@ const DEFAULT_SECTIONS = [
 ];
 
 async function ensureDefaultSettings() {
-  const existing = await db.select().from(boardSettingsTable);
-  if (existing.length === 0) {
-    for (const s of DEFAULT_SECTIONS) {
-      await db.insert(boardSettingsTable).values(s);
-    }
-    return db.select().from(boardSettingsTable).orderBy(boardSettingsTable.sortOrder);
+  for (const s of DEFAULT_SECTIONS) {
+    await db.insert(boardSettingsTable).values(s).onConflictDoNothing();
   }
-  return existing;
+  return db.select().from(boardSettingsTable).orderBy(boardSettingsTable.sortOrder);
 }
 
 router.get("/board/settings", requireVpAuth, asyncHandler(async (_req, res): Promise<void> => {
