@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, budgetLinesTable, monthlyPlansTable, monthlyActualsTable, alertsTable, eventsTable } from "@workspace/db";
+import { csvImportRowsTable, csvImportsTable, forecastPlansTable, forecastVersionsTable, shareTokensTable, boardSettingsTable, auditLogsTable } from "@workspace/db";
 import { SeedDataResponse } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { logger } from "../lib/logger";
@@ -7,12 +8,18 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 router.post("/seed", asyncHandler(async (_req, res): Promise<void> => {
-
   logger.info("Manual seed triggered — clearing all data and re-seeding...");
 
+  await db.delete(forecastPlansTable);
+  await db.delete(forecastVersionsTable);
+  await db.delete(monthlyActualsTable);
+  await db.delete(csvImportRowsTable);
+  await db.delete(csvImportsTable);
   await db.delete(alertsTable);
   await db.delete(eventsTable);
-  await db.delete(monthlyActualsTable);
+  await db.delete(shareTokensTable);
+  await db.delete(boardSettingsTable);
+  await db.delete(auditLogsTable);
   await db.delete(monthlyPlansTable);
   await db.delete(budgetLinesTable);
 

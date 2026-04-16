@@ -83,7 +83,7 @@ const MONTH_MAP: Record<string, number> = {
   jun: 6, june: 6,
   jul: 7, july: 7,
   aug: 8, august: 8,
-  sep: 9, september: 9,
+  sep: 9, sept: 9, september: 9,
   oct: 10, october: 10,
   nov: 11, november: 11,
   dec: 12, december: 12,
@@ -184,9 +184,10 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
 
   const catIdx = headers.findIndex(h => ["category", "cat", "department", "dept", "costcentre", "vertical", "group", "team", "function", "segment"].includes(h));
   let lineItemIdx = headers.findIndex(h => ["lineitem", "line", "description", "item", "budgetitem", "budgetline", "name",
+    "rowlabels", "rowlabel", "labels", "label",
     "activity", "marketingactivity", "budgetactivity", "initiative", "programme", "program",
     "campaign", "project", "task", "workstream", "expense", "expenseitem", "heading",
-    "title", "label", "spenditem", "costitem", "budgetdescription", "activityname"].includes(h));
+    "title", "spenditem", "costitem", "budgetdescription", "activityname"].includes(h));
   if (lineItemIdx === -1) lineItemIdx = (catIdx === 0 ? 1 : 0);
   const ownerIdx = headers.findIndex(h => ["owner", "budgetowner", "responsible", "manager", "lead", "assignee"].includes(h));
   const regionIdx = headers.findIndex(h => ["region", "geo", "geography", "market", "territory", "location", "country"].includes(h));
