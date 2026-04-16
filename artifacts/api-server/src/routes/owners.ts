@@ -26,6 +26,10 @@ router.post("/owners", asyncHandler(async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  if (!/^#[0-9a-fA-F]{6}$/.test(parsed.data.color)) {
+    res.status(400).json({ error: "color must be a 6-digit hex string like #aabbcc" });
+    return;
+  }
   const [row] = await db.insert(ownersTable).values(parsed.data).returning();
   await writeAuditLog({
     action: "create",
@@ -46,6 +50,10 @@ router.patch("/owners/:id", asyncHandler(async (req, res): Promise<void> => {
   const parsed = UpdateOwnerBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  if (parsed.data.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(parsed.data.color)) {
+    res.status(400).json({ error: "color must be a 6-digit hex string like #aabbcc" });
     return;
   }
   const [oldRow] = await db.select().from(ownersTable).where(eq(ownersTable.id, params.data.id));
