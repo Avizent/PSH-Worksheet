@@ -1,14 +1,16 @@
-import React, { useState, useMemo } from "react";
-import { View, ScrollView, StyleSheet, Text, Platform, ActivityIndicator, RefreshControl, TextInput, Modal, TouchableOpacity, Alert } from "react-native";
+import React, { useState, useMemo, useRef } from "react";
+import { View, ScrollView, StyleSheet, Text, Platform, ActivityIndicator, RefreshControl, TextInput, Modal, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
-import { BudgetTable, type SortField, type SortDir, type BudgetLineRow } from "@/components/BudgetTable";
+import { BudgetTable, confirmDelete, type SortField, type SortDir, type BudgetLineRow } from "@/components/BudgetTable";
 import { MonthlyAmountModal } from "@/components/MonthlyAmountModal";
 import { AddLineModal } from "@/components/AddLineModal";
 import { EmptyState } from "@/components/EmptyState";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { ToastProvider, useToast } from "@/components/Toast";
+import { InlineText, PickerCell, StatusBadge, nextStatus, type PickerOption } from "@/components/InlineEdits";
 import {
   useListBudgetLinesWithMonthly,
   useListAlerts,
@@ -29,27 +31,23 @@ import { useQueryClient } from "@tanstack/react-query";
 
 const FY_YEAR = 2026;
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const SORT_ACCESSORS: Record<SortField, (r: BudgetLineRow) => string | number> = {
+  lineItem: (r) => r.lineItem,
+  category: (r) => r.category,
+  owner: (r) => r.owner ?? "",
+  costStatus: (r) => r.costStatus,
+  totalPlan: (r) => r.totalPlan,
+  totalActual: (r) => r.totalActual,
+  variance: (r) => r.variance,
+};
 
 function formatCurrency(val: number): string {
   if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
   return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
 }
 
-function showToast(msg: string) {
-  if (Platform.OS === "web") {
-    if (typeof window !== "undefined") {
-      // No-op visual toast on web — we use console for traceability; UI feedback via spinner suffices
-      console.log("[budget]", msg);
-    }
-  } else {
-    // Lightweight feedback on native
-    Alert.alert("", msg);
-  }
-}
-
-function ProjectionEditor({ lineId, lineItem, currentPct, onClose }: { lineId: number; lineItem: string; currentPct: number; onClose: () => void }) {
+function ProjectionEditor({ lineId, lineItem, currentPct, onClose, onSaved, onError }: { lineId: number; lineItem: string; currentPct: number; onClose: () => void; onSaved: () => void; onError: () => void }) {
   const colors = useColors();
-  const queryClient = useQueryClient();
   const updateMutation = useUpdateBudgetLine();
   const [pctValue, setPctValue] = useState(String(currentPct));
 
@@ -58,12 +56,8 @@ function ProjectionEditor({ lineId, lineItem, currentPct, onClose }: { lineId: n
     updateMutation.mutate(
       { id: lineId, data: { projectionPct: numVal } },
       {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getListBudgetLinesQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetProjectionsQueryKey() });
-          onClose();
-        },
+        onSuccess: () => { onSaved(); onClose(); },
+        onError: () => { onError(); },
       }
     );
   };
@@ -95,6 +89,7 @@ function BudgetContent() {
   const isDesktop = mode === "desktop";
   const isWeb = Platform.OS === "web";
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const { data: budgetLines, isLoading, refetch } = useListBudgetLinesWithMonthly();
   const { data: allLines } = useListBudgetLines();
@@ -116,6 +111,8 @@ function BudgetContent() {
   const [amountMode, setAmountMode] = useState<"plan" | "actual">("plan");
   const [addOpen, setAddOpen] = useState(false);
   const [monthlyOpen, setMonthlyOpen] = useState<{ id: number; lineItem: string; mode: "plan" | "actual" } | null>(null);
+  const monthlySession = useRef(0);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<number>>(new Set());
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -132,7 +129,10 @@ function BudgetContent() {
 
   const handleDesktopPctChange = (lineId: number, val: string) => {
     const numVal = parseFloat(val) || 0;
-    updateMutation.mutate({ id: lineId, data: { projectionPct: numVal } }, { onSuccess: invalidateAll });
+    updateMutation.mutate({ id: lineId, data: { projectionPct: numVal } }, {
+      onSuccess: () => { invalidateAll(); toast.show("Projection saved", { kind: "success" }); },
+      onError: () => toast.show("Failed to save projection", { kind: "error" }),
+    });
   };
 
   const handleSort = (field: SortField) => {
@@ -152,23 +152,37 @@ function BudgetContent() {
     updateMutation.mutate(
       { id, data },
       {
-        onSuccess: () => { invalidateAll(); },
-        onError: () => { showToast(`Failed to update ${field}`); invalidateAll(); },
+        onSuccess: () => { invalidateAll(); toast.show("Saved", { kind: "success" }); },
+        onError: () => { toast.show(`Failed to update ${field}`, { kind: "error" }); invalidateAll(); },
       }
     );
   };
 
   const handleDelete = (id: number, lineItem: string) => {
-    deleteMutation.mutate({ id }, {
-      onSuccess: () => { invalidateAll(); showToast(`Deleted "${lineItem}"`); },
-      onError: () => showToast(`Failed to delete "${lineItem}"`),
+    // Optimistic hide; commit DELETE after toast window unless user undoes
+    setPendingDeleteIds((s) => { const n = new Set(s); n.add(id); return n; });
+    toast.showUndo(`Deleted "${lineItem}"`, {
+      onUndo: () => {
+        setPendingDeleteIds((s) => { const n = new Set(s); n.delete(id); return n; });
+        toast.show("Restored", { kind: "info" });
+      },
+      onTimeout: () => {
+        deleteMutation.mutate({ id }, {
+          onSuccess: () => { invalidateAll(); setPendingDeleteIds((s) => { const n = new Set(s); n.delete(id); return n; }); },
+          onError: () => {
+            setPendingDeleteIds((s) => { const n = new Set(s); n.delete(id); return n; });
+            toast.show(`Failed to delete "${lineItem}"`, { kind: "error" });
+          },
+        });
+      },
+      durationMs: 5000,
     });
   };
 
   const handleCreate = (data: { lineItem: string; category: string; owner?: string; costStatus: string; region?: string }) => {
     createMutation.mutate({ data }, {
-      onSuccess: () => { invalidateAll(); setAddOpen(false); showToast(`Added "${data.lineItem}"`); },
-      onError: () => showToast("Failed to add line"),
+      onSuccess: () => { invalidateAll(); setAddOpen(false); toast.show(`Added "${data.lineItem}"`, { kind: "success" }); },
+      onError: () => toast.show("Failed to add line", { kind: "error" }),
     });
   };
 
@@ -177,14 +191,15 @@ function BudgetContent() {
     const id = monthlyOpen.id;
     const isPlan = monthlyOpen.mode === "plan";
     if (changes.length === 0) { setMonthlyOpen(null); return; }
+    const sessionId = ++monthlySession.current;
     let pending = changes.length;
     let hadError = false;
     const done = () => {
       pending--;
       if (pending === 0) {
         invalidateAll();
-        setMonthlyOpen(null);
-        showToast(hadError ? "Some months failed to save" : "Monthly amounts saved");
+        if (monthlySession.current === sessionId) setMonthlyOpen(null);
+        toast.show(hadError ? "Some months failed to save" : "Monthly amounts saved", { kind: hadError ? "error" : "success" });
       }
     };
     for (const c of changes) {
@@ -206,37 +221,41 @@ function BudgetContent() {
 
   const linesWithPct = (allLines || []).reduce<Record<number, number>>((acc, l) => { acc[l.id] = l.projectionPct ?? 0; return acc; }, {});
 
-  const tableData: BudgetLineRow[] = (budgetLines || []).map((line) => {
-    const plans = (line.plans || []);
-    const actuals = (line.actuals || []);
-    const totalPlan = filterMonth > 0
-      ? plans.filter(p => p.month === filterMonth).reduce((sum, p) => sum + (p.plannedAmount || 0), 0)
-      : plans.reduce((sum, p) => sum + (p.plannedAmount || 0), 0);
-    const totalActual = filterMonth > 0
-      ? actuals.filter(a => a.month === filterMonth).reduce((sum, a) => sum + (a.actualAmount || 0), 0)
-      : actuals.reduce((sum, a) => sum + (a.actualAmount || 0), 0);
-    return {
-      id: line.id,
-      category: line.category,
-      lineItem: line.lineItem,
-      owner: line.owner ?? null,
-      costStatus: line.costStatus,
-      totalPlan,
-      totalActual,
-      variance: totalPlan - totalActual,
-      projectionPct: linesWithPct[line.id] ?? 0,
-    };
-  }).filter(d => filterCategory === "All" || d.category === filterCategory);
+  const tableData: BudgetLineRow[] = (budgetLines || [])
+    .filter((line) => !pendingDeleteIds.has(line.id))
+    .map((line) => {
+      const plans = (line.plans || []);
+      const actuals = (line.actuals || []);
+      const totalPlan = filterMonth > 0
+        ? plans.filter(p => p.month === filterMonth).reduce((sum, p) => sum + (p.plannedAmount || 0), 0)
+        : plans.reduce((sum, p) => sum + (p.plannedAmount || 0), 0);
+      const totalActual = filterMonth > 0
+        ? actuals.filter(a => a.month === filterMonth).reduce((sum, a) => sum + (a.actualAmount || 0), 0)
+        : actuals.reduce((sum, a) => sum + (a.actualAmount || 0), 0);
+      return {
+        id: line.id,
+        category: line.category,
+        lineItem: line.lineItem,
+        owner: line.owner ?? null,
+        costStatus: line.costStatus,
+        totalPlan,
+        totalActual,
+        variance: totalPlan - totalActual,
+        projectionPct: linesWithPct[line.id] ?? 0,
+      };
+    })
+    .filter(d => filterCategory === "All" || d.category === filterCategory);
 
   const sorted = useMemo(() => {
     if (!sortField || !sortDir) return tableData;
+    const accessor = SORT_ACCESSORS[sortField];
     const arr = [...tableData];
     arr.sort((a, b) => {
-      const av = (a as any)[sortField];
-      const bv = (b as any)[sortField];
+      const av = accessor(a);
+      const bv = accessor(b);
       let cmp: number;
       if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
-      else cmp = String(av ?? "").localeCompare(String(bv ?? ""));
+      else cmp = String(av).localeCompare(String(bv));
       return sortDir === "asc" ? cmp : -cmp;
     });
     return arr;
@@ -258,6 +277,9 @@ function BudgetContent() {
         return (line.actuals || []).filter(a => a.year === FY_YEAR).map(a => ({ month: a.month, amount: a.actualAmount }));
       })()
     : [];
+
+  const categoryOptions: PickerOption[] = categoriesForPicker.map((c) => ({ value: c, label: c }));
+  const ownerOptions: PickerOption[] = [{ value: "", label: "— None —" }, ...owners.map((o) => ({ value: o.name, label: o.name, color: o.color }))];
 
   const content = (
     <ScrollView
@@ -344,16 +366,22 @@ function BudgetContent() {
                   return (
                     <View key={item.id} style={[styles.mobileCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
                       <View style={styles.mobileCardTop}>
-                        <Text style={[styles.mobileItemName, { color: colors.foreground }]} numberOfLines={1}>{item.lineItem}</Text>
-                        <TouchableOpacity onPress={() => {
-                          if (Platform.OS === "web") {
-                            if (typeof window !== "undefined" && window.confirm(`Delete "${item.lineItem}"?`)) handleDelete(item.id, item.lineItem);
-                          } else {
-                            Alert.alert("Delete", `Delete "${item.lineItem}"?`, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => handleDelete(item.id, item.lineItem) }]);
-                          }
-                        }} hitSlop={8}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <InlineText
+                            value={item.lineItem}
+                            onSave={(v) => handleUpdateField(item.id, "lineItem", v)}
+                            colors={colors}
+                            textStyle={{ fontSize: 14, fontFamily: "Inter_500Medium" }}
+                          />
+                        </View>
+                        <TouchableOpacity onPress={() => confirmDelete(item.lineItem, () => handleDelete(item.id, item.lineItem))} hitSlop={8}>
                           <Feather name="trash-2" size={16} color={colors.destructive} />
                         </TouchableOpacity>
+                      </View>
+                      <View style={styles.mobileMetaRow}>
+                        <PickerCell value={item.category} options={categoryOptions} onSelect={(v) => handleUpdateField(item.id, "category", v)} colors={colors} placeholder="Category" allowNew newLabel="+ New category…" onCreateNew={(v) => handleUpdateField(item.id, "category", v)} />
+                        <PickerCell value={item.owner} options={ownerOptions} onSelect={(v) => handleUpdateField(item.id, "owner", v)} colors={colors} placeholder="Owner" withDots freeTextFallback />
+                        <StatusBadge status={item.costStatus} onCycle={() => handleUpdateField(item.id, "costStatus", nextStatus(item.costStatus))} colors={colors} />
                       </View>
                       <View style={styles.mobileCardBottom}>
                         {amountMode === "plan" ? (
@@ -407,7 +435,14 @@ function BudgetContent() {
       )}
 
       {editingLine && (
-        <ProjectionEditor lineId={editingLine.id} lineItem={editingLine.lineItem} currentPct={editingLine.pct} onClose={() => setEditingLine(null)} />
+        <ProjectionEditor
+          lineId={editingLine.id}
+          lineItem={editingLine.lineItem}
+          currentPct={editingLine.pct}
+          onClose={() => setEditingLine(null)}
+          onSaved={() => { invalidateAll(); toast.show("Projection saved", { kind: "success" }); }}
+          onError={() => toast.show("Failed to save projection", { kind: "error" })}
+        />
       )}
 
       <AddLineModal
@@ -445,7 +480,11 @@ function BudgetContent() {
 }
 
 export default function BudgetScreen() {
-  return <BudgetContent />;
+  return (
+    <ToastProvider>
+      <BudgetContent />
+    </ToastProvider>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -458,40 +497,41 @@ const styles = StyleSheet.create({
   categoryName: { fontSize: 15, fontFamily: "Inter_700Bold" },
   categoryTotal: { fontSize: 13, fontFamily: "Inter_500Medium" },
   mobileCard: { borderWidth: 1, padding: 12 },
-  mobileCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  mobileCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   mobileItemName: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1, marginRight: 8 },
+  mobileMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 10 },
   mobileCardBottom: { flexDirection: "row", justifyContent: "space-between" },
   mobileMetric: { alignItems: "center" },
   mobileMetricLabel: { fontSize: 11, fontFamily: "Inter_400Regular", marginBottom: 2 },
   mobileMetricValue: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  projectionRow: { flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 1, marginTop: 10, paddingTop: 10 },
+  filterBar: { flexDirection: "row", flexWrap: "wrap", gap: 12, padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 4, alignItems: "flex-start" },
+  filterGroup: { gap: 4, flex: 1, minWidth: 200 },
+  filterLabel: { fontSize: 11, fontFamily: "Inter_500Medium", textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  filterPicker: { flexDirection: "row", flexWrap: "wrap", gap: 4, padding: 4, borderWidth: 1, borderRadius: 6 },
+  filterChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  filterChipText: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  toolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, padding: 8, borderRadius: 6, borderWidth: 1 },
+  segment: { flexDirection: "row", alignItems: "center", gap: 4 },
+  segmentLabel: { fontSize: 11, fontFamily: "Inter_500Medium", textTransform: "uppercase" as const, letterSpacing: 0.5, marginRight: 4 },
+  segmentBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
+  segmentText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+  addBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  projectionRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 10, marginTop: 10, borderTopWidth: 1 },
   projectionLabel: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   projectionValue: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  modalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
-  modalHandle: { alignItems: "center", marginBottom: 16 },
-  handleBar: { width: 40, height: 4, borderRadius: 2 },
-  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  modalSubtitle: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 16 },
-  modalLabel: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 8 },
-  modalInputRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 20 },
-  modalInput: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  modalPctSign: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  modalSaveButton: { paddingVertical: 14, borderRadius: 10, alignItems: "center" },
-  modalSaveText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  filterBar: { marginBottom: 12, gap: 10 },
-  filterGroup: { gap: 4 },
-  filterLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase" as const, letterSpacing: 0.5 },
-  filterPicker: { flexDirection: "row", flexWrap: "wrap", gap: 4, padding: 4, borderRadius: 8, borderWidth: 1 },
-  filterChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
-  filterChipText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 6, borderRadius: 8, borderWidth: 1, gap: 8, flexWrap: "wrap" },
-  segment: { flexDirection: "row", alignItems: "center", gap: 6 },
-  segmentLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase" as const, letterSpacing: 0.5, marginRight: 4 },
-  segmentBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
-  segmentText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 6 },
-  addBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalSheet: { padding: 20, borderTopLeftRadius: 16, borderTopRightRadius: 16, gap: 12 },
+  modalHandle: { alignItems: "center" },
+  handleBar: { width: 36, height: 4, borderRadius: 2 },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  modalSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  modalLabel: { fontSize: 12, fontFamily: "Inter_500Medium", textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  modalInputRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  modalInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, fontFamily: "Inter_500Medium", flex: 1 },
+  modalPctSign: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  modalSaveButton: { paddingVertical: 12, borderRadius: 8, alignItems: "center", marginTop: 8 },
+  modalSaveText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   desktopContainer: { flex: 1, flexDirection: "row" },
   desktopContent: { flex: 1 },
 });

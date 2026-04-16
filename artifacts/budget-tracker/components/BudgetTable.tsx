@@ -1,9 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, StyleSheet, Platform, TextInput, TouchableOpacity, Modal, Alert } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Platform, TextInput, TouchableOpacity, Alert } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
-
-const COST_STATUSES = ["Fixed Cost", "Variable", "Planned", "Booked"];
+import { InlineText, PickerCell, StatusBadge, nextStatus, type PickerOption } from "@/components/InlineEdits";
 
 export interface BudgetLineRow {
   id: number;
@@ -42,21 +41,6 @@ function formatCurrency(val: number): string {
   return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
 }
 
-function statusColor(status: string, colors: ReturnType<typeof useColors>) {
-  switch (status) {
-    case "Fixed Cost": return { bg: colors.primary + "15", fg: colors.primary };
-    case "Variable": return { bg: colors.accent + "20", fg: colors.accent };
-    case "Planned": return { bg: colors.warning + "20", fg: colors.warning };
-    case "Booked": return { bg: colors.success + "20", fg: colors.success };
-    default: return { bg: colors.border, fg: colors.foreground };
-  }
-}
-
-function nextStatus(s: string) {
-  const i = COST_STATUSES.indexOf(s);
-  return COST_STATUSES[(i + 1) % COST_STATUSES.length];
-}
-
 function SortHeader({ label, field, sortField, sortDir, onSort, style, colors }: {
   label: string; field: SortField; sortField: SortField | null; sortDir: SortDir;
   onSort: (f: SortField) => void; style?: any; colors: ReturnType<typeof useColors>;
@@ -72,69 +56,11 @@ function SortHeader({ label, field, sortField, sortDir, onSort, style, colors }:
   );
 }
 
-function InlineText({ value, onSave, colors, style }: { value: string; onSave: (v: string) => void; colors: ReturnType<typeof useColors>; style?: any }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(value);
-  React.useEffect(() => { setVal(value); }, [value]);
-
-  if (editing) {
-    return (
-      <TextInput
-        autoFocus
-        value={val}
-        onChangeText={setVal}
-        onBlur={() => { setEditing(false); if (val !== value) onSave(val); }}
-        onSubmitEditing={() => { setEditing(false); if (val !== value) onSave(val); }}
-        style={[styles.inlineInput, { color: colors.foreground, borderColor: colors.primary }, style]}
-      />
-    );
-  }
-  return (
-    <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.6} style={style}>
-      <Text style={[{ color: colors.foreground, fontSize: 13, fontFamily: "Inter_500Medium" }]} numberOfLines={1}>{value || "—"}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function PickerCell({ value, options, onSelect, colors, style, placeholder, withDots }: {
-  value: string | null; options: { value: string; label: string; color?: string }[]; onSelect: (v: string) => void;
-  colors: ReturnType<typeof useColors>; style?: any; placeholder: string; withDots?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const current = options.find((o) => o.value === value);
-  return (
-    <>
-      <TouchableOpacity onPress={() => setOpen(true)} activeOpacity={0.6} style={[{ flexDirection: "row", alignItems: "center", gap: 4 }, style]}>
-        {withDots && current?.color && <View style={[styles.dot, { backgroundColor: current.color }]} />}
-        <Text style={[{ color: value ? colors.foreground : colors.mutedForeground, fontSize: 13, fontFamily: "Inter_400Regular" }]} numberOfLines={1}>
-          {current?.label || value || placeholder}
-        </Text>
-        <Feather name="chevron-down" size={12} color={colors.mutedForeground} />
-      </TouchableOpacity>
-      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
-          <View style={[styles.pickerSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ScrollView style={{ maxHeight: 360 }}>
-              {options.map((opt) => (
-                <TouchableOpacity key={opt.value || "_none"} onPress={() => { onSelect(opt.value); setOpen(false); }} style={[styles.pickerItem, { borderBottomColor: colors.border }]} activeOpacity={0.6}>
-                  {withDots && opt.color && <View style={[styles.dot, { backgroundColor: opt.color }]} />}
-                  <Text style={{ color: colors.foreground, fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 }}>{opt.label}</Text>
-                  {opt.value === value && <Feather name="check" size={16} color={colors.primary} />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </>
-  );
-}
-
-function confirmDelete(title: string, onConfirm: () => void) {
+export function confirmDelete(title: string, onConfirm: () => void) {
   if (Platform.OS === "web") {
-    if (typeof window !== "undefined" && window.confirm(`Delete "${title}"? This cannot be undone.`)) onConfirm();
+    if (typeof window !== "undefined" && window.confirm(`Delete "${title}"? You can undo this within 5 seconds.`)) onConfirm();
   } else {
-    Alert.alert("Delete budget line", `Delete "${title}"? This cannot be undone.`, [
+    Alert.alert("Delete budget line", `Delete "${title}"? You can undo this within 5 seconds.`, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: onConfirm },
     ]);
@@ -155,9 +81,8 @@ function InlineProjectionInput({ lineId, value, onSave, colors }: { lineId: numb
 export function BudgetTable({ data, showProjection, onProjectionChange, sortField, sortDir, onSort, categories, owners, amountColumnMode, onUpdateField, onOpenMonthly, onDelete }: BudgetTableProps) {
   const colors = useColors();
 
-  const categoryOptions = [...categories.map((c) => ({ value: c, label: c }))];
-  const ownerOptions = [{ value: "", label: "— None —" }, ...owners.map((o) => ({ value: o.name, label: o.name, color: o.color }))];
-  const statusOptions = COST_STATUSES.map((s) => ({ value: s, label: s }));
+  const categoryOptions: PickerOption[] = categories.map((c) => ({ value: c, label: c }));
+  const ownerOptions: PickerOption[] = [{ value: "", label: "— None —" }, ...owners.map((o) => ({ value: o.name, label: o.name, color: o.color }))];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
@@ -177,16 +102,13 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
           </View>
           {data.map((row) => {
             const varianceColor = row.variance > 0 ? colors.success : row.variance < 0 ? colors.destructive : colors.foreground;
-            const sc = statusColor(row.costStatus, colors);
             return (
               <View key={row.id} style={[styles.row, { borderBottomColor: colors.border }]}>
                 <InlineText value={row.lineItem} onSave={(v) => onUpdateField(row.id, "lineItem", v)} colors={colors} style={styles.cellCategory} />
-                <PickerCell value={row.category} options={categoryOptions} onSelect={(v) => onUpdateField(row.id, "category", v)} colors={colors} style={styles.cellSmall} placeholder="—" />
-                <PickerCell value={row.owner} options={ownerOptions} onSelect={(v) => onUpdateField(row.id, "owner", v)} colors={colors} style={styles.cellSmall} placeholder="—" withDots />
+                <PickerCell value={row.category} options={categoryOptions} onSelect={(v) => onUpdateField(row.id, "category", v)} colors={colors} style={styles.cellSmall} placeholder="—" allowNew newLabel="+ New category…" onCreateNew={(v) => onUpdateField(row.id, "category", v)} />
+                <PickerCell value={row.owner} options={ownerOptions} onSelect={(v) => onUpdateField(row.id, "owner", v)} colors={colors} style={styles.cellSmall} placeholder="—" withDots freeTextFallback />
                 <View style={styles.cellSmall}>
-                  <TouchableOpacity onPress={() => onUpdateField(row.id, "costStatus", nextStatus(row.costStatus))} activeOpacity={0.6} style={[styles.badge, { backgroundColor: sc.bg }]}>
-                    <Text style={[styles.badgeText, { color: sc.fg }]}>{row.costStatus}</Text>
-                  </TouchableOpacity>
+                  <StatusBadge status={row.costStatus} onCycle={() => onUpdateField(row.id, "costStatus", nextStatus(row.costStatus))} colors={colors} />
                 </View>
                 {amountColumnMode === "plan" ? (
                   <TouchableOpacity onPress={() => onOpenMonthly(row.id, row.lineItem, "plan")} activeOpacity={0.6} style={styles.cellNumber}>
@@ -245,13 +167,6 @@ const styles = StyleSheet.create({
   cellVarPct: { width: 65, fontSize: 13, textAlign: "right" as const, paddingRight: 8 },
   cellProjection: { width: 80, paddingRight: 8, justifyContent: "center" },
   cellAction: { width: 36, alignItems: "center" },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: "flex-start" },
-  badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  inlineInput: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, fontFamily: "Inter_500Medium" },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: 20 },
-  pickerSheet: { width: "100%", maxWidth: 320, borderRadius: 12, borderWidth: 1, overflow: "hidden" },
-  pickerItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1 },
   projInputContainer: { flexDirection: "row", alignItems: "center", gap: 2 },
   projInput: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, width: 50, fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "right" as const },
   projPct: { fontSize: 12, fontFamily: "Inter_400Regular" },
