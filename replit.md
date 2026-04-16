@@ -119,7 +119,13 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 1. **Foundation** (COMPLETE) — DB schema, API, app shell with dual layout
 2. **Intelligence Layer** (COMPLETE) — Charts (bar/line/donut), projections engine, 6-type alert engine, projection editing
 3. **Actuals Integration** (COMPLETE) — CSV import with auto-matching, manual assignment, idempotent confirmation
-4. **Board View** (COMPLETE) — Board visibility settings, shareable token links, iPhone-optimized board view, PDF/Excel exports
+4. **Board View** (COMPLETE) — Board visibility settings, shareable token links, iPhone-optimized board view, PDF/Excel exports, token-based export downloads
 5. **Admin & Governance** (PENDING) — Reforecast, audit trail, admin settings
+
+### Auth Model
+- VP Management routes (`/board/settings`, `/board/tokens`, `/board/preview`, exports) require `x-api-key` header matching `VP_API_KEY` env var
+- Board members access `/board/view` and public board-view screen via share token URL param
+- Exports (`/exports/pdf`, `/exports/excel`) accept either VP API key or share token for auth
+- `EXPO_PUBLIC_VP_API_KEY` env var configures the VP key on the client side (set via `setDefaultHeaders`)
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

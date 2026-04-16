@@ -125,7 +125,8 @@ function BoardContent() {
     const url = `${baseUrl}/api/exports/${endpoint}`;
     if (Platform.OS === "web") {
       try {
-        const res = await fetch(url, { headers: { "x-api-key": "hubert-vp-internal-2026" } });
+        const apiKey = process.env.EXPO_PUBLIC_VP_API_KEY || "";
+        const res = await fetch(url, { headers: { "x-api-key": apiKey } });
         if (!res.ok) throw new Error("Export failed");
         const blob = await res.blob();
         const a = document.createElement("a");

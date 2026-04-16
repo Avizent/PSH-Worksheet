@@ -312,7 +312,8 @@ router.get("/board/preview", requireVpAuth, asyncHandler(async (_req, res): Prom
 router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
   const queryParsed = ExportPdfQueryParams.safeParse(req.query);
   const hasToken = !!queryParsed.data?.token;
-  const hasApiKey = req.headers["x-api-key"] === (process.env.VP_API_KEY || "hubert-vp-internal-2026");
+  const vpApiKey = process.env.VP_API_KEY;
+  const hasApiKey = !!vpApiKey && req.headers["x-api-key"] === vpApiKey;
   if (hasToken) {
     const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }
@@ -454,7 +455,8 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
 router.get("/exports/excel", asyncHandler(async (req, res): Promise<void> => {
   const queryParsed = ExportExcelQueryParams.safeParse(req.query);
   const hasToken = !!queryParsed.data?.token;
-  const hasApiKey = req.headers["x-api-key"] === (process.env.VP_API_KEY || "hubert-vp-internal-2026");
+  const vpApiKey = process.env.VP_API_KEY;
+  const hasApiKey = !!vpApiKey && req.headers["x-api-key"] === vpApiKey;
   if (hasToken) {
     const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }

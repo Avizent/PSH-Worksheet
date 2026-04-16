@@ -20,7 +20,10 @@ import { getApiUrl } from "@/utils/getApiUrl";
 SplashScreen.preventAutoHideAsync();
 
 setBaseUrl(getApiUrl());
-setDefaultHeaders({ "x-api-key": "hubert-vp-internal-2026" });
+const vpApiKey = process.env.EXPO_PUBLIC_VP_API_KEY;
+if (vpApiKey) {
+  setDefaultHeaders({ "x-api-key": vpApiKey });
+}
 
 const queryClient = new QueryClient();
 

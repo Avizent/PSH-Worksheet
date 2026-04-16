@@ -30,3 +30,9 @@ externalPort = 80
 [[ports]]
 localPort = 25099
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+VP_API_KEY = "2d3af07e94628775853f08b62c7c1c268513efd2bf452f43d4ec4d2232b3076f"
+EXPO_PUBLIC_VP_API_KEY = "2d3af07e94628775853f08b62c7c1c268513efd2bf452f43d4ec4d2232b3076f"

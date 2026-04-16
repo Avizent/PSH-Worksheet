@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   Platform,
   useWindowDimensions,
+  TouchableOpacity,
+  Linking,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -106,6 +108,27 @@ export default function BoardViewScreen() {
       </View>
     );
   }
+
+  const handleExport = async (endpoint: string, filename: string) => {
+    const baseUrl = getApiUrl();
+    const url = `${baseUrl}/api/exports/${endpoint}?token=${params.token}`;
+    if (Platform.OS === "web") {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Export failed");
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch {
+        alert("Export failed. Please try again.");
+      }
+    } else {
+      Linking.openURL(url);
+    }
+  };
 
   const visible = new Set(data.visibleSections);
   const s = data.summary;
@@ -241,6 +264,26 @@ export default function BoardViewScreen() {
         </View>
       )}
 
+      <View style={styles.exportSection}>
+        <Text style={styles.exportTitle}>Export Report</Text>
+        <View style={styles.exportRow}>
+          <TouchableOpacity
+            onPress={() => handleExport("pdf", "hubert-board-report.pdf")}
+            style={[styles.exportButton, { backgroundColor: "#1a1a2e" }]}
+          >
+            <Feather name="file-text" size={18} color="#fff" />
+            <Text style={styles.exportButtonText}>Download PDF</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => handleExport("excel", "hubert-fy2026-budget.xlsx")}
+            style={[styles.exportButton, { backgroundColor: "#16a34a" }]}
+          >
+            <Feather name="download" size={18} color="#fff" />
+            <Text style={styles.exportButtonText}>Download Excel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={styles.footerBrand}>
         <Feather name="trending-up" size={14} color="#9ca3af" />
         <Text style={styles.footerText}>Hubert Marketing · Confidential</Text>
@@ -279,6 +322,11 @@ const styles = StyleSheet.create({
   eventName: { fontSize: 15, fontWeight: "600", color: "#1a1a2e" },
   eventMeta: { fontSize: 12, color: "#6b7280", marginTop: 2 },
   eventCost: { fontSize: 15, fontWeight: "700", color: "#1a1a2e" },
+  exportSection: { marginTop: 24, paddingTop: 20, borderTopWidth: 1, borderTopColor: "#e5e7eb" },
+  exportTitle: { fontSize: 16, fontWeight: "700", color: "#1a1a2e", marginBottom: 12 },
+  exportRow: { flexDirection: "row", gap: 10 },
+  exportButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 10 },
+  exportButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   footerBrand: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingTop: 24, borderTopWidth: 1, borderTopColor: "#e5e7eb", marginTop: 8 },
   footerText: { fontSize: 12, color: "#9ca3af" },
 });
