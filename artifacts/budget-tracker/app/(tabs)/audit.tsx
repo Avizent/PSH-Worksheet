@@ -17,6 +17,23 @@ import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { SectionHeader } from "@/components/SectionHeader";
 import { useListAuditLogs, useListAlerts } from "@workspace/api-client-react";
 
+interface AuditEntry {
+  id: number;
+  action: string;
+  entityType: string;
+  entityId: number;
+  field: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  userId?: number | null;
+  createdAt: string;
+}
+
+interface AuditLogsData {
+  entries: AuditEntry[];
+  total: number;
+}
+
 const ENTITY_LABELS: Record<string, string> = {
   budget_line: "Budget Line",
   monthly_plan: "Monthly Plan",
@@ -44,7 +61,7 @@ export default function AuditScreen() {
 
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [entityFilter, setEntityFilter] = useState<string>("");
-  const [selectedEntry, setSelectedEntry] = useState<any | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 50;
 
@@ -70,7 +87,7 @@ export default function AuditScreen() {
     }
   }, [dateFilter]);
 
-  const queryParams: any = {
+  const queryParams: Record<string, string | number> = {
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
     ...dateRange,
@@ -79,10 +96,11 @@ export default function AuditScreen() {
 
   const { data, isLoading, isError, refetch } = useListAuditLogs(queryParams);
   const { data: alerts } = useListAlerts();
-  const alertCount = alerts?.filter((a: any) => !a.resolvedAt).length ?? 0;
+  const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
 
-  const entries = (data as any)?.entries ?? [];
-  const total = (data as any)?.total ?? 0;
+  const typedData = data as AuditLogsData | undefined;
+  const entries: AuditEntry[] = typedData?.entries ?? [];
+  const total = typedData?.total ?? 0;
   const hasMore = (page + 1) * PAGE_SIZE < total;
 
   const formatDate = (dateStr: string) => {
@@ -180,7 +198,7 @@ export default function AuditScreen() {
             <Text style={[styles.thCell, { color: colors.foreground, flex: 1 }]}>Old Value</Text>
             <Text style={[styles.thCell, { color: colors.foreground, flex: 1 }]}>New Value</Text>
           </View>
-          {entries.map((e: any) => (
+          {entries.map((e) => (
             <View key={e.id} style={[styles.tableRow, { borderBottomColor: colors.border }]}>
               <Text style={[styles.tdCell, { color: colors.mutedForeground, width: 160 }]}>{formatDate(e.createdAt)}</Text>
               <View style={{ width: 80 }}>
@@ -221,7 +239,7 @@ export default function AuditScreen() {
         </View>
       ) : (
         <View>
-          {entries.map((e: any) => (
+          {entries.map((e) => (
             <TouchableOpacity
               key={e.id}
               onPress={() => setSelectedEntry(e)}

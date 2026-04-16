@@ -109,7 +109,7 @@ function BoardContent() {
         onSuccess: () => {
           setRolloverStatus("success");
         },
-        onError: (err: any) => {
+        onError: (err: Error) => {
           setRolloverStatus("error");
           setRolloverError(err?.message ?? "Rollover failed. Target year may already exist.");
         },

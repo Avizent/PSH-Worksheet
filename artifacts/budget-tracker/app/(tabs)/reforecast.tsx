@@ -24,8 +24,48 @@ import {
   useListBudgetLinesWithMonthly,
   useListAlerts,
   getListForecastVersionsQueryKey,
+  type ListForecastVersionsQueryResult,
+  type GetForecastVersionQueryResult,
+  type CompareForecastVersionsQueryResult,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+
+interface ForecastVersion {
+  id: number;
+  name: string;
+  description?: string | null;
+  versionNumber: number;
+  year: number;
+  isOriginal: boolean;
+  createdAt: Date;
+}
+
+interface ForecastPlan {
+  budgetLineId: number;
+  month: number;
+  plannedAmount: number;
+}
+
+interface ComparisonLine {
+  budgetLineId: number;
+  lineItem: string;
+  category: string;
+  months: ComparisonMonth[];
+}
+
+interface ComparisonMonth {
+  month: number;
+  basePlanned: number;
+  comparePlanned: number;
+  delta: number;
+}
+
+interface BudgetLineWithMonthly {
+  id: number;
+  lineItem: string;
+  category: string;
+  monthlyPlans?: { month: number; plannedAmount: number }[];
+}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const CURRENT_MONTH = new Date().getMonth() + 1;
@@ -49,15 +89,15 @@ export default function ReforecastScreen() {
   const [createError, setCreateError] = useState("");
   const { data: versions, isLoading: versionsLoading, isError: versionsError, refetch: refetchVersions } = useListForecastVersions({ year: 2026 });
   const { data: alerts } = useListAlerts();
-  const alertCount = alerts?.filter((a: any) => !a.resolvedAt).length ?? 0;
+  const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
 
   const { data: budgetLinesData } = useListBudgetLinesWithMonthly({ year: 2026 });
 
-  const originalVersion = versions?.find((v: any) => v.isOriginal);
+  const originalVersion = versions?.find((v) => v.isOriginal);
   const latestVersion = versions?.[0];
 
   const activeVersionId = selectedVersionId ?? latestVersion?.id;
-  const activeVersion = versions?.find((v: any) => v.id === activeVersionId);
+  const activeVersion = versions?.find((v) => v.id === activeVersionId);
 
   const { data: versionDetail } = useGetForecastVersion(activeVersionId ?? 0, {
     query: { enabled: !!activeVersionId },
@@ -74,7 +114,7 @@ export default function ReforecastScreen() {
   const plansByLine = useMemo(() => {
     if (!versionDetail?.plans) return new Map();
     const map = new Map<number, Map<number, number>>();
-    for (const p of versionDetail.plans as any[]) {
+    for (const p of versionDetail.plans as ForecastPlan[]) {
       if (!map.has(p.budgetLineId)) map.set(p.budgetLineId, new Map());
       map.get(p.budgetLineId)!.set(p.month, p.plannedAmount);
     }
@@ -84,7 +124,7 @@ export default function ReforecastScreen() {
   const originalPlansByLine = useMemo(() => {
     if (!budgetLinesData) return new Map();
     const map = new Map<number, Map<number, number>>();
-    for (const bl of budgetLinesData as any[]) {
+    for (const bl of budgetLinesData as BudgetLineWithMonthly[]) {
       const monthMap = new Map<number, number>();
       for (const mp of bl.monthlyPlans ?? []) {
         monthMap.set(mp.month, mp.plannedAmount);
@@ -98,7 +138,7 @@ export default function ReforecastScreen() {
     if (!newName.trim() || !budgetLinesData) return;
 
     const plans: { budgetLineId: number; month: number; plannedAmount: number }[] = [];
-    for (const bl of budgetLinesData as any[]) {
+    for (const bl of budgetLinesData as BudgetLineWithMonthly[]) {
       for (let m = 1; m <= 12; m++) {
         const key = `${bl.id}-${m}`;
         const edited = editedPlans[key];
@@ -120,7 +160,7 @@ export default function ReforecastScreen() {
           setEditedPlans({});
           setCreateError("");
         },
-        onError: (err: any) => {
+        onError: (err: Error) => {
           setCreateError(err?.message ?? "Failed to create reforecast. Please try again.");
         },
       },
@@ -174,7 +214,8 @@ export default function ReforecastScreen() {
         {isDesktop && (
           <TouchableOpacity
             onPress={() => { setEditedPlans({}); setNewName(""); setShowCreate(true); }}
-            style={[styles.createButton, { backgroundColor: colors.primary }]}
+            disabled={!canEdit}
+            style={[styles.createButton, { backgroundColor: colors.primary, opacity: canEdit ? 1 : 0.5 }]}
           >
             <Feather name="plus" size={16} color="#fff" />
             <Text style={styles.createButtonText}>New Reforecast</Text>
@@ -184,7 +225,7 @@ export default function ReforecastScreen() {
 
       {versions && versions.length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-          {(versions as any[]).map((v: any) => (
+          {(versions as ForecastVersion[]).map((v) => (
             <TouchableOpacity
               key={v.id}
               onPress={() => setSelectedVersionId(v.id)}
@@ -222,13 +263,13 @@ export default function ReforecastScreen() {
                     <Text key={m} style={[styles.headerCell, styles.monthCol, { color: colors.foreground }]}>{m}</Text>
                   ))}
                 </View>
-                {(comparison.lines as any[]).map((line: any) => (
+                {(comparison.lines as ComparisonLine[]).map((line) => (
                   <View key={line.budgetLineId} style={[styles.tableRow, { borderBottomColor: colors.border }]}>
                     <View style={styles.lineItemCol}>
                       <Text style={[styles.cellText, { color: colors.foreground }]}>{line.lineItem}</Text>
                       <Text style={[styles.cellSubtext, { color: colors.mutedForeground }]}>{line.category}</Text>
                     </View>
-                    {(line.months as any[]).map((m: any) => {
+                    {(line.months as ComparisonMonth[]).map((m) => {
                       const delta = m.delta;
                       const deltaColor = delta > 0 ? "#16a34a" : delta < 0 ? "#dc2626" : colors.mutedForeground;
                       return (
@@ -250,8 +291,8 @@ export default function ReforecastScreen() {
             </ScrollView>
           ) : (
             <View>
-              {(comparison.lines as any[]).slice(0, 8).map((line: any) => {
-                const totalDelta = (line.months as any[]).reduce((s: number, m: any) => s + m.delta, 0);
+              {(comparison.lines as ComparisonLine[]).slice(0, 8).map((line) => {
+                const totalDelta = (line.months as ComparisonMonth[]).reduce((s: number, m: ComparisonMonth) => s + m.delta, 0);
                 return (
                   <View key={line.budgetLineId} style={[styles.mobileCompareRow, { borderBottomColor: colors.border }]}>
                     <View style={{ flex: 1 }}>
@@ -277,7 +318,7 @@ export default function ReforecastScreen() {
             {activeVersion?.name} — Plan Details
           </Text>
           <Text style={[styles.cellSubtext, { color: colors.mutedForeground, marginBottom: 8 }]}>
-            {versionDetail.plans ? (versionDetail.plans as any[]).length : 0} plan entries
+            {versionDetail.plans ? (versionDetail.plans as ForecastPlan[]).length : 0} plan entries
           </Text>
         </View>
       )}
@@ -318,7 +359,7 @@ export default function ReforecastScreen() {
                   Edit future month amounts below (months 1–{CURRENT_MONTH - 1} are locked):
                 </Text>
                 <ScrollView style={{ maxHeight: 400, marginTop: 8 }}>
-                  {budgetLinesData && (budgetLinesData as any[]).map((bl: any) => (
+                  {budgetLinesData && (budgetLinesData as BudgetLineWithMonthly[]).map((bl) => (
                     <View key={bl.id} style={{ marginBottom: 12 }}>
                       <Text style={[styles.cellText, { color: colors.foreground, marginBottom: 4 }]}>{bl.lineItem}</Text>
                       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>

@@ -8,6 +8,7 @@ import {
   ResolveAlertResponse,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { writeAuditLog } from "../middleware/auditLog";
 
 const StrictResolvedParam = z.object({
   resolved: z.enum(["true", "false"]).optional(),
@@ -44,6 +45,14 @@ router.patch("/alerts/:id/resolve", asyncHandler(async (req, res): Promise<void>
     res.status(404).json({ error: "Alert not found" });
     return;
   }
+  await writeAuditLog({
+    action: "update",
+    entityType: "alert",
+    entityId: row.id,
+    field: "resolvedAt",
+    oldValue: null,
+    newValue: row.resolvedAt?.toISOString() ?? null,
+  });
   res.json(ResolveAlertResponse.parse(row));
 }));
 

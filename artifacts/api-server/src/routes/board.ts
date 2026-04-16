@@ -26,6 +26,7 @@ import {
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { requireVpAuth, vpLogin, isValidVpSession } from "../middleware/vpAuth";
+import { writeAuditLog } from "../middleware/auditLog";
 
 const router: IRouter = Router();
 
@@ -70,9 +71,20 @@ router.put("/board/settings", requireVpAuth, asyncHandler(async (req, res): Prom
   await ensureDefaultSettings();
 
   for (const item of bodyParsed.data) {
+    const [existing] = await db.select().from(boardSettingsTable).where(eq(boardSettingsTable.sectionKey, item.sectionKey));
     await db.update(boardSettingsTable)
       .set({ visible: item.visible })
       .where(eq(boardSettingsTable.sectionKey, item.sectionKey));
+    if (existing && existing.visible !== item.visible) {
+      await writeAuditLog({
+        action: "update",
+        entityType: "board_setting",
+        entityId: existing.id,
+        field: "visible",
+        oldValue: String(existing.visible),
+        newValue: String(item.visible),
+      });
+    }
   }
 
   const updated = await db.select().from(boardSettingsTable).orderBy(boardSettingsTable.sortOrder);
@@ -98,6 +110,14 @@ router.post("/board/tokens", requireVpAuth, asyncHandler(async (req, res): Promi
     expiresAt: bodyParsed.data.expiresAt ? new Date(bodyParsed.data.expiresAt) : null,
   }).returning();
 
+  await writeAuditLog({
+    action: "create",
+    entityType: "share_token",
+    entityId: created.id,
+    field: "label",
+    newValue: created.label,
+  });
+
   res.status(201).json(created);
 }));
 
@@ -117,6 +137,15 @@ router.patch("/board/tokens/:id/revoke", requireVpAuth, asyncHandler(async (req,
     res.status(404).json({ error: "Token not found" });
     return;
   }
+
+  await writeAuditLog({
+    action: "update",
+    entityType: "share_token",
+    entityId: updated.id,
+    field: "revoked",
+    oldValue: "false",
+    newValue: "true",
+  });
 
   res.json(updated);
 }));

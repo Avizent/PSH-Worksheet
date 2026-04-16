@@ -11,6 +11,7 @@ import {
   UpdateMonthlyActualResponse,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { writeAuditLog, writeAuditDiff } from "../middleware/auditLog";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,13 @@ router.post("/monthly-actuals", asyncHandler(async (req, res): Promise<void> => 
     return;
   }
   const [row] = await db.insert(monthlyActualsTable).values(parsed.data).returning();
+  await writeAuditLog({
+    action: "create",
+    entityType: "monthly_actual",
+    entityId: row.id,
+    field: "actualAmount",
+    newValue: String(row.actualAmount),
+  });
   res.status(201).json(ListMonthlyActualsResponseItem.parse(row));
 }));
 
@@ -55,10 +63,14 @@ router.patch("/monthly-actuals/:id", asyncHandler(async (req, res): Promise<void
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [existing] = await db.select().from(monthlyActualsTable).where(eq(monthlyActualsTable.id, params.data.id));
   const [row] = await db.update(monthlyActualsTable).set(parsed.data).where(eq(monthlyActualsTable.id, params.data.id)).returning();
   if (!row) {
     res.status(404).json({ error: "Monthly actual not found" });
     return;
+  }
+  if (existing) {
+    await writeAuditDiff("update", "monthly_actual", row.id, existing, row, ["actualAmount", "invoiceRef"]);
   }
   res.json(UpdateMonthlyActualResponse.parse(row));
 }));

@@ -30,8 +30,8 @@ export async function writeAuditDiff(
   action: string,
   entityType: string,
   entityId: number,
-  oldObj: Record<string, any>,
-  newObj: Record<string, any>,
+  oldObj: Record<string, unknown>,
+  newObj: Record<string, unknown>,
   fields: string[],
   userId?: number | null,
 ): Promise<void> {

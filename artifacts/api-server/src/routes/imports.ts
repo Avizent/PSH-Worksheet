@@ -20,6 +20,7 @@ import {
   AssignImportRowParams,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { writeAuditLog } from "../middleware/auditLog";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -289,6 +290,14 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
   const updatedImport = await db.select().from(csvImportsTable).where(eq(csvImportsTable.id, importRecord.id));
   const importRows = await db.select().from(csvImportRowsTable).where(eq(csvImportRowsTable.importId, importRecord.id)).orderBy(csvImportRowsTable.rowIndex);
 
+  await writeAuditLog({
+    action: "create",
+    entityType: "csv_import",
+    entityId: importRecord.id,
+    field: "filename",
+    newValue: file.originalname,
+  });
+
   res.status(201).json(GetImportResponse.parse({
     ...updatedImport[0],
     rows: importRows,
@@ -356,6 +365,15 @@ router.patch("/imports/rows/:id/assign", asyncHandler(async (req, res): Promise<
       status: remainingUnmatched.length === 0 ? "ready" : "needs_review",
     }).where(eq(csvImportsTable.id, updated.importId));
   }
+
+  await writeAuditLog({
+    action: "update",
+    entityType: "csv_import_row",
+    entityId: updated.id,
+    field: "budgetLineId",
+    oldValue: null,
+    newValue: String(body.data.budgetLineId),
+  });
 
   res.json(AssignImportRowResponse.parse(updated));
 }));
@@ -431,6 +449,15 @@ router.post("/imports/:id/confirm", asyncHandler(async (req, res): Promise<void>
     .where(and(eq(csvImportRowsTable.importId, imp.id), eq(csvImportRowsTable.status, "unmatched")));
 
   await db.update(csvImportsTable).set({ status: "confirmed" }).where(eq(csvImportsTable.id, imp.id));
+
+  await writeAuditLog({
+    action: "update",
+    entityType: "csv_import",
+    entityId: imp.id,
+    field: "status",
+    oldValue: imp.status,
+    newValue: "confirmed",
+  });
 
   res.json(ConfirmImportResponse.parse({
     importId: imp.id,
