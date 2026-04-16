@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import userAuthRouter from "./userAuth";
 import budgetLinesRouter from "./budget-lines";
 import budgetLinesWithMonthlyRouter from "./budget-lines-with-monthly";
 import monthlyPlansRouter from "./monthly-plans";
@@ -20,6 +21,7 @@ import seedRouter from "./seed";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(userAuthRouter);
 router.use(dashboardRouter);
 router.use(chartsRouter);
 router.use(projectionsRouter);

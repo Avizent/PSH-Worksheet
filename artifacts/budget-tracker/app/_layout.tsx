@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -17,6 +17,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { setBaseUrl, setDefaultHeaders } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
 import { setVpSessionToken } from "@/utils/vpSession";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -42,12 +43,35 @@ async function initVpSession(): Promise<void> {
   } catch {}
 }
 
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+    const inLoginScreen = segments[0] === "login";
+    if (!isAuthenticated && !inLoginScreen) {
+      router.replace("/login");
+    } else if (isAuthenticated && inLoginScreen) {
+      router.replace("/");
+    }
+  }, [isAuthenticated, isLoading, segments, router]);
+
+  return <>{children}</>;
+}
+
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back" }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="board-view" options={{ headerShown: false }} />
-    </Stack>
+    <AuthProvider>
+      <AuthGate>
+        <Stack screenOptions={{ headerBackTitle: "Back" }}>
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="board-view" options={{ headerShown: false }} />
+        </Stack>
+      </AuthGate>
+    </AuthProvider>
   );
 }
 

@@ -146,6 +146,19 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 5. **Admin & Governance** (COMPLETE) — Reforecast versioning (create/compare/view), audit log with filters, annual budget rollover with confirmation dialog
 
 ### Auth Model
+
+#### User Login (App Gate)
+- Email + password login screen gates the entire app (`app/login.tsx`)
+- Two allowed users seeded on server startup: `rcp@avizent.com` and `patricia.s.hyde@gmail.com`
+- No registration — users are seeded in `artifacts/api-server/src/lib/seedAuthUsers.ts`
+- Passwords stored as bcrypt hashes (cost factor 12) in `users.password_hash` column
+- Sessions: in-memory `userSessions` Map, 24h TTL, `x-user-session` header
+- Client stores session token in AsyncStorage (`lib/authSession.ts`)
+- `AuthProvider` context (`contexts/AuthContext.tsx`) provides `user`, `login`, `logout`, `isAuthenticated`
+- `AuthGate` component in `_layout.tsx` redirects unauthenticated users to `/login`
+- Endpoints: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
+
+#### VP Session (Board/Export Auth)
 - VP session flow: client calls `POST /auth/vp-login` with `x-api-key` header → receives a 24h session token
 - VP Management routes (`/board/settings`, `/board/tokens`, `/board/preview`, exports) require `x-vp-session` header with valid session token
 - Board members access `/board/view` and public board-view screen via share token URL param
