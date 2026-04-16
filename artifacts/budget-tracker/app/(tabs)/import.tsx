@@ -101,6 +101,8 @@ function ImportContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -242,6 +244,31 @@ function ImportContent() {
         },
       }
     );
+  };
+
+  const handleClearAll = async () => {
+    setClearingAll(true);
+    try {
+      const baseUrl = getApiUrl();
+      const res = await fetch(`${baseUrl}/api/imports/clear-all`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert("Clear failed: " + (err.error || res.statusText));
+        return;
+      }
+      const result = await res.json();
+      setActiveImportId(null);
+      queryClient.invalidateQueries({ queryKey: getListImportsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardChartsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
+      alert(`Cleared ${result.cleared.actuals} actuals, ${result.cleared.imports} imports.`);
+    } catch (e: unknown) {
+      alert("Clear error: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setClearingAll(false);
+      setClearAllConfirm(false);
+    }
   };
 
   const filteredBudgetLines = budgetLines?.filter((bl) => {
@@ -453,6 +480,56 @@ function ImportContent() {
     );
   };
 
+  const renderClearAllModal = () => {
+    if (!clearAllConfirm) return null;
+    return (
+      <Modal visible transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setClearAllConfirm(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.card, maxWidth: 400 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Clear All Import Data</Text>
+              <TouchableOpacity onPress={() => setClearAllConfirm(false)}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.modalRowInfo, { backgroundColor: "#fef2f2" }]}>
+              <Feather name="alert-triangle" size={20} color="#dc2626" style={{ marginBottom: 8 }} />
+              <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: "#991b1b", marginBottom: 4 }}>
+                This will permanently delete all import records and all actual spend data entered via imports. This cannot be undone.
+              </Text>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#991b1b" }}>
+                Budget plan lines and forecasts will not be affected.
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+              <TouchableOpacity
+                onPress={() => setClearAllConfirm(false)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleClearAll}
+                disabled={clearingAll}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: "#dc2626", alignItems: "center", opacity: clearingAll ? 0.6 : 1 }}
+              >
+                {clearingAll ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" }}>Clear All</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
+
   const renderImportHistory = () => {
     if (!imports || imports.length === 0) return null;
     const activeImports = imports.filter((i) => i.status !== "deleted");
@@ -460,7 +537,16 @@ function ImportContent() {
 
     return (
       <View style={{ marginTop: 24 }}>
-        <SectionHeader title="Import History" subtitle={`${activeImports.length} active · ${deletedImports.length} deleted`} />
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <SectionHeader title="Import History" subtitle={`${activeImports.length} active · ${deletedImports.length} deleted`} />
+          <TouchableOpacity
+            onPress={() => setClearAllConfirm(true)}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: "#dc2626" }}
+          >
+            <Feather name="trash-2" size={14} color="#dc2626" />
+            <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#dc2626" }}>Clear all</Text>
+          </TouchableOpacity>
+        </View>
         {imports.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((imp) => {
           const badge = importStatusBadge(imp.status);
           const isActive = imp.id === activeImportId;
@@ -607,6 +693,7 @@ function ImportContent() {
 
       {renderAssignModal()}
       {renderDeleteConfirmModal()}
+      {renderClearAllModal()}
     </ScrollView>
   );
 
