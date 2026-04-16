@@ -16,4 +16,5 @@ export interface CsvImport {
   errorRows: number;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date | null;
 }

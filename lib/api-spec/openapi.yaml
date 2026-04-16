@@ -556,6 +556,36 @@ paths:
                 $ref: "#/components/schemas/CsvImportWithRows"
         "404":
           description: Not found
+    delete:
+      operationId: deleteImport
+      tags: [imports]
+      summary: Delete an import and roll back its actuals
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  id:
+                    type: integer
+                  previousStatus:
+                    type: string
+                required:
+                  - success
+                  - id
+                  - previousStatus
+        "404":
+          description: Not found
 
   /imports/{id}/confirm:
     post:
@@ -1453,6 +1483,10 @@ components:
         updatedAt:
           type: string
           format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
       required:
         - id
         - filename

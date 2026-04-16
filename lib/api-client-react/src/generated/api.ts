@@ -39,6 +39,7 @@ import type {
   CsvImportWithRows,
   DashboardCharts,
   DashboardSummary,
+  DeleteImport200,
   EvaluateAlertsParams,
   ExportExcelParams,
   ExportPdfParams,
@@ -2381,6 +2382,90 @@ export function useGetImport<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Delete an import and roll back its actuals
+ */
+export const getDeleteImportUrl = (id: number) => {
+  return `/api/imports/${id}`;
+};
+
+export const deleteImport = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteImport200> => {
+  return customFetch<DeleteImport200>(getDeleteImportUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteImportMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteImport>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteImport>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteImport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteImport>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteImport(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteImportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteImport>>
+>;
+
+export type DeleteImportMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete an import and roll back its actuals
+ */
+export const useDeleteImport = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteImport>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteImport>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteImportMutationOptions(options));
+};
 
 /**
  * @summary Confirm import and create MonthlyActual records

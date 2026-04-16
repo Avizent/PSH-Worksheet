@@ -242,6 +242,7 @@ export interface CsvImport {
   errorRows: number;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
 }
 
 export interface CsvImportRow {
@@ -462,6 +463,12 @@ export type EvaluateAlertsParams = {
 
 export type ListBudgetLinesWithMonthlyParams = {
   year?: number;
+};
+
+export type DeleteImport200 = {
+  success: boolean;
+  id: number;
+  previousStatus: string;
 };
 
 export type GetBoardViewParams = {

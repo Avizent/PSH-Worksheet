@@ -25,6 +25,7 @@ import {
   useGetImport,
   useAssignImportRow,
   useConfirmImport,
+  useDeleteImport,
   useListAlerts,
   useListBudgetLines,
   getListImportsQueryKey,
@@ -105,6 +106,7 @@ function ImportContent() {
 
   const assignMutation = useAssignImportRow();
   const confirmMutation = useConfirmImport();
+  const deleteMutation = useDeleteImport();
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -219,27 +221,27 @@ function ImportContent() {
     );
   };
 
-  const handleDelete = async (importId: number) => {
+  const handleDelete = (importId: number) => {
     setDeleting(true);
-    try {
-      const baseUrl = getApiUrl();
-      const response = await fetch(`${baseUrl}/api/imports/${importId}`, { method: "DELETE" });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        alert("Delete failed: " + (err.error || response.statusText));
-        return;
+    deleteMutation.mutate(
+      { id: importId },
+      {
+        onSuccess: () => {
+          if (activeImportId === importId) setActiveImportId(null);
+          queryClient.invalidateQueries({ queryKey: getListImportsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardChartsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
+        },
+        onError: (e: unknown) => {
+          alert("Delete error: " + (e instanceof Error ? e.message : String(e)));
+        },
+        onSettled: () => {
+          setDeleting(false);
+          setDeleteConfirmId(null);
+        },
       }
-      if (activeImportId === importId) setActiveImportId(null);
-      queryClient.invalidateQueries({ queryKey: getListImportsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetDashboardChartsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
-    } catch (e: unknown) {
-      alert("Delete error: " + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setDeleting(false);
-      setDeleteConfirmId(null);
-    }
+    );
   };
 
   const filteredBudgetLines = budgetLines?.filter((bl) => {
@@ -482,7 +484,7 @@ function ImportContent() {
                 <Text style={[styles.historyFilename, { color: isDeleted ? colors.mutedForeground : colors.foreground, textDecorationLine: isDeleted ? "line-through" : "none" }]}>{imp.filename}</Text>
                 <Text style={[styles.historyMeta, { color: colors.mutedForeground }]}>
                   {formatDate(imp.createdAt)} · {imp.totalRows} rows · {imp.matchedRows} matched
-                  {isDeleted && (imp as unknown as { deletedAt?: string }).deletedAt ? ` · Deleted ${formatDate((imp as unknown as { deletedAt: string }).deletedAt)}` : ""}
+                  {isDeleted && imp.deletedAt ? ` · Deleted ${formatDate(String(imp.deletedAt))}` : ""}
                 </Text>
                 {isDeleted && (
                   <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#d97706", marginTop: 3 }}>

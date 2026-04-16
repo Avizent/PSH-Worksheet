@@ -491,13 +491,6 @@ router.delete("/imports/:id", asyncHandler(async (req, res): Promise<void> => {
   await db.transaction(async (tx) => {
     if (previousStatus === "confirmed") {
       await tx.delete(monthlyActualsTable).where(eq(monthlyActualsTable.importId, imp.id));
-
-      const rows = await tx.select().from(csvImportRowsTable)
-        .where(and(eq(csvImportRowsTable.importId, imp.id), eq(csvImportRowsTable.status, "matched")));
-      const hashes = rows.map(r => r.rowHash).filter((h): h is string => !!h);
-      if (hashes.length > 0) {
-        await tx.delete(monthlyActualsTable).where(inArray(monthlyActualsTable.invoiceRef, hashes));
-      }
     }
 
     await tx.delete(csvImportRowsTable).where(eq(csvImportRowsTable.importId, imp.id));

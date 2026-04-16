@@ -494,6 +494,7 @@ export const ListImportsResponseItem = zod.object({
   errorRows: zod.number(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+  deletedAt: zod.coerce.date().nullish(),
 });
 export const ListImportsResponse = zod.array(ListImportsResponseItem);
 
@@ -532,6 +533,19 @@ export const GetImportResponse = zod.object({
       createdAt: zod.coerce.date(),
     }),
   ),
+});
+
+/**
+ * @summary Delete an import and roll back its actuals
+ */
+export const DeleteImportParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteImportResponse = zod.object({
+  success: zod.boolean(),
+  id: zod.number(),
+  previousStatus: zod.string(),
 });
 
 /**

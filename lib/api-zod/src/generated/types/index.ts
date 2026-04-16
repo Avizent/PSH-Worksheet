@@ -32,6 +32,7 @@ export * from "./csvImportRow";
 export * from "./csvImportWithRows";
 export * from "./dashboardCharts";
 export * from "./dashboardSummary";
+export * from "./deleteImport200";
 export * from "./evaluateAlertsParams";
 export * from "./exportExcelParams";
 export * from "./exportPdfParams";
