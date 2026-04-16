@@ -7,8 +7,16 @@ import {
   db,
   budgetLinesTable,
   monthlyActualsTable,
+  monthlyPlansTable,
   csvImportsTable,
   csvImportRowsTable,
+  alertsTable,
+  eventsTable,
+  auditLogsTable,
+  forecastVersionsTable,
+  forecastPlansTable,
+  shareTokensTable,
+  boardSettingsTable,
 } from "@workspace/db";
 import {
   ListImportsResponse,
@@ -592,26 +600,20 @@ router.delete("/imports/:id", asyncHandler(async (req, res): Promise<void> => {
 
 router.post("/imports/clear-all", asyncHandler(async (_req, res): Promise<void> => {
   await db.transaction(async (tx) => {
-    const deletedActuals = await tx.delete(monthlyActualsTable).returning();
-    const deletedRows = await tx.delete(csvImportRowsTable).returning();
-    const deletedImports = await tx.delete(csvImportsTable).returning();
+    const d = {
+      forecastPlans: (await tx.delete(forecastPlansTable).returning()).length,
+      forecastVersions: (await tx.delete(forecastVersionsTable).returning()).length,
+      actuals: (await tx.delete(monthlyActualsTable).returning()).length,
+      importRows: (await tx.delete(csvImportRowsTable).returning()).length,
+      imports: (await tx.delete(csvImportsTable).returning()).length,
+      alerts: (await tx.delete(alertsTable).returning()).length,
+      events: (await tx.delete(eventsTable).returning()).length,
+      shareTokens: (await tx.delete(shareTokensTable).returning()).length,
+      boardSettings: (await tx.delete(boardSettingsTable).returning()).length,
+      auditLogs: (await tx.delete(auditLogsTable).returning()).length,
+    };
 
-    await writeAuditLog({
-      action: "delete",
-      entityType: "csv_import",
-      entityId: 0,
-      field: "clear-all",
-      newValue: `Cleared ${deletedActuals.length} actuals, ${deletedRows.length} import rows, ${deletedImports.length} imports`,
-    });
-
-    res.json({
-      success: true,
-      cleared: {
-        actuals: deletedActuals.length,
-        importRows: deletedRows.length,
-        imports: deletedImports.length,
-      },
-    });
+    res.json({ success: true, cleared: d });
   });
 }));
 
