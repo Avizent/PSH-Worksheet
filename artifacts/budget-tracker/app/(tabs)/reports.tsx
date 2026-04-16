@@ -1,13 +1,15 @@
-import React, { useMemo } from "react";
-import { View, ScrollView, StyleSheet, Text, ActivityIndicator } from "react-native";
+import React, { useMemo, useState, useEffect } from "react";
+import { View, ScrollView, StyleSheet, Text, ActivityIndicator, useWindowDimensions } from "react-native";
 import Svg, { Path, Text as SvgText, Rect, G, Line, Circle, Polyline } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { useGetDashboardCharts, useGetDashboardSummary, useListBudgetLinesWithMonthly, useListAlerts } from "@workspace/api-client-react";
+import { getApiUrl } from "@/utils/getApiUrl";
 
 const PIE_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+const BURNDOWN_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6"];
 
 function formatCurrency(val: number): string {
   if (Math.abs(val) >= 1000000) return "\u00a3" + (val / 1000000).toFixed(1) + "M";
@@ -129,7 +131,7 @@ function MonthlyTrendLine({ data, width, height }: { data: { month: string; actu
   const getY = (val: number) => padding.top + chartH - (val / niceMax) * chartH;
 
   const validData = data.filter(d => d.actual > 0);
-  const points = validData.map((d, i) => `${getX(data.indexOf(d))},${getY(d.actual)}`).join(" ");
+  const points = validData.map((d) => `${getX(data.indexOf(d))},${getY(d.actual)}`).join(" ");
 
   return (
     <Svg width={width} height={height}>
@@ -155,15 +157,149 @@ function MonthlyTrendLine({ data, width, height }: { data: { month: string; actu
   );
 }
 
+function FixedVsVariableChart({ data, width, height }: { data: { label: string; fixedActual: number; variableActual: number }[]; width: number; height: number }) {
+  const colors = useColors();
+  const padding = { top: 20, right: 20, bottom: 40, left: 55 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+  const maxVal = Math.max(...data.map(d => d.fixedActual + d.variableActual), 1);
+  const niceMax = Math.ceil(maxVal / 50000) * 50000 || 50000;
+  const barW = chartW / data.length - 4;
+
+  return (
+    <Svg width={width} height={height}>
+      {Array.from({ length: 5 }, (_, i) => {
+        const val = (niceMax / 4) * i;
+        const y = padding.top + chartH - (val / niceMax) * chartH;
+        return (
+          <G key={i}>
+            <Line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke={colors.border} strokeWidth={1} strokeDasharray="4,4" />
+            <SvgText x={padding.left - 8} y={y + 4} fontSize={10} fill={colors.mutedForeground} textAnchor="end">{formatCurrency(val)}</SvgText>
+          </G>
+        );
+      })}
+      {data.map((d, i) => {
+        const x = padding.left + i * (barW + 4) + 2;
+        const fixH = (d.fixedActual / niceMax) * chartH;
+        const varH = (d.variableActual / niceMax) * chartH;
+        return (
+          <G key={i}>
+            <Rect x={x} y={padding.top + chartH - fixH} width={barW} height={fixH} fill="#2563eb" rx={2} />
+            <Rect x={x} y={padding.top + chartH - fixH - varH} width={barW} height={varH} fill="#f59e0b" rx={2} />
+            <SvgText x={x + barW / 2} y={padding.top + chartH + 18} fontSize={9} fill={colors.mutedForeground} textAnchor="middle">{d.label}</SvgText>
+          </G>
+        );
+      })}
+      <Rect x={padding.left + chartW * 0.2} y={height - 14} width={10} height={10} fill="#2563eb" rx={2} />
+      <SvgText x={padding.left + chartW * 0.2 + 14} y={height - 5} fontSize={10} fill={colors.mutedForeground}>Fixed</SvgText>
+      <Rect x={padding.left + chartW * 0.5} y={height - 14} width={10} height={10} fill="#f59e0b" rx={2} />
+      <SvgText x={padding.left + chartW * 0.5 + 14} y={height - 5} fontSize={10} fill={colors.mutedForeground}>Variable</SvgText>
+    </Svg>
+  );
+}
+
+function CategoryBurndownChart({ data, categories, width, height }: { data: Record<string, unknown>[]; categories: string[]; width: number; height: number }) {
+  const colors = useColors();
+  const padding = { top: 20, right: 20, bottom: 40, left: 55 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+
+  const allVals = data.flatMap(d => categories.map(c => Number(d[c] ?? 0)));
+  const maxVal = Math.max(...allVals, 1);
+  const niceMax = Math.ceil(maxVal / 100000) * 100000 || 100000;
+
+  const getX = (i: number) => padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
+  const getY = (val: number) => padding.top + chartH - (val / niceMax) * chartH;
+
+  return (
+    <Svg width={width} height={height}>
+      {Array.from({ length: 5 }, (_, i) => {
+        const val = (niceMax / 4) * i;
+        const y = getY(val);
+        return (
+          <G key={i}>
+            <Line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke={colors.border} strokeWidth={1} strokeDasharray="4,4" />
+            <SvgText x={padding.left - 8} y={y + 4} fontSize={10} fill={colors.mutedForeground} textAnchor="end">{formatCurrency(val)}</SvgText>
+          </G>
+        );
+      })}
+      {categories.map((cat, ci) => {
+        const color = BURNDOWN_COLORS[ci % BURNDOWN_COLORS.length];
+        const points = data.map((d, i) => `${getX(i)},${getY(Number(d[cat] ?? 0))}`).join(" ");
+        return (
+          <G key={cat}>
+            <Polyline points={points} fill="none" stroke={color} strokeWidth={2} />
+            {data.map((d, i) => (
+              <Circle key={i} cx={getX(i)} cy={getY(Number(d[cat] ?? 0))} r={3} fill={color} />
+            ))}
+          </G>
+        );
+      })}
+      {data.map((d, i) => (
+        <SvgText key={i} x={getX(i)} y={padding.top + chartH + 18} fontSize={9} fill={colors.mutedForeground} textAnchor="middle">{String(d.label)}</SvgText>
+      ))}
+    </Svg>
+  );
+}
+
+function BoardVarianceTable({ data }: { data: { lineItem: string; category: string; boardApproved: number; currentPlan: number; variance: number; variancePct: number }[] }) {
+  const colors = useColors();
+
+  return (
+    <View>
+      <View style={[tableStyles.headerRow, { borderBottomColor: colors.border }]}>
+        <Text style={[tableStyles.headerCell, tableStyles.cellName, { color: colors.mutedForeground }]}>Line Item</Text>
+        <Text style={[tableStyles.headerCell, tableStyles.cellNum, { color: colors.mutedForeground }]}>Board Approved</Text>
+        <Text style={[tableStyles.headerCell, tableStyles.cellNum, { color: colors.mutedForeground }]}>Current Plan</Text>
+        <Text style={[tableStyles.headerCell, tableStyles.cellVar, { color: colors.mutedForeground }]}>Variance</Text>
+      </View>
+      {data.map((row, i) => (
+        <View key={i} style={[tableStyles.row, { borderBottomColor: colors.border }]}>
+          <View style={tableStyles.cellName}>
+            <Text style={[tableStyles.itemName, { color: colors.foreground }]} numberOfLines={1}>{row.lineItem}</Text>
+            <Text style={[tableStyles.itemCat, { color: colors.mutedForeground }]}>{row.category}</Text>
+          </View>
+          <Text style={[tableStyles.cellText, tableStyles.cellNum, { color: colors.foreground }]}>{formatCurrency(row.boardApproved)}</Text>
+          <Text style={[tableStyles.cellText, tableStyles.cellNum, { color: colors.foreground }]}>{formatCurrency(row.currentPlan)}</Text>
+          <Text style={[tableStyles.cellText, tableStyles.cellVar, { color: row.variance >= 0 ? "#16a34a" : "#dc2626" }]}>
+            {row.variance >= 0 ? "+" : ""}{formatCurrency(row.variance)} ({row.variancePct >= 0 ? "+" : ""}{row.variancePct.toFixed(1)}%)
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function useAnalytics(endpoint: string) {
+  const [data, setData] = useState<unknown>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/analytics/${endpoint}?year=2026`)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [endpoint]);
+
+  return { data, loading };
+}
+
 function ReportsContent() {
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
+  const { width: windowWidth } = useWindowDimensions();
 
   const { data: charts, isLoading: chartsLoading } = useGetDashboardCharts({ year: 2026 });
   const { data: budgetLines, isLoading: linesLoading } = useListBudgetLinesWithMonthly({ year: 2026 });
   const { data: alerts } = useListAlerts({ resolved: false });
   const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
+
+  const { data: ownerData } = useAnalytics("owner-breakdown");
+  const { data: fixedVarData } = useAnalytics("fixed-vs-variable");
+  const { data: burndownData } = useAnalytics("category-burndown");
+  const { data: boardVarData } = useAnalytics("board-variance");
 
   const pieData = useMemo(() => {
     if (!budgetLines) return { byCategory: [] as { label: string; value: number }[], byRegion: [] as { label: string; value: number }[], byCostType: [] as { label: string; value: number }[] };
@@ -182,6 +318,15 @@ function ReportsContent() {
     const toArr = (m: Map<string, number>) => Array.from(m, ([label, value]) => ({ label, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
     return { byCategory: toArr(catMap), byRegion: toArr(regMap), byCostType: toArr(typeMap) };
   }, [budgetLines]);
+
+  const ownerPieData = useMemo(() => {
+    if (!ownerData) return { planned: [] as { label: string; value: number }[], actual: [] as { label: string; value: number }[] };
+    const arr = ownerData as { owner: string; planned: number; actual: number }[];
+    return {
+      planned: arr.map(o => ({ label: o.owner, value: o.planned })).filter(d => d.value > 0),
+      actual: arr.map(o => ({ label: o.owner, value: o.actual })).filter(d => d.value > 0),
+    };
+  }, [ownerData]);
 
   const quarterlyData = useMemo(() => {
     if (!charts?.monthly) return [];
@@ -203,6 +348,17 @@ function ReportsContent() {
     }));
   }, [charts]);
 
+  const fixedVarChartData = useMemo(() => {
+    if (!fixedVarData) return [];
+    return (fixedVarData as { label: string; fixedActual: number; variableActual: number }[]);
+  }, [fixedVarData]);
+
+  const burndownChartData = useMemo(() => {
+    if (!burndownData) return { categories: [] as string[], monthly: [] as Record<string, unknown>[] };
+    const bd = burndownData as { categories: string[]; monthly: Record<string, unknown>[] };
+    return bd;
+  }, [burndownData]);
+
   if (chartsLoading || linesLoading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
@@ -212,10 +368,13 @@ function ReportsContent() {
   }
 
   const pieSize = isDesktop ? 200 : 180;
+  const desktopContentWidth = windowWidth - 240 - 96;
+  const chartWidth = isDesktop ? Math.min((desktopContentWidth - 16) / 2, 500) : windowWidth - 80;
+  const fullChartWidth = isDesktop ? Math.min(desktopContentWidth, 900) : windowWidth - 80;
 
   const content = (
     <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={[styles.content, { paddingBottom: isDesktop ? 40 : 120 }]}>
-      <SectionHeader title="Reports" subtitle={`Visual analytics and spend distribution \u00b7 2026`} />
+      <SectionHeader title="Reports" subtitle={`Visual analytics and spend distribution \u00b7 FY2026`} />
 
       <View style={[styles.pieRow, { flexDirection: isDesktop ? "row" : "column" }]}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, flex: isDesktop ? 1 : undefined }]}>
@@ -229,20 +388,82 @@ function ReportsContent() {
         </View>
       </View>
 
+      {ownerPieData.planned.length > 0 && (
+        <>
+          <SectionHeader title="Owner Breakdown" subtitle="Budget responsibility by team member" />
+          <View style={[styles.pieRow, { flexDirection: isDesktop ? "row" : "column" }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, flex: isDesktop ? 1 : undefined }]}>
+              <PieChart data={ownerPieData.planned} size={pieSize} title="Planned Budget by Owner" />
+            </View>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, flex: isDesktop ? 1 : undefined }]}>
+              <PieChart data={ownerPieData.actual} size={pieSize} title="Actual Spend by Owner" />
+            </View>
+          </View>
+        </>
+      )}
+
       <View style={[styles.twoCol, { flexDirection: isDesktop ? "row" : "column" }]}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, flex: isDesktop ? 1 : undefined }]}>
           <Text style={[styles.cardTitle, { color: colors.foreground }]}>Planned vs Actual by Quarter</Text>
           <ScrollView horizontal={!isDesktop} showsHorizontalScrollIndicator={false}>
-            <QuarterlyCompareChart data={quarterlyData} width={isDesktop ? 460 : 360} height={260} />
+            <QuarterlyCompareChart data={quarterlyData} width={isDesktop ? chartWidth : 360} height={260} />
           </ScrollView>
         </View>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, flex: isDesktop ? 1 : undefined }]}>
           <Text style={[styles.cardTitle, { color: colors.foreground }]}>Monthly Spend Trend</Text>
           <ScrollView horizontal={!isDesktop} showsHorizontalScrollIndicator={false}>
-            <MonthlyTrendLine data={monthlyTrend} width={isDesktop ? 460 : 400} height={260} />
+            <MonthlyTrendLine data={monthlyTrend} width={isDesktop ? chartWidth : 400} height={260} />
           </ScrollView>
         </View>
       </View>
+
+      {fixedVarChartData.length > 0 && (
+        <View style={{ marginTop: 16 }}>
+          <SectionHeader title="Fixed vs Variable Costs" subtitle="Monthly split between committed and discretionary spend" />
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <ScrollView horizontal={!isDesktop} showsHorizontalScrollIndicator={false}>
+              <FixedVsVariableChart data={fixedVarChartData} width={isDesktop ? fullChartWidth : 500} height={280} />
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
+      {burndownChartData.categories.length > 0 && (
+        <View style={{ marginTop: 16 }}>
+          <SectionHeader title="Category Burn-Down" subtitle="Remaining budget per category over time" />
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <ScrollView horizontal={!isDesktop} showsHorizontalScrollIndicator={false}>
+              <CategoryBurndownChart
+                data={burndownChartData.monthly}
+                categories={burndownChartData.categories}
+                width={isDesktop ? fullChartWidth : 500}
+                height={300}
+              />
+            </ScrollView>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 12 }}>
+              {burndownChartData.categories.map((cat, i) => (
+                <View key={cat} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: BURNDOWN_COLORS[i % BURNDOWN_COLORS.length] }} />
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{cat}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      )}
+
+      {boardVarData && (boardVarData as unknown[]).length > 0 && (
+        <View style={{ marginTop: 16 }}>
+          <SectionHeader title="Board Sign-Off Variance" subtitle="Current plan vs December 2025 board-approved amounts" />
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <ScrollView horizontal={!isDesktop} showsHorizontalScrollIndicator={false}>
+              <View style={{ minWidth: isDesktop ? undefined : 600 }}>
+                <BoardVarianceTable data={boardVarData as { lineItem: string; category: string; boardApproved: number; currentPlan: number; variance: number; variancePct: number }[]} />
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 
@@ -269,6 +490,18 @@ const pieStyles = StyleSheet.create({
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   legendPct: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+});
+
+const tableStyles = StyleSheet.create({
+  headerRow: { flexDirection: "row", borderBottomWidth: 1, paddingBottom: 8, marginBottom: 4 },
+  headerCell: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase" as const },
+  row: { flexDirection: "row", paddingVertical: 8, borderBottomWidth: 1, alignItems: "center" },
+  cellName: { flex: 2, paddingRight: 8 },
+  cellNum: { flex: 1, textAlign: "right" as const },
+  cellVar: { flex: 1.2, textAlign: "right" as const },
+  cellText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  itemName: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  itemCat: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 },
 });
 
 const styles = StyleSheet.create({

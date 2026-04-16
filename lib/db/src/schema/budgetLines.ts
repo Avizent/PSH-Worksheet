@@ -11,6 +11,7 @@ export const budgetLinesTable = pgTable("budget_lines", {
   region: text("region"),
   costStatus: text("cost_status").notNull().default("Variable"),
   projectionPct: real("projection_pct").notNull().default(0),
+  boardApprovedAmount: real("board_approved_amount"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

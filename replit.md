@@ -33,13 +33,13 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 
 ### Database Schema (13 tables)
 - `users` — Auth-ready user table with role field
-- `budgetLines` — Budget line items with category, owner, region, cost status, `projectionPct` (real, default 0)
+- `budgetLines` — Budget line items with category, owner, region, cost status, `projectionPct` (real, default 0), `boardApprovedAmount` (real, nullable — Dec 2025 board sign-off amounts)
 - `monthlyPlans` — Monthly planned amounts per budget line
-- `monthlyActuals` — Monthly actual spend per budget line
+- `monthlyActuals` — Monthly actual spend per budget line, `importId` FK to csvImports for rollback tracking
 - `alerts` — Budget alerts with severity levels (critical/warning/info), deduplication by type+budgetLineId+month+year
 - `events` — Marketing events with status tracking
 - `auditLogs` — Change audit trail (entityType, entityId, field, oldValue, newValue, action: create/update/delete/rollover)
-- `csvImports` — CSV import records (filename, status, row counts)
+- `csvImports` — CSV import records (filename, status, row counts, `deletedAt` timestamp for soft-delete)
 - `csvImportRows` — Individual parsed CSV rows (raw data, match status, budget line assignment, row hash for idempotency)
 - `boardSettings` — Board visibility settings (sectionKey, label, visible toggle, sortOrder)
 - `shareTokens` — Shareable access tokens (token UUID, label, expiresAt, revoked flag)
@@ -61,7 +61,13 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `POST /imports/upload` — Upload CSV, parse, match rows to budget lines
 - `GET /imports/:id` — Get import with all rows
 - `PATCH /imports/rows/:id/assign` — Assign unmatched row to a budget line
-- `POST /imports/:id/confirm` — Confirm import, create MonthlyActual records (idempotent by row hash)
+- `POST /imports/:id/confirm` — Confirm import, create MonthlyActual records (idempotent by row hash, tracks importId)
+- `DELETE /imports/:id` — Soft-delete import (transactional: removes actuals if confirmed, marks as deleted)
+- `GET /analytics/owner-breakdown` — Budget/spend grouped by owner
+- `GET /analytics/regional-investment` — Budget/spend grouped by region
+- `GET /analytics/fixed-vs-variable` — Monthly fixed vs variable cost split
+- `GET /analytics/category-burndown` — Remaining budget per category over time
+- `GET /analytics/board-variance` — Current plan vs board-approved amounts variance
 - `GET /board/settings` — List board visibility settings
 - `PUT /board/settings` — Update board visibility settings (batch toggle)
 - `GET /board/tokens` — List share tokens
@@ -102,12 +108,12 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `quarterly.tsx` — Quarterly View with Q1-Q4 picker, KPIs, horizontal bar chart, region table
 - `annual.tsx` — Annual View with By Category/Region tables (Var %), quarterly bar chart
 - `monthly.tsx` — Monthly View with spend trend line chart, month-by-month breakdown, quarterly roll-up
-- `reports.tsx` — Reports with 3 pie charts (Category/Region/Cost Type), quarterly + monthly trend charts
+- `reports.tsx` — Reports with 8 charts: 3 spend pie charts (Category/Region/Cost Type), 2 owner pie charts, quarterly bar, monthly trend, fixed-vs-variable stacked bar, category burn-down multi-line, board sign-off variance table
 - `alerts.tsx` — Alert management with resolve/swipe-to-resolve
 - `events.tsx` — Marketing events with status tracking
 - `reforecast.tsx` — Forecast versioning and comparison
 - `audit.tsx` — Audit log with filters
-- `import.tsx` — CSV import flow
+- `import.tsx` — CSV import flow with delete confirmation, history management (newest-first, deleted badge)
 - `board.tsx` — Board view with share tokens
 
 ### Chart Components (SVG-based, cross-platform)

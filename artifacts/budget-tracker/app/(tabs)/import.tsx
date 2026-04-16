@@ -97,6 +97,8 @@ function ImportContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [assignModalRow, setAssignModalRow] = useState<ImportRow | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -216,6 +218,29 @@ function ImportContent() {
     );
   };
 
+  const handleDelete = async (importId: number) => {
+    setDeleting(true);
+    try {
+      const baseUrl = getApiUrl();
+      const response = await fetch(`${baseUrl}/api/imports/${importId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        alert("Delete failed: " + (err.error || response.statusText));
+        return;
+      }
+      if (activeImportId === importId) setActiveImportId(null);
+      queryClient.invalidateQueries({ queryKey: getListImportsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardChartsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
+    } catch (e: unknown) {
+      alert("Delete error: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmId(null);
+    }
+  };
+
   const filteredBudgetLines = budgetLines?.filter((bl) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -233,6 +258,7 @@ function ImportContent() {
     if (status === "confirmed") return { bg: "#dcfce7", text: "#16a34a", label: "Confirmed" };
     if (status === "ready") return { bg: "#dbeafe", text: "#2563eb", label: "Ready" };
     if (status === "needs_review") return { bg: "#fef3c7", text: "#d97706", label: "Needs Review" };
+    if (status === "deleted") return { bg: "#fef2f2", text: "#dc2626", label: "Deleted" };
     return { bg: colors.muted, text: colors.mutedForeground, label: status };
   };
 
@@ -366,36 +392,109 @@ function ImportContent() {
     );
   };
 
+  const renderDeleteConfirmModal = () => {
+    if (!deleteConfirmId) return null;
+    const imp = imports?.find((i) => i.id === deleteConfirmId);
+    if (!imp) return null;
+    const isConfirmed = imp.status === "confirmed";
+
+    return (
+      <Modal visible transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setDeleteConfirmId(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.card, maxWidth: 400 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Delete Import</Text>
+              <TouchableOpacity onPress={() => setDeleteConfirmId(null)}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.modalRowInfo, { backgroundColor: "#fef2f2" }]}>
+              <Feather name="alert-triangle" size={20} color="#dc2626" style={{ marginBottom: 8 }} />
+              <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: "#991b1b", marginBottom: 4 }}>
+                {isConfirmed
+                  ? "This import has been confirmed. Deleting it will also remove all actual spend records created from it."
+                  : "This will permanently mark this import as deleted."}
+              </Text>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#991b1b" }}>
+                {imp.filename} ({imp.totalRows} rows)
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+              <TouchableOpacity
+                onPress={() => setDeleteConfirmId(null)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleDelete(deleteConfirmId)}
+                disabled={deleting}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: "#dc2626", alignItems: "center", opacity: deleting ? 0.6 : 1 }}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" }}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
+
   const renderImportHistory = () => {
     if (!imports || imports.length === 0) return null;
+    const activeImports = imports.filter((i) => i.status !== "deleted");
+    const deletedImports = imports.filter((i) => i.status === "deleted");
 
     return (
       <View style={{ marginTop: 24 }}>
-        <SectionHeader title="Import History" subtitle={`${imports.length} imports`} />
-        {imports.slice().reverse().map((imp) => {
+        <SectionHeader title="Import History" subtitle={`${activeImports.length} active · ${deletedImports.length} deleted`} />
+        {imports.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((imp) => {
           const badge = importStatusBadge(imp.status);
           const isActive = imp.id === activeImportId;
+          const isDeleted = imp.status === "deleted";
           return (
             <TouchableOpacity
               key={imp.id}
-              onPress={() => setActiveImportId(imp.id)}
+              onPress={() => !isDeleted && setActiveImportId(imp.id)}
+              activeOpacity={isDeleted ? 1 : 0.7}
               style={[
                 styles.historyRow,
                 {
-                  backgroundColor: isActive ? colors.primary + "08" : colors.card,
+                  backgroundColor: isDeleted ? colors.muted : isActive ? colors.primary + "08" : colors.card,
                   borderColor: isActive ? colors.primary : colors.border,
+                  opacity: isDeleted ? 0.7 : 1,
                 },
               ]}
             >
-              <Feather name="file-text" size={18} color={isActive ? colors.primary : colors.mutedForeground} />
+              <Feather name={isDeleted ? "trash-2" : "file-text"} size={18} color={isDeleted ? "#dc2626" : isActive ? colors.primary : colors.mutedForeground} />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.historyFilename, { color: colors.foreground }]}>{imp.filename}</Text>
+                <Text style={[styles.historyFilename, { color: isDeleted ? colors.mutedForeground : colors.foreground, textDecorationLine: isDeleted ? "line-through" : "none" }]}>{imp.filename}</Text>
                 <Text style={[styles.historyMeta, { color: colors.mutedForeground }]}>
                   {formatDate(imp.createdAt)} · {imp.totalRows} rows · {imp.matchedRows} matched
                 </Text>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
-                <Text style={[styles.statusBadgeText, { color: badge.text }]}>{badge.label}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
+                  <Text style={[styles.statusBadgeText, { color: badge.text }]}>{badge.label}</Text>
+                </View>
+                {!isDeleted && (
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); setDeleteConfirmId(imp.id); }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                )}
               </View>
             </TouchableOpacity>
           );
@@ -498,6 +597,7 @@ function ImportContent() {
       )}
 
       {renderAssignModal()}
+      {renderDeleteConfirmModal()}
     </ScrollView>
   );
 

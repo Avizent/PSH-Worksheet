@@ -17,6 +17,7 @@ import reforecastRouter from "./reforecast";
 import auditLogsRouter from "./audit-logs";
 import adminRouter from "./admin";
 import seedRouter from "./seed";
+import analyticsRouter from "./analytics";
 
 const router: IRouter = Router();
 
@@ -25,6 +26,7 @@ router.use(userAuthRouter);
 router.use(dashboardRouter);
 router.use(chartsRouter);
 router.use(projectionsRouter);
+router.use(analyticsRouter);
 router.use(budgetLinesWithMonthlyRouter);
 router.use(budgetLinesRouter);
 router.use(monthlyPlansRouter);

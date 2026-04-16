@@ -437,6 +437,7 @@ router.post("/imports/:id/confirm", asyncHandler(async (req, res): Promise<void>
       year: row.rawYear,
       actualAmount: row.rawAmount,
       invoiceRef: row.rowHash,
+      importId: imp.id,
     });
 
     if (row.rowHash) {
@@ -465,6 +466,58 @@ router.post("/imports/:id/confirm", asyncHandler(async (req, res): Promise<void>
     skippedDuplicate,
     skippedUnmatched: unmatchedRows.length,
   }));
+}));
+
+router.delete("/imports/:id", asyncHandler(async (req, res): Promise<void> => {
+  const params = GetImportParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [imp] = await db.select().from(csvImportsTable).where(eq(csvImportsTable.id, params.data.id));
+  if (!imp) {
+    res.status(404).json({ error: "Import not found" });
+    return;
+  }
+
+  if (imp.status === "deleted") {
+    res.status(400).json({ error: "Import already deleted" });
+    return;
+  }
+
+  const previousStatus = imp.status;
+
+  await db.transaction(async (tx) => {
+    if (previousStatus === "confirmed") {
+      await tx.delete(monthlyActualsTable).where(eq(monthlyActualsTable.importId, imp.id));
+
+      const rows = await tx.select().from(csvImportRowsTable)
+        .where(and(eq(csvImportRowsTable.importId, imp.id), eq(csvImportRowsTable.status, "matched")));
+      const hashes = rows.map(r => r.rowHash).filter((h): h is string => !!h);
+      if (hashes.length > 0) {
+        await tx.delete(monthlyActualsTable).where(inArray(monthlyActualsTable.invoiceRef, hashes));
+      }
+    }
+
+    await tx.delete(csvImportRowsTable).where(eq(csvImportRowsTable.importId, imp.id));
+
+    await tx.update(csvImportsTable).set({
+      status: "deleted",
+      deletedAt: new Date(),
+    }).where(eq(csvImportsTable.id, imp.id));
+  });
+
+  await writeAuditLog({
+    action: "delete",
+    entityType: "csv_import",
+    entityId: imp.id,
+    field: "status",
+    oldValue: previousStatus,
+    newValue: "deleted",
+  });
+
+  res.json({ success: true, id: imp.id, previousStatus });
 }));
 
 export default router;

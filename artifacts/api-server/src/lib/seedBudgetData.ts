@@ -17,6 +17,7 @@ type SeedLine = {
   costStatus: string;
   plans: number[];
   actuals: number[];
+  boardApproved: number;
 };
 
 const SEED_LINES: SeedLine[] = [
@@ -28,6 +29,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Variable",
     plans:   [0, 25000, 0, 25000, 0, 0, 0, 0, 25000, 0, 0, 0],
     actuals: [0, 27000, 0, 25000, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 75000,
   },
   {
     category: "Ads",
@@ -37,6 +39,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Variable",
     plans:   [20000, 20000, 20000, 20000, 20000, 10000, 10000, 10000, 20000, 20000, 20000, 20000],
     actuals: [21184.27, 13830.98, 20387.59, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 240000,
   },
 
   {
@@ -47,6 +50,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274],
     actuals: [5274, 5274, 5274, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 63282,
   },
   {
     category: "Marketing and Sales Software",
@@ -56,6 +60,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [1290, 1290, 1290, 1290, 1290, 1290, 1290, 1290, 1290, 1290, 1290, 1290],
     actuals: [1290, 1290, 1290, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 15480,
   },
   {
     category: "Marketing and Sales Software",
@@ -65,6 +70,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [4559, 4559, 4559, 4559, 4559, 4559, 4559, 4559, 4559, 4559, 4559, 4559],
     actuals: [4559, 4559, 4559, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 54707,
   },
   {
     category: "Marketing and Sales Software",
@@ -74,6 +80,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [22168, 22168, 22168, 22168, 22168, 22168, 22168, 22168, 22168, 22168, 22168, 22168],
     actuals: [22168, 22168, 22168, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 266012,
   },
   {
     category: "Marketing and Sales Software",
@@ -83,6 +90,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [330, 330, 330, 330, 330, 330, 330, 330, 330, 330, 330, 330],
     actuals: [330, 330, 330, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 3960,
   },
   {
     category: "Marketing and Sales Software",
@@ -92,6 +100,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42],
     actuals: [42, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 500,
   },
 
   {
@@ -102,6 +111,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [745, 745, 745, 745, 745, 745, 745, 745, 745, 745, 745, 745],
     actuals: [745, 745, 745, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 8940,
   },
   {
     category: "Other Costs",
@@ -111,6 +121,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Variable",
     plans:   [0, 0, 0, 20000, 0, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
   },
   {
     category: "Other Costs",
@@ -120,6 +131,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [0, 0, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
     actuals: [0, 0, 10000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 120000,
   },
 
   {
@@ -130,6 +142,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [0, 0, 0, 0, 249, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 0, 0, 249, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 249,
   },
   {
     category: "Marketing and PR",
@@ -139,6 +152,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Fixed Cost",
     plans:   [858, 858, 858, 858, 858, 858, 858, 858, 858, 858, 858, 858],
     actuals: [858, 858, 858, 858, 858, 858, 858, 858, 858, 858, 858, 858],
+    boardApproved: 4292,
   },
   {
     category: "Marketing and PR",
@@ -148,6 +162,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Planned",
     plans:   [0, 160000, 0, 0, 0, 0, 0, 0, 80000, 80000, 0, 0],
     actuals: [0, 118600, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 480000,
   },
   {
     category: "Marketing and PR",
@@ -157,6 +172,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Variable",
     plans:   [5000, 5000, 5000, 5000, 0, 0, 0, 0, 5000, 5000, 5000, 5000],
     actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 60000,
   },
   {
     category: "Marketing and PR",
@@ -166,6 +182,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Variable",
     plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
   },
 
   {
@@ -176,6 +193,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Variable",
     plans:   [0, 12000, 0, 12000, 0, 0, 12000, 0, 0, 12000, 0, 0],
     actuals: [0, 14500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 48000,
   },
   {
     category: "Events and Conferences",
@@ -185,6 +203,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Booked",
     plans:   [0, 0, 110000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 110000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 110000,
   },
   {
     category: "Events and Conferences",
@@ -194,6 +213,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Booked",
     plans:   [0, 0, 0, 0, 130000, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 130000,
   },
   {
     category: "Events and Conferences",
@@ -203,6 +223,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Variable",
     plans:   [0, 0, 0, 0, 95000, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
   },
   {
     category: "Events and Conferences",
@@ -212,6 +233,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Booked",
     plans:   [0, 0, 0, 0, 0, 0, 0, 0, 21000, 0, 0, 0],
     actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 21000,
   },
   {
     category: "Events and Conferences",
@@ -221,6 +243,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Planned",
     plans:   [0, 0, 0, 0, 0, 0, 40000, 0, 0, 0, 0, 0],
     actuals: [0, 0, 0, 0, 0, 0, 32000, 0, 0, 0, 0, 0],
+    boardApproved: 0,
   },
   {
     category: "Events and Conferences",
@@ -230,6 +253,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Planned",
     plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 130000, 0, 0],
     actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 83000, 0, 0],
+    boardApproved: 130000,
   },
   {
     category: "Events and Conferences",
@@ -239,6 +263,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Planned",
     plans:   [0, 0, 0, 0, 0, 0, 0, 0, 13000, 0, 0, 0],
     actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 13000,
   },
   {
     category: "Events and Conferences",
@@ -248,6 +273,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Planned",
     plans:   [0, 0, 0, 0, 40000, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 0, 0, 33000, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
   },
   {
     category: "Events and Conferences",
@@ -257,6 +283,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Planned",
     plans:   [0, 0, 0, 0, 85000, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 180000,
   },
   {
     category: "Events and Conferences",
@@ -266,6 +293,7 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Variable",
     plans:   [33000, 33000, 33000, 33000, 33000, 33000, 33000, 33000, 33000, 33000, 33000, 33000],
     actuals: [0, 0, 33000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 396000,
   },
 ];
 
@@ -304,6 +332,7 @@ async function insertSeedData() {
         owner: item.owner,
         region: item.region,
         costStatus: item.costStatus,
+        boardApprovedAmount: item.boardApproved || null,
       })
       .returning();
     linesCreated++;
