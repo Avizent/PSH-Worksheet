@@ -62,6 +62,7 @@ type CsvImportType = {
   errorRows: number;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
   rows: ImportRow[];
 };
 
@@ -481,7 +482,13 @@ function ImportContent() {
                 <Text style={[styles.historyFilename, { color: isDeleted ? colors.mutedForeground : colors.foreground, textDecorationLine: isDeleted ? "line-through" : "none" }]}>{imp.filename}</Text>
                 <Text style={[styles.historyMeta, { color: colors.mutedForeground }]}>
                   {formatDate(imp.createdAt)} · {imp.totalRows} rows · {imp.matchedRows} matched
+                  {isDeleted && (imp as unknown as { deletedAt?: string }).deletedAt ? ` · Deleted ${formatDate((imp as unknown as { deletedAt: string }).deletedAt)}` : ""}
                 </Text>
+                {isDeleted && (
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#d97706", marginTop: 3 }}>
+                    This file was deleted — upload a newer version
+                  </Text>
+                )}
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>

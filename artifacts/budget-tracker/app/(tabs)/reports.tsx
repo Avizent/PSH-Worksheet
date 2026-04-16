@@ -242,6 +242,71 @@ function CategoryBurndownChart({ data, categories, width, height }: { data: Reco
   );
 }
 
+const REGION_COLORS: Record<string, { planned: string; actual: string }> = {
+  CEE: { planned: "#2563eb", actual: "#60a5fa" },
+  DACH: { planned: "#16a34a", actual: "#4ade80" },
+  EU: { planned: "#d97706", actual: "#fbbf24" },
+  Global: { planned: "#7c3aed", actual: "#a78bfa" },
+  UK: { planned: "#dc2626", actual: "#f87171" },
+};
+
+function RegionalInvestmentChart({ data, regions, width, height }: { data: { quarter: string; [key: string]: unknown }[]; regions: string[]; width: number; height: number }) {
+  const colors = useColors();
+  const padding = { top: 20, right: 20, bottom: 55, left: 55 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+
+  let maxVal = 0;
+  for (const d of data) {
+    for (const r of regions) {
+      maxVal = Math.max(maxVal, Number(d[`${r}_planned`] ?? 0), Number(d[`${r}_actual`] ?? 0));
+    }
+  }
+  const niceMax = Math.ceil(maxVal / 50000) * 50000 || 50000;
+
+  const quarterW = chartW / data.length;
+  const regionW = quarterW / (regions.length + 1);
+  const barW = Math.min(regionW * 0.4, 14);
+
+  return (
+    <Svg width={width} height={height}>
+      {Array.from({ length: 5 }, (_, i) => {
+        const val = (niceMax / 4) * i;
+        const y = padding.top + chartH - (val / niceMax) * chartH;
+        return (
+          <G key={i}>
+            <Line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke={colors.border} strokeWidth={1} strokeDasharray="4,4" />
+            <SvgText x={padding.left - 8} y={y + 4} fontSize={10} fill={colors.mutedForeground} textAnchor="end">{formatCurrency(val)}</SvgText>
+          </G>
+        );
+      })}
+      {data.map((d, qi) => {
+        const qx = padding.left + qi * quarterW;
+        return (
+          <G key={qi}>
+            {regions.map((r, ri) => {
+              const cx = qx + (ri + 1) * regionW;
+              const planned = Number(d[`${r}_planned`] ?? 0);
+              const actual = Number(d[`${r}_actual`] ?? 0);
+              const pColor = REGION_COLORS[r]?.planned ?? "#6b7280";
+              const aColor = REGION_COLORS[r]?.actual ?? "#9ca3af";
+              const pH = (planned / niceMax) * chartH;
+              const aH = (actual / niceMax) * chartH;
+              return (
+                <G key={r}>
+                  <Rect x={cx - barW - 1} y={padding.top + chartH - pH} width={barW} height={pH} fill={pColor} rx={2} />
+                  <Rect x={cx + 1} y={padding.top + chartH - aH} width={barW} height={aH} fill={aColor} rx={2} />
+                </G>
+              );
+            })}
+            <SvgText x={qx + quarterW / 2} y={padding.top + chartH + 18} fontSize={12} fill={colors.mutedForeground} textAnchor="middle">{d.quarter}</SvgText>
+          </G>
+        );
+      })}
+    </Svg>
+  );
+}
+
 function BoardVarianceTable({ data }: { data: { lineItem: string; category: string; boardApproved: number; currentPlan: number; variance: number; variancePct: number }[] }) {
   const colors = useColors();
 
@@ -297,6 +362,7 @@ function ReportsContent() {
   const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
 
   const { data: ownerData } = useAnalytics("owner-breakdown");
+  const { data: regionalData } = useAnalytics("regional-investment");
   const { data: fixedVarData } = useAnalytics("fixed-vs-variable");
   const { data: burndownData } = useAnalytics("category-burndown");
   const { data: boardVarData } = useAnalytics("board-variance");
@@ -347,6 +413,12 @@ function ReportsContent() {
       actual: m.actual,
     }));
   }, [charts]);
+
+  const regionalChartData = useMemo(() => {
+    if (!regionalData) return { regions: [] as string[], quarters: [] as { quarter: string; [key: string]: unknown }[] };
+    const rd = regionalData as { regions: string[]; quarters: { quarter: string; [key: string]: unknown }[] };
+    return rd;
+  }, [regionalData]);
 
   const fixedVarChartData = useMemo(() => {
     if (!fixedVarData) return [];
@@ -400,6 +472,30 @@ function ReportsContent() {
             </View>
           </View>
         </>
+      )}
+
+      {regionalChartData.regions.length > 0 && (
+        <View style={{ marginBottom: 16 }}>
+          <SectionHeader title="Regional Investment" subtitle="Planned vs actual spend by region per quarter" />
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <ScrollView horizontal={!isDesktop} showsHorizontalScrollIndicator={false}>
+              <RegionalInvestmentChart
+                data={regionalChartData.quarters}
+                regions={regionalChartData.regions}
+                width={isDesktop ? fullChartWidth : 600}
+                height={300}
+              />
+            </ScrollView>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 12 }}>
+              {regionalChartData.regions.map((r) => (
+                <View key={r} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: REGION_COLORS[r]?.planned ?? "#6b7280" }} />
+                  <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{r}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
       )}
 
       <View style={[styles.twoCol, { flexDirection: isDesktop ? "row" : "column" }]}>
