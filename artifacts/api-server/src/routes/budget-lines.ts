@@ -84,8 +84,13 @@ router.patch("/budget-lines/:id", asyncHandler(async (req, res): Promise<void> =
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const updateData: Record<string, unknown> = { ...parsed.data };
+  // Normalize empty-string owner to null so users can clear the owner field
+  if (typeof updateData.owner === "string" && updateData.owner.trim() === "") {
+    updateData.owner = null;
+  }
   const [oldRow] = await db.select().from(budgetLinesTable).where(eq(budgetLinesTable.id, params.data.id));
-  const [row] = await db.update(budgetLinesTable).set(parsed.data).where(eq(budgetLinesTable.id, params.data.id)).returning();
+  const [row] = await db.update(budgetLinesTable).set(updateData).where(eq(budgetLinesTable.id, params.data.id)).returning();
   if (!row) {
     res.status(404).json({ error: "Budget line not found" });
     return;

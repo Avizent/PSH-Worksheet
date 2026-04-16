@@ -143,9 +143,11 @@ function BudgetContent() {
   };
 
   const handleUpdateField = (id: number, field: "lineItem" | "category" | "owner" | "costStatus", value: string) => {
+    // Send empty string for owner clearing (server normalizes "" to null);
+    // for other fields, send the value as-is.
     const data: { lineItem?: string; category?: string; owner?: string; costStatus?: string } = {};
     if (field === "owner") {
-      data.owner = value.trim() === "" ? undefined : value;
+      data.owner = value.trim();
     } else {
       data[field] = value;
     }
