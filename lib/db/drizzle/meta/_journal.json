@@ -15,6 +15,13 @@
       "when": 1776297459862,
       "tag": "0001_windy_serpent_society",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776332017670,
+      "tag": "0002_pink_proudstar",
+      "breakpoints": true
     }
   ]
 }
