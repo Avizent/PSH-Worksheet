@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import multer, { MulterError } from "multer";
 import crypto from "crypto";
 import {
@@ -495,7 +495,27 @@ router.delete("/imports/:id", asyncHandler(async (req, res): Promise<void> => {
 
   await db.transaction(async (tx) => {
     if (previousStatus === "confirmed") {
-      await tx.delete(monthlyActualsTable).where(eq(monthlyActualsTable.importId, imp.id));
+      await tx.delete(monthlyActualsTable)
+        .where(eq(monthlyActualsTable.importId, imp.id));
+
+      const importRows = await tx.select({ rowHash: csvImportRowsTable.rowHash })
+        .from(csvImportRowsTable)
+        .where(and(
+          eq(csvImportRowsTable.importId, imp.id),
+          eq(csvImportRowsTable.status, "matched"),
+        ));
+
+      const hashes = importRows
+        .map(r => r.rowHash)
+        .filter((h): h is string => !!h);
+
+      if (hashes.length > 0) {
+        await tx.delete(monthlyActualsTable)
+          .where(and(
+            inArray(monthlyActualsTable.invoiceRef, hashes),
+            isNull(monthlyActualsTable.importId),
+          ));
+      }
     }
 
     await tx.delete(csvImportRowsTable).where(eq(csvImportRowsTable.importId, imp.id));
