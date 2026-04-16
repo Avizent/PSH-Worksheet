@@ -18,6 +18,7 @@ import { setBaseUrl, setDefaultHeaders } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
 import { setVpSessionToken } from "@/utils/vpSession";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -75,6 +76,12 @@ function RootLayoutNav() {
   );
 }
 
+function ThemedRoot() {
+  const { isLoaded } = useTheme();
+  if (!isLoaded) return null;
+  return <RootLayoutNav />;
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
@@ -101,11 +108,13 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView>
-            <KeyboardProvider>
-              <RootLayoutNav />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
+          <ThemeProvider>
+            <GestureHandlerRootView>
+              <KeyboardProvider>
+                <ThemedRoot />
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </ThemeProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

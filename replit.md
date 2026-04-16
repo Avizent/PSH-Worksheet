@@ -130,6 +130,12 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - Desktop: AlertCard with severity badges and resolve button
 - Mobile: SwipeableAlertCard with swipe-left-to-resolve gesture + "Swipe left to resolve" hint text
 
+### Theming
+- `constants/colors.ts` defines `light` and `dark` palettes (background, foreground, card, primary, secondary, muted, accent, destructive, success, warning, border, input + matching `*Foreground`)
+- `contexts/ThemeContext.tsx` exposes `useTheme()` with `preference: "light" | "dark" | "system"`, `resolvedScheme`, and `cyclePreference()`. Persisted to AsyncStorage key `"theme-preference"`. App root gates rendering on `isLoaded` to avoid first-paint flicker.
+- `useColors()` reads `resolvedScheme` from context and returns the active palette
+- Theme toggle UI: cycle button in `DesktopSidebar` footer (sun/moon/monitor) and a pill-shaped button at the top of the mobile dashboard
+
 ### Expo Web API Proxy
 - Metro config includes middleware that proxies `/api/*` requests to the API server (port 8080)
 - This avoids CORS issues between the Expo dev domain and the Replit dev domain

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native
 import { Feather } from "@expo/vector-icons";
 import { useRouter, usePathname, type Href } from "expo-router";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface NavItem {
   key: string;
@@ -34,6 +35,10 @@ export function DesktopSidebar({ alertCount = 0 }: DesktopSidebarProps) {
   const colors = useColors();
   const router = useRouter();
   const pathname = usePathname();
+  const { preference, cyclePreference } = useTheme();
+  const themeIcon: keyof typeof Feather.glyphMap =
+    preference === "light" ? "sun" : preference === "dark" ? "moon" : "monitor";
+  const themeLabel = preference === "light" ? "Light" : preference === "dark" ? "Dark" : "System";
 
   const getActiveKey = (): string => {
     if (pathname === "/" || pathname === "/index") return "dashboard";
@@ -91,12 +96,22 @@ export function DesktopSidebar({ alertCount = 0 }: DesktopSidebarProps) {
       </View>
 
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
-        <View style={[styles.userAvatar, { backgroundColor: colors.primary + "15" }]}>
-          <Text style={[styles.userInitial, { color: colors.primary }]}>VP</Text>
-        </View>
-        <View>
-          <Text style={[styles.userName, { color: colors.foreground }]}>VP Marketing</Text>
-          <Text style={[styles.userRole, { color: colors.mutedForeground }]}>Editor</Text>
+        <TouchableOpacity
+          onPress={cyclePreference}
+          style={[styles.themeToggle, { borderColor: colors.border }]}
+          activeOpacity={0.7}
+        >
+          <Feather name={themeIcon} size={14} color={colors.foreground} />
+          <Text style={[styles.themeText, { color: colors.foreground }]}>{themeLabel}</Text>
+        </TouchableOpacity>
+        <View style={styles.footerUser}>
+          <View style={[styles.userAvatar, { backgroundColor: colors.primary + "15" }]}>
+            <Text style={[styles.userInitial, { color: colors.primary }]}>VP</Text>
+          </View>
+          <View>
+            <Text style={[styles.userName, { color: colors.foreground }]}>VP Marketing</Text>
+            <Text style={[styles.userRole, { color: colors.mutedForeground }]}>Editor</Text>
+          </View>
         </View>
       </View>
     </View>
@@ -158,16 +173,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   badgeText: {
-    color: "#fff",
+    color: "#ffffff",
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
   },
   footer: {
     borderTopWidth: 1,
     padding: 16,
+    gap: 12,
+  },
+  footerUser: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  themeToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignSelf: "flex-start",
+  },
+  themeText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
   },
   userAvatar: {
     width: 36,

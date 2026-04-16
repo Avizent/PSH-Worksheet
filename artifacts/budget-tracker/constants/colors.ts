@@ -34,6 +34,41 @@ const colors = {
     input: "#dce1e8",
   },
 
+  dark: {
+    text: "#e8ecf1",
+    tint: "#3d8fb8",
+
+    background: "#0f1419",
+    foreground: "#e8ecf1",
+
+    card: "#1a2028",
+    cardForeground: "#e8ecf1",
+
+    primary: "#3d8fb8",
+    primaryForeground: "#ffffff",
+
+    secondary: "#1f2937",
+    secondaryForeground: "#cbd5e0",
+
+    muted: "#1f2937",
+    mutedForeground: "#8b95a3",
+
+    accent: "#d4a84b",
+    accentForeground: "#1a1d29",
+
+    destructive: "#e74c3c",
+    destructiveForeground: "#ffffff",
+
+    success: "#2ecc71",
+    successForeground: "#ffffff",
+
+    warning: "#f39c12",
+    warningForeground: "#1a1d29",
+
+    border: "#2c3440",
+    input: "#2c3440",
+  },
+
   radius: 12,
 };
 

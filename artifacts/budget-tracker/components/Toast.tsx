@@ -64,7 +64,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <View pointerEvents="box-none" style={styles.host}>
         {items.map((t) => {
           const bg = t.kind === "error" ? colors.destructive : t.kind === "success" ? colors.success : colors.foreground;
-          const fg = "#ffffff";
+          const fg = t.kind === "error" ? colors.destructiveForeground : t.kind === "success" ? colors.successForeground : colors.background;
           return (
             <Animated.View key={t.id} style={[styles.toast, { backgroundColor: bg, ...(Platform.OS === "web" ? { boxShadow: "0 4px 18px rgba(0,0,0,0.18)" } : {}) }]}>
               <Feather name={t.kind === "error" ? "alert-circle" : t.kind === "success" ? "check-circle" : "info"} size={16} color={fg} />

@@ -30,6 +30,11 @@ export function EventsGantt({ events, width, height }: EventsGanttProps) {
     if (status === "Completed") return colors.primary;
     return colors.accent;
   };
+  const statusFg = (status: string) => {
+    if (status === "Confirmed") return colors.successForeground;
+    if (status === "Completed") return colors.primaryForeground;
+    return colors.accentForeground;
+  };
 
   return (
     <View>
@@ -60,7 +65,7 @@ export function EventsGantt({ events, width, height }: EventsGanttProps) {
                 {evt.name.length > 16 ? evt.name.slice(0, 14) + "…" : evt.name}
               </SvgText>
               <Rect x={x} y={y + 4} width={barW} height={rowH - 8} fill={fill} rx={4} opacity={0.8} />
-              <SvgText x={x + barW / 2} y={y + rowH / 2 + 3} fontSize={9} fill="#fff" textAnchor="middle" fontWeight="600">
+              <SvgText x={x + barW / 2} y={y + rowH / 2 + 3} fontSize={9} fill={statusFg(evt.status)} textAnchor="middle" fontWeight="600">
                 {budgetLabel}
               </SvgText>
             </G>
