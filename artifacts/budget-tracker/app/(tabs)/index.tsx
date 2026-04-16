@@ -18,6 +18,7 @@ import { LineChart } from "@/components/LineChart";
 import { DonutChart } from "@/components/DonutChart";
 import { ProjectionBarChart } from "@/components/ProjectionBarChart";
 import { EventsGantt } from "@/components/EventsGantt";
+import { TimelineExpenditureChart, type TimelineCategory } from "@/components/TimelineExpenditureChart";
 import { useToast } from "@/contexts/ToastContext";
 import Svg, { Rect, Text as SvgText, G } from "react-native-svg";
 import {
@@ -234,6 +235,45 @@ function DashboardContent() {
     return { label, actual: totalActual, projected: totalProjected, planned: totalPlanned };
   });
 
+  const FY_YEAR = 2026;
+  const now = new Date();
+  const currentMonth = now.getFullYear() === FY_YEAR ? now.getMonth() + 1 : 6;
+
+  const timelineCategories: TimelineCategory[] = (() => {
+    const map = new Map<string, { planned: number; spent: number; months: Set<number> }>();
+    for (const line of linesArray) {
+      const entry = map.get(line.category) ?? { planned: 0, spent: 0, months: new Set<number>() };
+      for (const p of (line.plans || [])) {
+        if ((p.plannedAmount || 0) > 0) {
+          entry.planned += p.plannedAmount || 0;
+          entry.months.add(p.month);
+        }
+      }
+      for (const a of (line.actuals || [])) {
+        if ((a.month || 0) <= currentMonth) {
+          entry.spent += a.actualAmount || 0;
+        }
+      }
+      map.set(line.category, entry);
+    }
+    const rows: TimelineCategory[] = [];
+    for (const [category, v] of map) {
+      if (v.planned <= 0) continue;
+      const months = Array.from(v.months);
+      const start = months.length ? Math.min(...months) : 1;
+      const end = months.length ? Math.max(...months) : 12;
+      rows.push({
+        category,
+        planned: v.planned,
+        spent: v.spent,
+        plannedStartMonth: start,
+        plannedEndMonth: end,
+      });
+    }
+    rows.sort((a, b) => b.planned - a.planned);
+    return rows;
+  })();
+
   const eventsArray = Array.isArray(events) ? events : [];
   const eventItems = eventsArray.map((evt) => {
     const d = evt.eventDate ? new Date(evt.eventDate) : null;
@@ -245,7 +285,7 @@ function DashboardContent() {
     };
   }).sort((a, b) => a.month - b.month);
 
-  const MOBILE_CHART_TABS = ["Plan vs Actual", "Cumulative", "Categories", "Channels", "Remaining", "Projections", "Events"] as const;
+  const MOBILE_CHART_TABS = ["Plan vs Actual", "Cumulative", "Categories", "Channels", "Remaining", "Timeline", "Projections", "Events"] as const;
 
   const renderMobileChart = (tab: string) => {
     const w = windowWidth - 32;
@@ -262,6 +302,10 @@ function DashboardContent() {
           : <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", paddingVertical: 40 }}>No channel data yet. Tag budget lines with a channel to see this chart.</Text>;
       case "Remaining":
         return <RemainingBudgetChart categories={breakdownData.map(c => ({ category: c.label, planned: c.planned, actual: c.actual }))} width={w} title={breakdownGroup === "category" ? "Remaining Budget by Category" : "Remaining Budget by Channel"} />;
+      case "Timeline":
+        return timelineCategories.length > 0
+          ? <TimelineExpenditureChart categories={timelineCategories} currentMonth={currentMonth} width={w} />
+          : <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", paddingVertical: 40 }}>No planned spend yet.</Text>;
       case "Projections":
         return <ProjectionBarChart data={projectionMonthly} width={w} height={220} />;
       case "Events":
@@ -374,6 +418,15 @@ function DashboardContent() {
                       )}
                     </View>
                   </View>
+                  {timelineCategories.length > 0 && (
+                    <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 16 }]}>
+                      <TimelineExpenditureChart
+                        categories={timelineCategories}
+                        currentMonth={currentMonth}
+                        width={chartFullWidth}
+                      />
+                    </View>
+                  )}
                   <View style={styles.extraSection}>
                     <View style={styles.tabRow}>
                       {EXTRA_CHART_TABS.map((tab) => (
