@@ -220,7 +220,7 @@ router.get("/analytics/board-variance", asyncHandler(async (req, res): Promise<v
     .groupBy(budgetLinesTable.id, budgetLinesTable.lineItem, budgetLinesTable.category, budgetLinesTable.boardApprovedAmount);
 
   const data = lines
-    .filter(l => l.boardApprovedAmount != null && l.boardApprovedAmount > 0)
+    .filter(l => l.boardApprovedAmount != null)
     .map(l => ({
       id: l.id,
       lineItem: l.lineItem,

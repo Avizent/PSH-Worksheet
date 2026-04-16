@@ -332,7 +332,7 @@ async function insertSeedData() {
         owner: item.owner,
         region: item.region,
         costStatus: item.costStatus,
-        boardApprovedAmount: item.boardApproved || null,
+        boardApprovedAmount: item.boardApproved ?? null,
       })
       .returning();
     linesCreated++;

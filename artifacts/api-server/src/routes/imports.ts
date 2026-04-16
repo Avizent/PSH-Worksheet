@@ -391,6 +391,11 @@ router.post("/imports/:id/confirm", asyncHandler(async (req, res): Promise<void>
     return;
   }
 
+  if (imp.status === "deleted") {
+    res.status(400).json({ error: "Cannot confirm a deleted import" });
+    return;
+  }
+
   if (imp.status === "confirmed") {
     res.json(ConfirmImportResponse.parse({
       importId: imp.id,
