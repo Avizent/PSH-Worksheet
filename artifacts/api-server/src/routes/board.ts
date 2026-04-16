@@ -25,9 +25,11 @@ import {
   ExportExcelQueryParams,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { requireVpAuth } from "../middleware/vpAuth";
+import { requireVpAuth, vpLogin, isValidVpSession } from "../middleware/vpAuth";
 
 const router: IRouter = Router();
+
+router.post("/auth/vp-login", vpLogin);
 
 const DEFAULT_SECTIONS = [
   { sectionKey: "kpi_total_budget", label: "Total Budget", sortOrder: 0 },
@@ -312,12 +314,12 @@ router.get("/board/preview", requireVpAuth, asyncHandler(async (_req, res): Prom
 router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
   const queryParsed = ExportPdfQueryParams.safeParse(req.query);
   const hasToken = !!queryParsed.data?.token;
-  const vpApiKey = process.env.VP_API_KEY;
-  const hasApiKey = !!vpApiKey && req.headers["x-api-key"] === vpApiKey;
+  const vpSession = req.headers["x-vp-session"] as string | undefined;
+  const hasVpSession = !!vpSession && isValidVpSession(vpSession);
   if (hasToken) {
     const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }
-  } else if (!hasApiKey) {
+  } else if (!hasVpSession) {
     res.status(401).json({ error: "Authentication required" }); return;
   }
 
@@ -455,12 +457,12 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
 router.get("/exports/excel", asyncHandler(async (req, res): Promise<void> => {
   const queryParsed = ExportExcelQueryParams.safeParse(req.query);
   const hasToken = !!queryParsed.data?.token;
-  const vpApiKey = process.env.VP_API_KEY;
-  const hasApiKey = !!vpApiKey && req.headers["x-api-key"] === vpApiKey;
+  const vpSession = req.headers["x-vp-session"] as string | undefined;
+  const hasVpSession = !!vpSession && isValidVpSession(vpSession);
   if (hasToken) {
     const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }
-  } else if (!hasApiKey) {
+  } else if (!hasVpSession) {
     res.status(401).json({ error: "Authentication required" }); return;
   }
 

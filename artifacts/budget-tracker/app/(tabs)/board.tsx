@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Switch,
-  Linking,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
@@ -123,22 +122,25 @@ function BoardContent() {
   const downloadExport = async (endpoint: string, filename: string) => {
     const baseUrl = getApiUrl();
     const url = `${baseUrl}/api/exports/${endpoint}`;
-    if (Platform.OS === "web") {
-      try {
-        const apiKey = process.env.EXPO_PUBLIC_VP_API_KEY || "";
-        const res = await fetch(url, { headers: { "x-api-key": apiKey } });
-        if (!res.ok) throw new Error("Export failed");
+    try {
+      const { getVpSessionToken } = await import("@/utils/vpSession");
+      const sessionToken = getVpSessionToken();
+      const headers: Record<string, string> = {};
+      if (sessionToken) headers["x-vp-session"] = sessionToken;
+      const res = await fetch(url, { headers });
+      if (!res.ok) throw new Error("Export failed");
+      if (Platform.OS === "web") {
         const blob = await res.blob();
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download = filename;
         a.click();
         URL.revokeObjectURL(a.href);
-      } catch {
-        alert("Export failed. Please try again.");
+      } else {
+        alert("Export downloaded successfully.");
       }
-    } else {
-      Linking.openURL(url);
+    } catch {
+      alert("Export failed. Please try again.");
     }
   };
 

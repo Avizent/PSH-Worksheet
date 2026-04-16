@@ -123,9 +123,13 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 5. **Admin & Governance** (PENDING) — Reforecast, audit trail, admin settings
 
 ### Auth Model
-- VP Management routes (`/board/settings`, `/board/tokens`, `/board/preview`, exports) require `x-api-key` header matching `VP_API_KEY` env var
+- VP session flow: client calls `POST /auth/vp-login` with `x-api-key` header → receives a 24h session token
+- VP Management routes (`/board/settings`, `/board/tokens`, `/board/preview`, exports) require `x-vp-session` header with valid session token
 - Board members access `/board/view` and public board-view screen via share token URL param
-- Exports (`/exports/pdf`, `/exports/excel`) accept either VP API key or share token for auth
-- `EXPO_PUBLIC_VP_API_KEY` env var configures the VP key on the client side (set via `setDefaultHeaders`)
+- Exports (`/exports/pdf`, `/exports/excel`) accept either VP session token or share token for auth
+- `VP_API_KEY` is a Replit secret (server-only, used only to verify VP login)
+- `EXPO_PUBLIC_VP_API_KEY` is a Replit secret used once at app startup to obtain a VP session token
+- Session tokens are stored in-memory on the server (ephemeral, 24h TTL)
+- `utils/vpSession.ts` stores session token client-side for use by export download functions
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

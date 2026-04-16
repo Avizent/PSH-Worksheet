@@ -8,7 +8,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -16,16 +16,31 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { setBaseUrl, setDefaultHeaders } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
+import { setVpSessionToken } from "@/utils/vpSession";
 
 SplashScreen.preventAutoHideAsync();
 
-setBaseUrl(getApiUrl());
-const vpApiKey = process.env.EXPO_PUBLIC_VP_API_KEY;
-if (vpApiKey) {
-  setDefaultHeaders({ "x-api-key": vpApiKey });
-}
+const apiUrl = getApiUrl();
+setBaseUrl(apiUrl);
 
 const queryClient = new QueryClient();
+
+async function initVpSession(): Promise<void> {
+  const vpApiKey = process.env.EXPO_PUBLIC_VP_API_KEY;
+  if (!vpApiKey) return;
+  try {
+    const res = await fetch(`${apiUrl}/api/auth/vp-login`, {
+      method: "POST",
+      headers: { "x-api-key": vpApiKey, "content-type": "application/json" },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.sessionToken) {
+      setDefaultHeaders({ "x-vp-session": data.sessionToken });
+      setVpSessionToken(data.sessionToken);
+    }
+  } catch {}
+}
 
 function RootLayoutNav() {
   return (
@@ -43,14 +58,20 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    initVpSession().finally(() => setSessionReady(true));
+  }, []);
+
+  useEffect(() => {
+    if ((fontsLoaded || fontError) && sessionReady) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, sessionReady]);
 
   if (!fontsLoaded && !fontError) return null;
+  if (!sessionReady) return null;
 
   return (
     <SafeAreaProvider>
