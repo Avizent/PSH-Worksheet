@@ -14,12 +14,13 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { setBaseUrl } from "@workspace/api-client-react";
+import { setBaseUrl, setDefaultHeaders } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
 
 SplashScreen.preventAutoHideAsync();
 
 setBaseUrl(getApiUrl());
+setDefaultHeaders({ "x-api-key": "hubert-vp-internal-2026" });
 
 const queryClient = new QueryClient();
 

@@ -120,25 +120,29 @@ function BoardContent() {
     }
   };
 
-  const handleExportPdf = () => {
+  const downloadExport = async (endpoint: string, filename: string) => {
     const baseUrl = getApiUrl();
-    const url = `${baseUrl}/api/exports/pdf`;
+    const url = `${baseUrl}/api/exports/${endpoint}`;
     if (Platform.OS === "web") {
-      window.open(url, "_blank");
+      try {
+        const res = await fetch(url, { headers: { "x-api-key": "hubert-vp-internal-2026" } });
+        if (!res.ok) throw new Error("Export failed");
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch {
+        alert("Export failed. Please try again.");
+      }
     } else {
       Linking.openURL(url);
     }
   };
 
-  const handleExportExcel = () => {
-    const baseUrl = getApiUrl();
-    const url = `${baseUrl}/api/exports/excel`;
-    if (Platform.OS === "web") {
-      window.open(url, "_blank");
-    } else {
-      Linking.openURL(url);
-    }
-  };
+  const handleExportPdf = () => downloadExport("pdf", "hubert-board-report.pdf");
+  const handleExportExcel = () => downloadExport("excel", "hubert-fy2026-budget.xlsx");
 
   const visibleSections = new Set(preview?.visibleSections || []);
 

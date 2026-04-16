@@ -25,6 +25,7 @@ import {
   ExportExcelQueryParams,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { requireVpAuth } from "../middleware/vpAuth";
 
 const router: IRouter = Router();
 
@@ -52,12 +53,12 @@ async function ensureDefaultSettings() {
   return existing;
 }
 
-router.get("/board/settings", asyncHandler(async (_req, res): Promise<void> => {
+router.get("/board/settings", requireVpAuth, asyncHandler(async (_req, res): Promise<void> => {
   const settings = await ensureDefaultSettings();
   res.json(ListBoardSettingsResponse.parse(settings));
 }));
 
-router.put("/board/settings", asyncHandler(async (req, res): Promise<void> => {
+router.put("/board/settings", requireVpAuth, asyncHandler(async (req, res): Promise<void> => {
   const bodyParsed = UpdateBoardSettingsBody.safeParse(req.body);
   if (!bodyParsed.success) {
     res.status(400).json({ error: bodyParsed.error.message });
@@ -76,12 +77,12 @@ router.put("/board/settings", asyncHandler(async (req, res): Promise<void> => {
   res.json(UpdateBoardSettingsResponse.parse(updated));
 }));
 
-router.get("/board/tokens", asyncHandler(async (_req, res): Promise<void> => {
+router.get("/board/tokens", requireVpAuth, asyncHandler(async (_req, res): Promise<void> => {
   const tokens = await db.select().from(shareTokensTable).orderBy(shareTokensTable.createdAt);
   res.json(ListShareTokensResponse.parse(tokens));
 }));
 
-router.post("/board/tokens", asyncHandler(async (req, res): Promise<void> => {
+router.post("/board/tokens", requireVpAuth, asyncHandler(async (req, res): Promise<void> => {
   const bodyParsed = CreateShareTokenBody.safeParse(req.body);
   if (!bodyParsed.success) {
     res.status(400).json({ error: bodyParsed.error.message });
@@ -98,7 +99,7 @@ router.post("/board/tokens", asyncHandler(async (req, res): Promise<void> => {
   res.status(201).json(created);
 }));
 
-router.patch("/board/tokens/:id/revoke", asyncHandler(async (req, res): Promise<void> => {
+router.patch("/board/tokens/:id/revoke", requireVpAuth, asyncHandler(async (req, res): Promise<void> => {
   const paramsParsed = RevokeShareTokenParams.safeParse(req.params);
   if (!paramsParsed.success) {
     res.status(400).json({ error: paramsParsed.error.message });
@@ -303,7 +304,7 @@ router.get("/board/view", asyncHandler(async (req, res): Promise<void> => {
   res.json(GetBoardViewResponse.parse(filtered));
 }));
 
-router.get("/board/preview", asyncHandler(async (_req, res): Promise<void> => {
+router.get("/board/preview", requireVpAuth, asyncHandler(async (_req, res): Promise<void> => {
   const data = await buildBoardViewData(2026);
   res.json(GetBoardPreviewResponse.parse(data));
 }));
@@ -311,11 +312,11 @@ router.get("/board/preview", asyncHandler(async (_req, res): Promise<void> => {
 router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
   const queryParsed = ExportPdfQueryParams.safeParse(req.query);
   const hasToken = !!queryParsed.data?.token;
-  const isInternal = req.headers["x-requested-with"] === "budget-tracker" || req.headers.referer?.includes("/board");
+  const hasApiKey = req.headers["x-api-key"] === (process.env.VP_API_KEY || "hubert-vp-internal-2026");
   if (hasToken) {
     const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }
-  } else if (!isInternal) {
+  } else if (!hasApiKey) {
     res.status(401).json({ error: "Authentication required" }); return;
   }
 
@@ -453,11 +454,11 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
 router.get("/exports/excel", asyncHandler(async (req, res): Promise<void> => {
   const queryParsed = ExportExcelQueryParams.safeParse(req.query);
   const hasToken = !!queryParsed.data?.token;
-  const isInternal = req.headers["x-requested-with"] === "budget-tracker" || req.headers.referer?.includes("/board");
+  const hasApiKey = req.headers["x-api-key"] === (process.env.VP_API_KEY || "hubert-vp-internal-2026");
   if (hasToken) {
     const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }
-  } else if (!isInternal) {
+  } else if (!hasApiKey) {
     res.status(401).json({ error: "Authentication required" }); return;
   }
 
