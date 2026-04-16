@@ -5,10 +5,11 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View, TouchableOpacity, Text } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
+import { useTheme } from "@/contexts/ThemeContext";
 
 function NativeTabLayout() {
   return (
@@ -65,11 +66,43 @@ function NativeTabLayout() {
   );
 }
 
+function MobileThemeFab() {
+  const colors = useColors();
+  const { preference, cyclePreference } = useTheme();
+  const icon: keyof typeof Feather.glyphMap =
+    preference === "light" ? "sun" : preference === "dark" ? "moon" : "monitor";
+  return (
+    <TouchableOpacity
+      onPress={cyclePreference}
+      activeOpacity={0.75}
+      accessibilityLabel="Toggle theme"
+      style={{
+        position: "absolute",
+        top: Platform.OS === "ios" ? 56 : 16,
+        right: 12,
+        zIndex: 999,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.card,
+      }}
+    >
+      <Feather name={icon} size={13} color={colors.foreground} />
+      <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.foreground, textTransform: "capitalize" }}>{preference}</Text>
+    </TouchableOpacity>
+  );
+}
+
 function ClassicTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
+  const { resolvedScheme } = useTheme();
   const { mode } = useLayout();
-  const isDark = colorScheme === "dark";
+  const isDark = resolvedScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   const isDesktop = mode === "desktop";
@@ -253,8 +286,13 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
+  const { mode } = useLayout();
+  const isDesktop = mode === "desktop";
+  const tabs = isLiquidGlassAvailable() ? <NativeTabLayout /> : <ClassicTabLayout />;
+  return (
+    <View style={{ flex: 1 }}>
+      {tabs}
+      {!isDesktop && <MobileThemeFab />}
+    </View>
+  );
 }

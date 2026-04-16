@@ -62,16 +62,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) {
-    return {
+/**
+ * Provides a theme context that always tracks the device's system color
+ * scheme and ignores any stored user preference. Used for screens like
+ * the public board-view, which must respect the viewer's OS appearance
+ * rather than the budget-tracker app owner's stored preference.
+ */
+export function SystemThemeProvider({ children }: { children: React.ReactNode }) {
+  const systemScheme = useColorScheme();
+  const resolvedScheme: ResolvedScheme = systemScheme === "dark" ? "dark" : "light";
+  const value = useMemo<ThemeContextValue>(
+    () => ({
       preference: "system",
-      resolvedScheme: "light",
+      resolvedScheme,
       setPreference: () => {},
       cyclePreference: () => {},
       isLoaded: true,
-    };
+    }),
+    [resolvedScheme]
+  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
+export function useTheme(): ThemeContextValue {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) {
+    throw new Error("useTheme must be used inside a ThemeProvider");
   }
   return ctx;
 }
