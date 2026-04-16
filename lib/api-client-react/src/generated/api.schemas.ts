@@ -20,6 +20,20 @@ export interface DashboardSummary {
   totalMonths: number;
 }
 
+/**
+ * @nullable
+ */
+export type BudgetLineChannel =
+  | (typeof BudgetLineChannel)[keyof typeof BudgetLineChannel]
+  | null;
+
+export const BudgetLineChannel = {
+  partner: "partner",
+  reseller: "reseller",
+  distributor: "distributor",
+  referral: "referral",
+} as const;
+
 export interface BudgetLine {
   id: number;
   category: string;
@@ -30,11 +44,27 @@ export interface BudgetLine {
   owner?: string | null;
   /** @nullable */
   region?: string | null;
+  /** @nullable */
+  channel?: BudgetLineChannel;
   costStatus: string;
   projectionPct: number;
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * @nullable
+ */
+export type CreateBudgetLineBodyChannel =
+  | (typeof CreateBudgetLineBodyChannel)[keyof typeof CreateBudgetLineBodyChannel]
+  | null;
+
+export const CreateBudgetLineBodyChannel = {
+  partner: "partner",
+  reseller: "reseller",
+  distributor: "distributor",
+  referral: "referral",
+} as const;
 
 export interface CreateBudgetLineBody {
   category: string;
@@ -42,9 +72,25 @@ export interface CreateBudgetLineBody {
   lineItem: string;
   owner?: string;
   region?: string;
+  /** @nullable */
+  channel?: CreateBudgetLineBodyChannel;
   costStatus: string;
   projectionPct?: number;
 }
+
+/**
+ * @nullable
+ */
+export type UpdateBudgetLineBodyChannel =
+  | (typeof UpdateBudgetLineBodyChannel)[keyof typeof UpdateBudgetLineBodyChannel]
+  | null;
+
+export const UpdateBudgetLineBodyChannel = {
+  partner: "partner",
+  reseller: "reseller",
+  distributor: "distributor",
+  referral: "referral",
+} as const;
 
 export interface UpdateBudgetLineBody {
   category?: string;
@@ -52,6 +98,8 @@ export interface UpdateBudgetLineBody {
   lineItem?: string;
   owner?: string;
   region?: string;
+  /** @nullable */
+  channel?: UpdateBudgetLineBodyChannel;
   costStatus?: string;
   projectionPct?: number;
 }
@@ -186,6 +234,20 @@ export interface UpdateEventBody {
   budgetLineId?: number;
 }
 
+/**
+ * @nullable
+ */
+export type BudgetLineWithMonthlyChannel =
+  | (typeof BudgetLineWithMonthlyChannel)[keyof typeof BudgetLineWithMonthlyChannel]
+  | null;
+
+export const BudgetLineWithMonthlyChannel = {
+  partner: "partner",
+  reseller: "reseller",
+  distributor: "distributor",
+  referral: "referral",
+} as const;
+
 export type BudgetLineWithMonthlyProjectionsItem = {
   month: number;
   /** @nullable */
@@ -202,6 +264,8 @@ export interface BudgetLineWithMonthly {
   owner?: string | null;
   /** @nullable */
   region?: string | null;
+  /** @nullable */
+  channel?: BudgetLineWithMonthlyChannel;
   costStatus: string;
   projectionPct?: number;
   plans: MonthlyPlan[];

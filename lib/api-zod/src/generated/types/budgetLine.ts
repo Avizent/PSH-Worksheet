@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BudgetLineChannel } from "./budgetLineChannel";
 
 export interface BudgetLine {
   id: number;
@@ -16,6 +17,8 @@ export interface BudgetLine {
   owner?: string | null;
   /** @nullable */
   region?: string | null;
+  /** @nullable */
+  channel?: BudgetLineChannel;
   costStatus: string;
   projectionPct: number;
   createdAt: Date;

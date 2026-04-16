@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
-import { BudgetTable, confirmDelete, type SortField, type SortDir, type BudgetLineRow } from "@/components/BudgetTable";
+import { BudgetTable, confirmDelete, CHANNEL_VALUES, CHANNEL_LABELS, type ChannelValue, type SortField, type SortDir, type BudgetLineRow } from "@/components/BudgetTable";
 import { MonthlyAmountModal } from "@/components/MonthlyAmountModal";
 import { AddLineModal } from "@/components/AddLineModal";
 import { EmptyState } from "@/components/EmptyState";
@@ -36,6 +36,7 @@ const SORT_ACCESSORS: Record<SortField, (r: BudgetLineRow) => string | number> =
   lineItem: (r) => r.lineItem,
   category: (r) => r.category,
   owner: (r) => r.owner ?? "",
+  channel: (r) => r.channel ?? "",
   costStatus: (r) => r.costStatus,
   totalPlan: (r) => r.totalPlan,
   totalActual: (r) => r.totalActual,
@@ -109,6 +110,7 @@ function BudgetContent() {
   const router = useRouter();
   const initialOwner = typeof params.owner === "string" ? params.owner : "";
   const [filterCategory, setFilterCategory] = useState<string>("All");
+  const [filterChannel, setFilterChannel] = useState<string>("All");
   const [filterMonth, setFilterMonth] = useState<number>(0);
   const [filterOwner, setFilterOwner] = useState<string>(initialOwner);
   useEffect(() => {
@@ -157,12 +159,16 @@ function BudgetContent() {
     setSortDir("asc");
   };
 
-  const handleUpdateField = (id: number, field: "lineItem" | "category" | "owner" | "costStatus", value: string) => {
-    // Send empty string for owner clearing (server normalizes "" to null);
+  const handleUpdateField = (id: number, field: "lineItem" | "category" | "owner" | "channel" | "costStatus", value: string) => {
+    // Send empty string for owner/channel clearing (server normalizes "" to null);
     // for other fields, send the value as-is.
-    const data: { lineItem?: string; category?: string; owner?: string; costStatus?: string } = {};
+    const data: { lineItem?: string; category?: string; owner?: string; channel?: string | null; costStatus?: string } = {};
     if (field === "owner") {
       data.owner = value.trim();
+    } else if (field === "channel") {
+      // Channel is a strict enum on the server; send null to clear.
+      const trimmed = value.trim();
+      data.channel = trimmed === "" ? null : trimmed;
     } else {
       data[field] = value;
     }
@@ -196,7 +202,7 @@ function BudgetContent() {
     });
   };
 
-  const handleCreate = (data: { lineItem: string; category: string; owner?: string; costStatus: string; region?: string }) => {
+  const handleCreate = (data: { lineItem: string; category: string; owner?: string; costStatus: string; region?: string; channel?: string | null }) => {
     createMutation.mutate({ data }, {
       onSuccess: () => { invalidateAll(); setAddOpen(false); toast.show(`Added "${data.lineItem}"`, { kind: "success" }); },
       onError: () => toast.show("Failed to add line", { kind: "error" }),
@@ -254,6 +260,7 @@ function BudgetContent() {
         category: line.category,
         lineItem: line.lineItem,
         owner: line.owner ?? null,
+        channel: (line as { channel?: string | null }).channel ?? null,
         costStatus: line.costStatus,
         totalPlan,
         totalActual,
@@ -262,7 +269,8 @@ function BudgetContent() {
       };
     })
     .filter(d => filterCategory === "All" || d.category === filterCategory)
-    .filter(d => !filterOwner || (d.owner ?? "") === filterOwner);
+    .filter(d => !filterOwner || (d.owner ?? "") === filterOwner)
+    .filter(d => filterChannel === "All" || (filterChannel === "none" ? !d.channel : d.channel === filterChannel));
 
   const sorted = useMemo(() => {
     if (!sortField || !sortDir) return tableData;
@@ -298,6 +306,7 @@ function BudgetContent() {
 
   const categoryOptions: PickerOption[] = categoriesForPicker.map((c) => ({ value: c, label: c }));
   const ownerOptions: PickerOption[] = [{ value: "", label: "— None —" }, ...owners.map((o) => ({ value: o.name, label: o.name, color: o.color }))];
+  const channelOptions: PickerOption[] = [{ value: "", label: "— None —" }, ...CHANNEL_VALUES.map((c) => ({ value: c, label: CHANNEL_LABELS[c] }))];
 
   const content = (
     <ScrollView
@@ -332,6 +341,17 @@ function BudgetContent() {
             ))}
           </View>
         </View>
+        <View style={styles.filterGroup}>
+          <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>Channel</Text>
+          <View style={[styles.filterPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {[{ v: "All", l: "All" }, { v: "none", l: "No channel" }, ...CHANNEL_VALUES.map((c) => ({ v: c, l: CHANNEL_LABELS[c] }))].map((opt) => (
+              <TouchableOpacity key={opt.v} onPress={() => setFilterChannel(opt.v)} style={[styles.filterChip, filterChannel === opt.v && { backgroundColor: colors.primary }]}>
+                <Text style={[styles.filterChipText, { color: filterChannel === opt.v ? "#fff" : colors.foreground }]} numberOfLines={1}>{opt.l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         <View style={styles.filterGroup}>
           <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>Month</Text>
           <View style={[styles.filterPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -411,7 +431,13 @@ function BudgetContent() {
                       <View style={styles.mobileMetaRow}>
                         <PickerCell value={item.category} options={categoryOptions} onSelect={(v) => handleUpdateField(item.id, "category", v)} colors={colors} placeholder="Category" allowNew newLabel="+ New category…" onCreateNew={(v) => handleUpdateField(item.id, "category", v)} />
                         <PickerCell value={item.owner} options={ownerOptions} onSelect={(v) => handleUpdateField(item.id, "owner", v)} colors={colors} placeholder="Owner" withDots freeTextFallback />
+                        <PickerCell value={item.channel} options={channelOptions} onSelect={(v) => handleUpdateField(item.id, "channel", v)} colors={colors} placeholder="Channel" />
                         <StatusBadge status={item.costStatus} onCycle={() => handleUpdateField(item.id, "costStatus", nextStatus(item.costStatus))} colors={colors} />
+                        {item.channel && (
+                          <View style={[styles.channelBadge, { backgroundColor: colors.primary + "22", borderColor: colors.primary }]}>
+                            <Text style={[styles.channelBadgeText, { color: colors.primary }]}>{CHANNEL_LABELS[item.channel as ChannelValue] ?? item.channel}</Text>
+                          </View>
+                        )}
                       </View>
                       <View style={styles.mobileCardBottom}>
                         {amountMode === "plan" ? (
@@ -564,4 +590,6 @@ const styles = StyleSheet.create({
   modalSaveText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   desktopContainer: { flex: 1, flexDirection: "row" },
   desktopContent: { flex: 1 },
+  channelBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
+  channelBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase" as const, letterSpacing: 0.3 },
 });

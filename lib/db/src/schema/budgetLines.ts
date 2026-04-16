@@ -9,6 +9,7 @@ export const budgetLinesTable = pgTable("budget_lines", {
   lineItem: text("line_item").notNull(),
   owner: text("owner"),
   region: text("region"),
+  channel: text("channel"),
   costStatus: text("cost_status").notNull().default("Variable"),
   projectionPct: real("projection_pct").notNull().default(0),
   boardApprovedAmount: real("board_approved_amount"),

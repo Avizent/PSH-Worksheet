@@ -53,6 +53,15 @@ export const ListBudgetLinesResponseItem = zod.object({
   lineItem: zod.string(),
   owner: zod.string().nullish(),
   region: zod.string().nullish(),
+  channel: zod
+    .union([
+      zod.literal("partner"),
+      zod.literal("reseller"),
+      zod.literal("distributor"),
+      zod.literal("referral"),
+      zod.literal(null),
+    ])
+    .nullish(),
   costStatus: zod.string(),
   projectionPct: zod
     .number()
@@ -71,6 +80,15 @@ export const CreateBudgetLineBody = zod.object({
   lineItem: zod.string(),
   owner: zod.string().optional(),
   region: zod.string().optional(),
+  channel: zod
+    .union([
+      zod.literal("partner"),
+      zod.literal("reseller"),
+      zod.literal("distributor"),
+      zod.literal("referral"),
+      zod.literal(null),
+    ])
+    .nullish(),
   costStatus: zod.string(),
   projectionPct: zod.number().optional(),
 });
@@ -91,6 +109,15 @@ export const GetBudgetLineResponse = zod.object({
   lineItem: zod.string(),
   owner: zod.string().nullish(),
   region: zod.string().nullish(),
+  channel: zod
+    .union([
+      zod.literal("partner"),
+      zod.literal("reseller"),
+      zod.literal("distributor"),
+      zod.literal("referral"),
+      zod.literal(null),
+    ])
+    .nullish(),
   costStatus: zod.string(),
   projectionPct: zod
     .number()
@@ -112,6 +139,15 @@ export const UpdateBudgetLineBody = zod.object({
   lineItem: zod.string().optional(),
   owner: zod.string().optional(),
   region: zod.string().optional(),
+  channel: zod
+    .union([
+      zod.literal("partner"),
+      zod.literal("reseller"),
+      zod.literal("distributor"),
+      zod.literal("referral"),
+      zod.literal(null),
+    ])
+    .nullish(),
   costStatus: zod.string().optional(),
   projectionPct: zod.number().optional(),
 });
@@ -125,6 +161,15 @@ export const UpdateBudgetLineResponse = zod.object({
   lineItem: zod.string(),
   owner: zod.string().nullish(),
   region: zod.string().nullish(),
+  channel: zod
+    .union([
+      zod.literal("partner"),
+      zod.literal("reseller"),
+      zod.literal("distributor"),
+      zod.literal("referral"),
+      zod.literal(null),
+    ])
+    .nullish(),
   costStatus: zod.string(),
   projectionPct: zod
     .number()
@@ -548,6 +593,15 @@ export const ListBudgetLinesWithMonthlyResponseItem = zod.object({
   lineItem: zod.string(),
   owner: zod.string().nullish(),
   region: zod.string().nullish(),
+  channel: zod
+    .union([
+      zod.literal("partner"),
+      zod.literal("reseller"),
+      zod.literal("distributor"),
+      zod.literal("referral"),
+      zod.literal(null),
+    ])
+    .nullish(),
   costStatus: zod.string(),
   projectionPct: zod
     .number()

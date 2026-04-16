@@ -54,7 +54,7 @@ export default function OwnersScreen() {
   const queryClient = useQueryClient();
 
   const { data: ownersData, isLoading, refetch, isError } = useListOwners();
-  const { data: budgetLinesData, refetch: refetchBudgetLines } = useListBudgetLines();
+  const { data: budgetLinesData } = useListBudgetLines();
   const { data: alerts } = useListAlerts();
   const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
 
@@ -87,7 +87,7 @@ export default function OwnersScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetch(), refetchBudgetLines()]);
+    await refetch();
     setRefreshing(false);
   };
 
@@ -132,7 +132,6 @@ export default function OwnersScreen() {
     const data = { name, initials, color: formColor };
     const onSettled = () => {
       queryClient.invalidateQueries({ queryKey: getListOwnersQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getListBudgetLinesQueryKey() });
       setShowForm(false);
     };
     if (editing) {
@@ -153,7 +152,6 @@ export default function OwnersScreen() {
     deleteMutation.mutate({ id: deleteTarget.id }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListOwnersQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getListBudgetLinesQueryKey() });
         setDeleteTarget(null);
       },
     });

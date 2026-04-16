@@ -1153,6 +1153,9 @@ components:
           type: ["string", "null"]
         region:
           type: ["string", "null"]
+        channel:
+          type: ["string", "null"]
+          enum: [partner, reseller, distributor, referral, null]
         costStatus:
           type: string
         projectionPct:
@@ -1186,6 +1189,9 @@ components:
           type: string
         region:
           type: string
+        channel:
+          type: ["string", "null"]
+          enum: [partner, reseller, distributor, referral, null]
         costStatus:
           type: string
         projectionPct:
@@ -1208,6 +1214,9 @@ components:
           type: string
         region:
           type: string
+        channel:
+          type: ["string", "null"]
+          enum: [partner, reseller, distributor, referral, null]
         costStatus:
           type: string
         projectionPct:
@@ -1513,6 +1522,9 @@ components:
           type: ["string", "null"]
         region:
           type: ["string", "null"]
+        channel:
+          type: ["string", "null"]
+          enum: [partner, reseller, distributor, referral, null]
         costStatus:
           type: string
         projectionPct:

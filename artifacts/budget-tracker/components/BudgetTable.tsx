@@ -9,6 +9,7 @@ export interface BudgetLineRow {
   category: string;
   lineItem: string;
   owner: string | null;
+  channel: string | null;
   costStatus: string;
   totalPlan: number;
   totalActual: number;
@@ -18,7 +19,16 @@ export interface BudgetLineRow {
 
 interface Owner { id: number; name: string; initials: string; color: string }
 
-export type SortField = "lineItem" | "category" | "owner" | "costStatus" | "totalPlan" | "totalActual" | "variance";
+export const CHANNEL_VALUES = ["partner", "reseller", "distributor", "referral"] as const;
+export type ChannelValue = typeof CHANNEL_VALUES[number];
+export const CHANNEL_LABELS: Record<ChannelValue, string> = {
+  partner: "Partner",
+  reseller: "Reseller",
+  distributor: "Distributor",
+  referral: "Referral",
+};
+
+export type SortField = "lineItem" | "category" | "owner" | "channel" | "costStatus" | "totalPlan" | "totalActual" | "variance";
 export type SortDir = "asc" | "desc" | null;
 
 interface BudgetTableProps {
@@ -31,7 +41,7 @@ interface BudgetTableProps {
   categories?: string[];
   owners?: Owner[];
   amountColumnMode?: "plan" | "actual";
-  onUpdateField?: (id: number, field: "lineItem" | "category" | "owner" | "costStatus", value: string) => void;
+  onUpdateField?: (id: number, field: "lineItem" | "category" | "owner" | "channel" | "costStatus", value: string) => void;
   onOpenMonthly?: (id: number, lineItem: string, mode: "plan" | "actual") => void;
   onDelete?: (id: number, lineItem: string) => void;
   readOnly?: boolean;
@@ -85,6 +95,7 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
 
   const categoryOptions: PickerOption[] = categories.map((c) => ({ value: c, label: c }));
   const ownerOptions: PickerOption[] = [{ value: "", label: "— None —" }, ...owners.map((o) => ({ value: o.name, label: o.name, color: o.color }))];
+  const channelOptions: PickerOption[] = [{ value: "", label: "— None —" }, ...CHANNEL_VALUES.map((c) => ({ value: c, label: CHANNEL_LABELS[c] }))];
 
   const noopSort = (_f: SortField) => {};
   const sortHandler = onSort ?? noopSort;
@@ -97,6 +108,7 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
             <SortHeader label="Line Item" field="lineItem" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellCategory} colors={colors} />
             <SortHeader label="Category" field="category" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
             <SortHeader label="Owner" field="owner" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
+            <SortHeader label="Channel" field="channel" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
             <SortHeader label="Type" field="costStatus" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
             <SortHeader label={interactive && amountColumnMode === "plan" ? "Plan ✎" : "Plan"} field="totalPlan" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
             <SortHeader label={interactive && amountColumnMode === "actual" ? "Actual ✎" : "Actual"} field="totalActual" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
@@ -123,6 +135,11 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
                   <PickerCell value={row.owner} options={ownerOptions} onSelect={(v) => onUpdateField(row.id, "owner", v)} colors={colors} style={styles.cellSmall} placeholder="—" withDots freeTextFallback />
                 ) : (
                   <View style={styles.cellSmall}><Text style={{ color: colors.foreground, fontSize: 13 }} numberOfLines={1}>{row.owner ?? "—"}</Text></View>
+                )}
+                {interactive && onUpdateField ? (
+                  <PickerCell value={row.channel} options={channelOptions} onSelect={(v) => onUpdateField(row.id, "channel", v)} colors={colors} style={styles.cellSmall} placeholder="—" />
+                ) : (
+                  <View style={styles.cellSmall}><Text style={{ color: colors.foreground, fontSize: 13 }} numberOfLines={1}>{row.channel ? (CHANNEL_LABELS[row.channel as ChannelValue] ?? row.channel) : "—"}</Text></View>
                 )}
                 <View style={styles.cellSmall}>
                   {interactive && onUpdateField ? (

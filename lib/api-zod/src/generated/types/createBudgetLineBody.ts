@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateBudgetLineBodyChannel } from "./createBudgetLineBodyChannel";
 
 export interface CreateBudgetLineBody {
   category: string;
@@ -12,6 +13,8 @@ export interface CreateBudgetLineBody {
   lineItem: string;
   owner?: string;
   region?: string;
+  /** @nullable */
+  channel?: CreateBudgetLineBodyChannel;
   costStatus: string;
   projectionPct?: number;
 }

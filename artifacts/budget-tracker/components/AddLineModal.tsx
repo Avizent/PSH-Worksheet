@@ -3,6 +3,13 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView,
 import { useColors } from "@/hooks/useColors";
 
 const COST_STATUSES = ["Fixed Cost", "Variable", "Planned", "Booked"];
+const CHANNEL_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "None" },
+  { value: "partner", label: "Partner" },
+  { value: "reseller", label: "Reseller" },
+  { value: "distributor", label: "Distributor" },
+  { value: "referral", label: "Referral" },
+];
 
 interface Owner { id: number; name: string; initials: string; color: string }
 
@@ -12,7 +19,7 @@ interface Props {
   owners: Owner[];
   saving?: boolean;
   onClose: () => void;
-  onSubmit: (data: { lineItem: string; category: string; owner?: string; costStatus: string; region?: string }) => void;
+  onSubmit: (data: { lineItem: string; category: string; owner?: string; costStatus: string; region?: string; channel?: string | null }) => void;
 }
 
 export function AddLineModal({ visible, categories, owners, saving, onClose, onSubmit }: Props) {
@@ -23,11 +30,12 @@ export function AddLineModal({ visible, categories, owners, saving, onClose, onS
   const [owner, setOwner] = useState<string>("");
   const [costStatus, setCostStatus] = useState("Variable");
   const [region, setRegion] = useState("");
+  const [channel, setChannel] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (visible) {
-      setLineItem(""); setCategory(""); setNewCategory(""); setOwner(""); setCostStatus("Variable"); setRegion(""); setError(null);
+      setLineItem(""); setCategory(""); setNewCategory(""); setOwner(""); setCostStatus("Variable"); setRegion(""); setChannel(""); setError(null);
     }
   }, [visible]);
 
@@ -44,6 +52,7 @@ export function AddLineModal({ visible, categories, owners, saving, onClose, onS
       owner: owner || undefined,
       costStatus,
       region: region.trim() || undefined,
+      channel: channel || null,
     });
   };
 
@@ -78,6 +87,10 @@ export function AddLineModal({ visible, categories, owners, saving, onClose, onS
 
             <Field label="Region" colors={colors}>
               <TextInput style={[styles.input, { color: colors.foreground, borderColor: colors.border }]} value={region} onChangeText={setRegion} placeholder="e.g. Global, EMEA" placeholderTextColor={colors.mutedForeground} />
+            </Field>
+
+            <Field label="Channel" colors={colors}>
+              <ChipPicker options={CHANNEL_OPTIONS} value={channel} onChange={setChannel} colors={colors} />
             </Field>
 
             {error && <Text style={{ color: colors.destructive, fontSize: 13 }}>{error}</Text>}

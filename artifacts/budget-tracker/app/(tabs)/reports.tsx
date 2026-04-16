@@ -5,8 +5,12 @@ import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { Pressable } from "react-native";
 import { useGetDashboardCharts, useGetDashboardSummary, useListBudgetLinesWithMonthly, useListAlerts } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
+import { CHANNEL_VALUES, CHANNEL_LABELS, type ChannelValue } from "@/components/BudgetTable";
+
+type ChannelFilter = "all" | "none" | ChannelValue;
 
 const PIE_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 const BURNDOWN_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6"];
@@ -71,6 +75,7 @@ interface BudgetLine {
   category: string;
   region: string;
   costStatus: string;
+  channel?: string | null;
   plans?: { month: number; plannedAmount: number }[];
   actuals?: { month: number; actualAmount: number }[];
 }
@@ -356,8 +361,18 @@ function ReportsContent() {
   const isDesktop = mode === "desktop";
   const { width: windowWidth } = useWindowDimensions();
 
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
+
   const { data: charts, isLoading: chartsLoading } = useGetDashboardCharts({ year: 2026 });
   const { data: budgetLines, isLoading: linesLoading } = useListBudgetLinesWithMonthly({ year: 2026 });
+
+  const filteredLines = useMemo(() => {
+    if (!budgetLines) return [] as BudgetLine[];
+    const lines = budgetLines as BudgetLine[];
+    if (channelFilter === "all") return lines;
+    if (channelFilter === "none") return lines.filter((l) => !l.channel);
+    return lines.filter((l) => l.channel === channelFilter);
+  }, [budgetLines, channelFilter]);
   const { data: alerts } = useListAlerts({ resolved: false });
   const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
 
@@ -368,13 +383,11 @@ function ReportsContent() {
   const { data: boardVarData } = useAnalytics("board-variance");
 
   const pieData = useMemo(() => {
-    if (!budgetLines) return { byCategory: [] as { label: string; value: number }[], byRegion: [] as { label: string; value: number }[], byCostType: [] as { label: string; value: number }[] };
-    const lines = budgetLines as BudgetLine[];
     const catMap = new Map<string, number>();
     const regMap = new Map<string, number>();
     const typeMap = new Map<string, number>();
 
-    for (const bl of lines) {
+    for (const bl of filteredLines) {
       const totalActual = (bl.actuals ?? []).reduce((s, a) => s + a.actualAmount, 0);
       catMap.set(bl.category, (catMap.get(bl.category) ?? 0) + totalActual);
       regMap.set(bl.region || "Global", (regMap.get(bl.region || "Global") ?? 0) + totalActual);
@@ -383,6 +396,21 @@ function ReportsContent() {
 
     const toArr = (m: Map<string, number>) => Array.from(m, ([label, value]) => ({ label, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
     return { byCategory: toArr(catMap), byRegion: toArr(regMap), byCostType: toArr(typeMap) };
+  }, [filteredLines]);
+
+  const channelPieData = useMemo(() => {
+    if (!budgetLines) return [] as { label: string; value: number }[];
+    const lines = budgetLines as BudgetLine[];
+    const m = new Map<string, number>();
+    for (const bl of lines) {
+      const totalActual = (bl.actuals ?? []).reduce((s, a) => s + a.actualAmount, 0);
+      if (totalActual <= 0) continue;
+      const key = bl.channel && CHANNEL_VALUES.includes(bl.channel as ChannelValue)
+        ? CHANNEL_LABELS[bl.channel as ChannelValue]
+        : "Unassigned";
+      m.set(key, (m.get(key) ?? 0) + totalActual);
+    }
+    return Array.from(m, ([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
   }, [budgetLines]);
 
   const ownerPieData = useMemo(() => {
@@ -447,6 +475,41 @@ function ReportsContent() {
   const content = (
     <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={[styles.content, { paddingBottom: isDesktop ? 40 : 120 }]}>
       <SectionHeader title="Reports" subtitle={`Visual analytics and spend distribution \u00b7 FY2026`} />
+
+      <View style={styles.channelFilterRow}>
+        <Text style={[styles.channelFilterLabel, { color: colors.mutedForeground }]}>Channel:</Text>
+        {([
+          { key: "all", label: "All" },
+          { key: "none", label: "Unassigned" },
+          ...CHANNEL_VALUES.map((v) => ({ key: v, label: CHANNEL_LABELS[v] })),
+        ] as { key: ChannelFilter; label: string }[]).map((opt) => {
+          const active = channelFilter === opt.key;
+          return (
+            <Pressable
+              key={opt.key}
+              onPress={() => setChannelFilter(opt.key)}
+              style={[
+                styles.channelChip,
+                {
+                  backgroundColor: active ? colors.primary : colors.card,
+                  borderColor: active ? colors.primary : colors.border,
+                },
+              ]}
+            >
+              <Text style={{ color: active ? "#fff" : colors.foreground, fontSize: 12, fontWeight: "500" }}>{opt.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {channelPieData.length > 0 && (
+        <View style={{ marginBottom: 16 }}>
+          <SectionHeader title="Spend by Channel" subtitle="Actual spend grouped by go-to-market channel" />
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <PieChart data={channelPieData} size={pieSize} title="" />
+          </View>
+        </View>
+      )}
 
       <View style={[styles.pieRow, { flexDirection: isDesktop ? "row" : "column" }]}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, flex: isDesktop ? 1 : undefined }]}>
@@ -606,6 +669,9 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 24 },
   pieRow: { gap: 16, marginBottom: 20 },
+  channelFilterRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  channelFilterLabel: { fontSize: 12, fontWeight: "500", marginRight: 4 },
+  channelChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
   twoCol: { gap: 16 },
   card: { padding: 20, borderRadius: 12, borderWidth: 1 },
   cardTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 16 },

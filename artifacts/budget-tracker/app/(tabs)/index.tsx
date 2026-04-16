@@ -157,6 +157,7 @@ function DashboardContent() {
       category: line.category,
       lineItem: line.lineItem,
       owner: line.owner ?? null,
+      channel: (line as { channel?: string | null }).channel ?? null,
       costStatus: line.costStatus,
       totalPlan,
       totalActual,

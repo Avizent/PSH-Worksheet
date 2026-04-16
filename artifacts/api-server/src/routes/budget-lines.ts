@@ -89,6 +89,10 @@ router.patch("/budget-lines/:id", asyncHandler(async (req, res): Promise<void> =
   if (typeof updateData.owner === "string" && updateData.owner.trim() === "") {
     updateData.owner = null;
   }
+  // Normalize empty-string channel to null so users can clear the channel field
+  if (typeof updateData.channel === "string" && updateData.channel.trim() === "") {
+    updateData.channel = null;
+  }
   const [oldRow] = await db.select().from(budgetLinesTable).where(eq(budgetLinesTable.id, params.data.id));
   const [row] = await db.update(budgetLinesTable).set(updateData).where(eq(budgetLinesTable.id, params.data.id)).returning();
   if (!row) {
@@ -97,7 +101,7 @@ router.patch("/budget-lines/:id", asyncHandler(async (req, res): Promise<void> =
   }
   if (oldRow) {
     await writeAuditDiff("update", "budget_line", row.id, oldRow, row,
-      ["category", "subcategory", "lineItem", "owner", "region", "costStatus", "projectionPct"]);
+      ["category", "subcategory", "lineItem", "owner", "region", "channel", "costStatus", "projectionPct"]);
   }
   res.json(UpdateBudgetLineResponse.parse(row));
 }));
