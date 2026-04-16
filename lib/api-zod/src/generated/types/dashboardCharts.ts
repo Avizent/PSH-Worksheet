@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CategoryBreakdown } from "./categoryBreakdown";
+import type { ChannelBreakdown } from "./channelBreakdown";
 import type { MonthlyChartPoint } from "./monthlyChartPoint";
 
 export interface DashboardCharts {
   monthly: MonthlyChartPoint[];
   categories: CategoryBreakdown[];
+  channels: ChannelBreakdown[];
 }

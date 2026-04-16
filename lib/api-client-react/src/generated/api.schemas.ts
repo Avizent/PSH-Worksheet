@@ -288,9 +288,16 @@ export interface CategoryBreakdown {
   actual: number;
 }
 
+export interface ChannelBreakdown {
+  channel: string;
+  planned: number;
+  actual: number;
+}
+
 export interface DashboardCharts {
   monthly: MonthlyChartPoint[];
   categories: CategoryBreakdown[];
+  channels: ChannelBreakdown[];
 }
 
 export type ProjectionLineItemMonthsItem = {

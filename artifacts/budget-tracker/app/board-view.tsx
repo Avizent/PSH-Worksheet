@@ -45,6 +45,7 @@ type BoardData = {
   charts: {
     monthly: Array<{ month: number; monthLabel: string; planned: number; actual: number; cumPlanned: number; cumActual: number }>;
     categories: Array<{ category: string; planned: number; actual: number }>;
+    channels: Array<{ channel: string; planned: number; actual: number }>;
   };
   alerts: Array<{ id: number; type: string; severity: string; message: string }>;
   events: Array<{ id: number; name: string; status: string; eventDate?: string | null; estimatedCost?: number | null }>;
@@ -145,6 +146,8 @@ function BoardViewContent() {
   const chartMonthly = data.charts.monthly.map(m => ({ label: m.monthLabel, planned: m.planned, actual: m.actual }));
   const chartCumulative = data.charts.monthly.map(m => ({ label: m.monthLabel, plan: m.cumPlanned, actual: m.cumActual }));
   const chartCategories = data.charts.categories.map(c => ({ label: c.category, value: c.actual }));
+  const formatChannelLabel = (ch: string) => ch === "unassigned" ? "Unassigned" : ch.charAt(0).toUpperCase() + ch.slice(1);
+  const chartChannels = (data.charts.channels ?? []).map(c => ({ label: formatChannelLabel(c.channel), planned: c.planned, actual: c.actual }));
   const projectionMonthly = MONTH_LABELS.map((label, i) => {
     const m = i + 1;
     let actual = 0, projected = 0, planned = 0;
@@ -228,6 +231,15 @@ function BoardViewContent() {
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Category Breakdown</Text>
           <View style={[styles.boardChartCard, { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border }]}>
             <DonutChart data={chartCategories} size={240} />
+          </View>
+        </View>
+      )}
+
+      {visible.has("chart_channels") && chartChannels.length > 0 && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Channel Breakdown</Text>
+          <View style={[styles.boardChartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <BarChart data={chartChannels} width={chartWidth} height={280} />
           </View>
         </View>
       )}

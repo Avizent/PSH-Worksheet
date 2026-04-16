@@ -49,7 +49,7 @@ function formatCurrency(val: number): string {
 
 const CHART_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
-function RemainingBudgetChart({ categories, width }: { categories: { category: string; planned: number; actual: number }[]; width: number }) {
+function RemainingBudgetChart({ categories, width, title = "Remaining Budget by Category" }: { categories: { category: string; planned: number; actual: number }[]; width: number; title?: string }) {
   const colors = useColors();
   const barHeight = 24;
   const labelWidth = 130;
@@ -60,7 +60,7 @@ function RemainingBudgetChart({ categories, width }: { categories: { category: s
 
   return (
     <View>
-      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 12 }}>Remaining Budget by Category</Text>
+      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 12 }}>{title}</Text>
       <Svg width={width} height={height}>
         {categories.map((c, i) => {
           const y = i * rowHeight + 5;
@@ -97,6 +97,7 @@ function DashboardContent() {
 
   const router = useRouter();
   const [extraTab, setExtraTab] = useState<ExtraChartTab>("Projections");
+  const [breakdownGroup, setBreakdownGroup] = useState<"category" | "channel">("category");
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
   const mobileScrollRef = useRef<ScrollView | null>(null);
 
@@ -183,6 +184,11 @@ function DashboardContent() {
 
   const monthlyData = charts?.monthly ?? [];
   const categoryData = charts?.categories ?? [];
+  const channelData = charts?.channels ?? [];
+  const formatChannelLabel = (ch: string) => ch === "unassigned" ? "Unassigned" : ch.charAt(0).toUpperCase() + ch.slice(1);
+  const breakdownData = breakdownGroup === "category"
+    ? categoryData.map(c => ({ label: c.category, planned: c.planned, actual: c.actual }))
+    : channelData.map(c => ({ label: formatChannelLabel(c.channel), planned: c.planned, actual: c.actual }));
 
   const projectionItems = projections?.items ?? [];
   const projectionMonthly = MONTH_LABELS.map((label, i) => {
@@ -212,7 +218,7 @@ function DashboardContent() {
     };
   }).sort((a, b) => a.month - b.month);
 
-  const MOBILE_CHART_TABS = ["Plan vs Actual", "Cumulative", "Categories", "Remaining", "Projections", "Events"] as const;
+  const MOBILE_CHART_TABS = ["Plan vs Actual", "Cumulative", "Categories", "Channels", "Remaining", "Projections", "Events"] as const;
 
   const renderMobileChart = (tab: string) => {
     const w = windowWidth - 32;
@@ -223,8 +229,12 @@ function DashboardContent() {
         return <LineChart data={monthlyData.map(m => ({ label: m.monthLabel, cumPlanned: m.cumPlanned, cumActual: m.cumActual }))} width={w} height={220} />;
       case "Categories":
         return <DonutChart data={categoryData.map(c => ({ category: c.category, value: c.planned }))} size={donutSize} />;
+      case "Channels":
+        return channelData.length > 0
+          ? <BarChart data={channelData.map(c => ({ label: formatChannelLabel(c.channel), planned: c.planned, actual: c.actual }))} width={w} height={220} />
+          : <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", paddingVertical: 40 }}>No channel data yet. Tag budget lines with a channel to see this chart.</Text>;
       case "Remaining":
-        return <RemainingBudgetChart categories={categoryData.map(c => ({ category: c.category, planned: c.planned, actual: c.actual }))} width={w} />;
+        return <RemainingBudgetChart categories={breakdownData.map(c => ({ category: c.label, planned: c.planned, actual: c.actual }))} width={w} title={breakdownGroup === "category" ? "Remaining Budget by Category" : "Remaining Budget by Channel"} />;
       case "Projections":
         return <ProjectionBarChart data={projectionMonthly} width={w} height={220} />;
       case "Events":
@@ -292,18 +302,47 @@ function DashboardContent() {
                       />
                     </View>
                   </View>
+                  <View style={styles.breakdownToggleRow}>
+                    <Text style={[styles.breakdownLabel, { color: colors.mutedForeground }]}>Group by:</Text>
+                    {(["category", "channel"] as const).map((opt) => (
+                      <TouchableOpacity
+                        key={opt}
+                        onPress={() => setBreakdownGroup(opt)}
+                        style={[
+                          styles.breakdownToggleBtn,
+                          {
+                            backgroundColor: breakdownGroup === opt ? colors.primary : "transparent",
+                            borderColor: breakdownGroup === opt ? colors.primary : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: breakdownGroup === opt ? colors.primaryForeground : colors.foreground }}>
+                          {opt === "category" ? "Category" : "Channel"}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                   <View style={styles.chartsRow}>
                     <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, alignSelf: "flex-start" }]}>
-                      <DonutChart
-                        data={categoryData.map(c => ({ category: c.category, value: c.planned }))}
-                        size={donutSize}
-                      />
+                      {breakdownGroup === "channel" && channelData.length === 0 ? (
+                        <Text style={{ fontSize: 13, color: colors.mutedForeground, padding: 20, width: donutSize * 1.2 }}>No channel data yet. Tag budget lines with a channel to see this chart.</Text>
+                      ) : (
+                        <DonutChart
+                          data={breakdownData.map(c => ({ category: c.label, value: c.planned }))}
+                          size={donutSize}
+                        />
+                      )}
                     </View>
                     <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}>
-                      <RemainingBudgetChart
-                        categories={categoryData.map(c => ({ category: c.category, planned: c.planned, actual: c.actual }))}
-                        width={chartHalfWidth}
-                      />
+                      {breakdownGroup === "channel" && channelData.length === 0 ? (
+                        <Text style={{ fontSize: 13, color: colors.mutedForeground, padding: 20 }}>No channel data yet.</Text>
+                      ) : (
+                        <RemainingBudgetChart
+                          categories={breakdownData.map(c => ({ category: c.label, planned: c.planned, actual: c.actual }))}
+                          width={chartHalfWidth}
+                          title={breakdownGroup === "category" ? "Remaining Budget by Category" : "Remaining Budget by Channel"}
+                        />
+                      )}
                     </View>
                   </View>
                   <View style={styles.extraSection}>
@@ -467,6 +506,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
     marginTop: 8,
+  },
+  breakdownToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  breakdownLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+  },
+  breakdownToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   extraSection: {
     marginTop: 16,

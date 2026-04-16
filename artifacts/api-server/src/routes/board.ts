@@ -40,9 +40,10 @@ const DEFAULT_SECTIONS = [
   { sectionKey: "chart_plan_vs_actual", label: "Plan vs Actual (Monthly)", sortOrder: 4 },
   { sectionKey: "chart_cumulative", label: "Cumulative Spend vs Plan", sortOrder: 5 },
   { sectionKey: "chart_categories", label: "Category Breakdown", sortOrder: 6 },
-  { sectionKey: "chart_projections", label: "Projections", sortOrder: 7 },
-  { sectionKey: "section_alerts", label: "Active Alerts", sortOrder: 8 },
-  { sectionKey: "section_events", label: "Upcoming Events", sortOrder: 9 },
+  { sectionKey: "chart_channels", label: "Channel Breakdown", sortOrder: 7 },
+  { sectionKey: "chart_projections", label: "Projections", sortOrder: 8 },
+  { sectionKey: "section_alerts", label: "Active Alerts", sortOrder: 9 },
+  { sectionKey: "section_events", label: "Upcoming Events", sortOrder: 10 },
 ];
 
 async function ensureDefaultSettings() {
@@ -229,7 +230,29 @@ async function buildBoardViewData(year: number) {
     categories.push({ category: cat.category, planned: Number(cp.total), actual: Number(ca.total) });
   }
 
-  const charts = { monthly, categories };
+  const allBudgetLinesForCh = await db.select().from(budgetLinesTable);
+  const normalizeChannel = (c: string | null): string => c && c.length > 0 ? c : "unassigned";
+  const plansAll = await db.select().from(monthlyPlansTable).where(eq(monthlyPlansTable.year, year));
+  const actualsAll = await db.select().from(monthlyActualsTable).where(eq(monthlyActualsTable.year, year));
+  const blChMap = new Map(allBudgetLinesForCh.map(b => [b.id, normalizeChannel(b.channel)]));
+  const planByCh = new Map<string, number>();
+  const actualByCh = new Map<string, number>();
+  for (const p of plansAll) {
+    const ch = blChMap.get(p.budgetLineId) ?? "unassigned";
+    planByCh.set(ch, (planByCh.get(ch) ?? 0) + Number(p.plannedAmount));
+  }
+  for (const a of actualsAll) {
+    const ch = blChMap.get(a.budgetLineId) ?? "unassigned";
+    actualByCh.set(ch, (actualByCh.get(ch) ?? 0) + Number(a.actualAmount));
+  }
+  const channelKeys = new Set<string>([...planByCh.keys(), ...actualByCh.keys()]);
+  const channels = Array.from(channelKeys).sort().map(ch => ({
+    channel: ch,
+    planned: planByCh.get(ch) ?? 0,
+    actual: actualByCh.get(ch) ?? 0,
+  }));
+
+  const charts = { monthly, categories, channels };
 
   const alerts = await db.select().from(alertsTable).where(isNull(alertsTable.resolvedAt));
   const events = await db.select().from(eventsTable);
@@ -296,6 +319,7 @@ function filterByVisibility(data: Awaited<ReturnType<typeof buildBoardViewData>>
     charts: {
       monthly: visible.has("chart_plan_vs_actual") || visible.has("chart_cumulative") ? data.charts.monthly : [],
       categories: visible.has("chart_categories") ? data.charts.categories : [],
+      channels: visible.has("chart_channels") ? data.charts.channels : [],
     },
     alerts: visible.has("section_alerts") ? data.alerts : [],
     events: visible.has("section_events") ? data.events : [],
@@ -439,6 +463,21 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
       ["Category", "Planned", "Actual", "Utilisation"],
       data.charts.categories.map(c => [
         c.category,
+        fmt(Number(c.planned)),
+        fmt(Number(c.actual)),
+        Number(c.planned) > 0 ? ((Number(c.actual) / Number(c.planned)) * 100).toFixed(0) + "%" : "-",
+      ]),
+      [160, 110, 110, 135],
+    );
+  }
+
+  if (visible.has("chart_channels") && data.charts.channels.length > 0) {
+    doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text("Channel Breakdown");
+    doc.moveDown(0.3);
+    drawTable(
+      ["Channel", "Planned", "Actual", "Utilisation"],
+      data.charts.channels.map(c => [
+        c.channel.charAt(0).toUpperCase() + c.channel.slice(1),
         fmt(Number(c.planned)),
         fmt(Number(c.actual)),
         Number(c.planned) > 0 ? ((Number(c.actual) / Number(c.planned)) * 100).toFixed(0) + "%" : "-",

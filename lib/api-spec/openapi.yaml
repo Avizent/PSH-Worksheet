@@ -1594,6 +1594,20 @@ components:
         - planned
         - actual
 
+    ChannelBreakdown:
+      type: object
+      properties:
+        channel:
+          type: string
+        planned:
+          type: number
+        actual:
+          type: number
+      required:
+        - channel
+        - planned
+        - actual
+
     DashboardCharts:
       type: object
       properties:
@@ -1605,9 +1619,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CategoryBreakdown"
+        channels:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChannelBreakdown"
       required:
         - monthly
         - categories
+        - channels
 
     ProjectionLineItem:
       type: object

@@ -85,7 +85,43 @@ router.get("/dashboard/charts", asyncHandler(async (req, res): Promise<void> => 
     actual: actualByCat.get(c.category) ?? 0,
   }));
 
-  res.json(GetDashboardChartsResponse.parse({ monthly, categories }));
+  const channelPlanned = await db
+    .select({
+      channel: budgetLinesTable.channel,
+      total: sql<number>`COALESCE(SUM(${monthlyPlansTable.plannedAmount}), 0)`,
+    })
+    .from(budgetLinesTable)
+    .leftJoin(monthlyPlansTable, sql`${monthlyPlansTable.budgetLineId} = ${budgetLinesTable.id} AND ${monthlyPlansTable.year} = ${year}`)
+    .groupBy(budgetLinesTable.channel);
+
+  const channelActual = await db
+    .select({
+      channel: budgetLinesTable.channel,
+      total: sql<number>`COALESCE(SUM(${monthlyActualsTable.actualAmount}), 0)`,
+    })
+    .from(budgetLinesTable)
+    .leftJoin(monthlyActualsTable, sql`${monthlyActualsTable.budgetLineId} = ${budgetLinesTable.id} AND ${monthlyActualsTable.year} = ${year}`)
+    .groupBy(budgetLinesTable.channel);
+
+  const normalizeChannel = (c: string | null): string => c && c.length > 0 ? c : "unassigned";
+  const actualByCh = new Map<string, number>();
+  for (const row of channelActual) {
+    const key = normalizeChannel(row.channel);
+    actualByCh.set(key, (actualByCh.get(key) ?? 0) + Number(row.total));
+  }
+  const plannedByCh = new Map<string, number>();
+  for (const row of channelPlanned) {
+    const key = normalizeChannel(row.channel);
+    plannedByCh.set(key, (plannedByCh.get(key) ?? 0) + Number(row.total));
+  }
+  const channelKeys = new Set<string>([...plannedByCh.keys(), ...actualByCh.keys()]);
+  const channels = Array.from(channelKeys).sort().map(ch => ({
+    channel: ch,
+    planned: plannedByCh.get(ch) ?? 0,
+    actual: actualByCh.get(ch) ?? 0,
+  }));
+
+  res.json(GetDashboardChartsResponse.parse({ monthly, categories, channels }));
 }));
 
 export default router;

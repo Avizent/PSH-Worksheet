@@ -21,6 +21,7 @@ export * from "./budgetLineWithMonthly";
 export * from "./budgetLineWithMonthlyChannel";
 export * from "./budgetLineWithMonthlyProjectionsItem";
 export * from "./categoryBreakdown";
+export * from "./channelBreakdown";
 export * from "./compareForecastVersionsParams";
 export * from "./createBudgetLineBody";
 export * from "./createBudgetLineBodyChannel";

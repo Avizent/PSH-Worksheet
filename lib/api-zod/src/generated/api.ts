@@ -528,6 +528,13 @@ export const GetDashboardChartsResponse = zod.object({
       actual: zod.number(),
     }),
   ),
+  channels: zod.array(
+    zod.object({
+      channel: zod.string(),
+      planned: zod.number(),
+      actual: zod.number(),
+    }),
+  ),
 });
 
 /**
@@ -865,6 +872,13 @@ export const GetBoardViewResponse = zod.object({
         actual: zod.number(),
       }),
     ),
+    channels: zod.array(
+      zod.object({
+        channel: zod.string(),
+        planned: zod.number(),
+        actual: zod.number(),
+      }),
+    ),
   }),
   alerts: zod.array(
     zod.object({
@@ -942,6 +956,13 @@ export const GetBoardPreviewResponse = zod.object({
     categories: zod.array(
       zod.object({
         category: zod.string(),
+        planned: zod.number(),
+        actual: zod.number(),
+      }),
+    ),
+    channels: zod.array(
+      zod.object({
+        channel: zod.string(),
         planned: zod.number(),
         actual: zod.number(),
       }),
