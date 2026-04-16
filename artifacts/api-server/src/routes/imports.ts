@@ -590,4 +590,29 @@ router.delete("/imports/:id", asyncHandler(async (req, res): Promise<void> => {
   res.json({ success: true, id: imp.id, previousStatus });
 }));
 
+router.post("/imports/clear-all", asyncHandler(async (_req, res): Promise<void> => {
+  await db.transaction(async (tx) => {
+    const deletedActuals = await tx.delete(monthlyActualsTable).returning();
+    const deletedRows = await tx.delete(csvImportRowsTable).returning();
+    const deletedImports = await tx.delete(csvImportsTable).returning();
+
+    await writeAuditLog({
+      action: "delete",
+      entityType: "csv_import",
+      entityId: 0,
+      field: "clear-all",
+      newValue: `Cleared ${deletedActuals.length} actuals, ${deletedRows.length} import rows, ${deletedImports.length} imports`,
+    });
+
+    res.json({
+      success: true,
+      cleared: {
+        actuals: deletedActuals.length,
+        importRows: deletedRows.length,
+        imports: deletedImports.length,
+      },
+    });
+  });
+}));
+
 export default router;
