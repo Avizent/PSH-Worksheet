@@ -180,16 +180,47 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
   }
 
   const headers = parsedHeaders.map(h => normalise(h));
+  const headersLower = parsedHeaders.map(h => h.toLowerCase().trim());
 
-  const catIdx = headers.findIndex(h => h === "category" || h === "cat");
-  const lineItemIdx = headers.findIndex(h => h === "lineitem" || h === "line" || h === "description" || h === "item");
+  const catIdx = headers.findIndex(h => ["category", "cat", "department", "dept", "costcentre"].includes(h));
+  const lineItemIdx = headers.findIndex(h => ["lineitem", "line", "description", "item", "budgetitem", "budgetline", "name"].includes(h));
+  const ownerIdx = headers.findIndex(h => ["owner", "budgetowner", "responsible", "manager"].includes(h));
+  const regionIdx = headers.findIndex(h => ["region", "geo", "geography", "market"].includes(h));
+  const costStatusIdx = headers.findIndex(h => ["coststatus", "costtype", "fixedvariable"].includes(h));
+  const boardApprovedIdx = headers.findIndex(h => ["boardapproved", "approvedbudget", "approved", "boardbudget", "annualbudget", "totalbudget"].includes(h));
+
   const monthIdx = headers.findIndex(h => h === "month" || h === "mon");
   const yearIdx = headers.findIndex(h => h === "year" || h === "yr");
-  const amountIdx = headers.findIndex(h => h === "amount" || h === "actual" || h === "actualamount" || h === "spend");
-  const invoiceIdx = headers.findIndex(h => h === "invoiceref" || h === "invoice" || h === "ref" || h === "reference");
+  const amountIdx = headers.findIndex(h => ["amount", "actual", "actualamount", "spend", "cost", "total"].includes(h));
+  const invoiceIdx = headers.findIndex(h => ["invoiceref", "invoice", "ref", "reference"].includes(h));
 
-  if (amountIdx === -1) {
-    res.status(400).json({ error: "File must contain an 'Amount' or 'Actual' column" });
+  const monthColumns: { monthNum: number; colIdx: number }[] = [];
+  const planMonthColumns: { monthNum: number; colIdx: number }[] = [];
+  const knownIdx = new Set([catIdx, lineItemIdx, ownerIdx, regionIdx, costStatusIdx, boardApprovedIdx, monthIdx, yearIdx, amountIdx, invoiceIdx].filter(i => i >= 0));
+
+  for (let i = 0; i < headersLower.length; i++) {
+    if (knownIdx.has(i)) continue;
+    const raw = headersLower[i];
+    for (const [name, num] of Object.entries(MONTH_MAP)) {
+      if (raw.includes(name) || headers[i].startsWith(name)) {
+        const isPlan = raw.includes("plan") || raw.includes("budget") || raw.includes("target") || raw.includes("forecast");
+        if (isPlan) {
+          planMonthColumns.push({ monthNum: num, colIdx: i });
+        } else {
+          monthColumns.push({ monthNum: num, colIdx: i });
+        }
+        break;
+      }
+    }
+  }
+
+  const isMatrixFormat = monthColumns.length >= 2 || planMonthColumns.length >= 2;
+
+  if (!isMatrixFormat && amountIdx === -1) {
+    const sampleHeaders = parsedHeaders.slice(0, 10).join(", ");
+    res.status(400).json({
+      error: `Could not detect format. Need either month columns (Jan, Feb...) or an 'Amount'/'Actual' column. Found headers: ${sampleHeaders}`,
+    });
     return;
   }
 
@@ -205,13 +236,7 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
     }
   }
 
-  const [importRecord] = await db.insert(csvImportsTable).values({
-    filename: filename,
-    status: "pending",
-    totalRows: dataRows.length,
-  }).returning();
-
-  const rowInserts: Array<{
+  type RowInsert = {
     importId: number;
     rowIndex: number;
     rawCategory: string | null;
@@ -224,133 +249,172 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
     budgetLineId: number | null;
     errorMessage: string | null;
     rowHash: string | null;
-  }> = [];
+  };
 
+  const rowInserts: RowInsert[] = [];
   let matched = 0;
   let unmatched = 0;
   let errors = 0;
 
-  for (let i = 0; i < dataRows.length; i++) {
-    const cols = dataRows[i];
-    const rowIndex = i + 1;
-    const rawCategory = catIdx >= 0 ? (cols[catIdx] || null) : null;
-    const rawLineItem = lineItemIdx >= 0 ? (cols[lineItemIdx] || null) : null;
-    const rawMonthStr = monthIdx >= 0 ? (cols[monthIdx] || "") : "";
-    const rawYearStr = yearIdx >= 0 ? (cols[yearIdx] || "") : "";
-    const rawAmountStr = amountIdx >= 0 ? (cols[amountIdx] || "") : "";
-    const rawInvoiceRef = invoiceIdx >= 0 ? (cols[invoiceIdx] || null) : null;
+  const currentYear = new Date().getFullYear();
 
-    const rawMonth = parseMonth(rawMonthStr);
-    const rawYear = rawYearStr ? parseInt(rawYearStr, 10) : null;
-    const rawAmount = rawAmountStr ? parseFloat(rawAmountStr.replace(/[£$,]/g, "")) : null;
+  async function findOrCreateBudgetLine(rawCategory: string | null, rawLineItem: string | null, extraFields?: {
+    owner?: string; region?: string; costStatus?: string; boardApproved?: number;
+  }): Promise<typeof budgetLines[0] | undefined> {
+    if (!rawLineItem) return undefined;
 
-    if (rawAmount == null || isNaN(rawAmount)) {
-      errors++;
-      rowInserts.push({
-        importId: importRecord.id,
-        rowIndex: rowIndex,
-        rawCategory,
-        rawLineItem,
-        rawMonth,
-        rawYear: rawYear && !isNaN(rawYear) ? rawYear : null,
-        rawAmount: null,
-        rawInvoiceRef,
-        status: "error",
-        budgetLineId: null,
-        errorMessage: "Invalid or missing amount",
-        rowHash: null,
-      });
-      continue;
-    }
-
-    if (rawMonth == null) {
-      errors++;
-      rowInserts.push({
-        importId: importRecord.id,
-        rowIndex: rowIndex,
-        rawCategory,
-        rawLineItem,
-        rawMonth: null,
-        rawYear: rawYear && !isNaN(rawYear) ? rawYear : null,
-        rawAmount,
-        rawInvoiceRef,
-        status: "error",
-        budgetLineId: null,
-        errorMessage: "Invalid or missing month",
-        rowHash: null,
-      });
-      continue;
-    }
-
-    const yearVal = rawYear && !isNaN(rawYear) ? rawYear : new Date().getFullYear();
-
-    const rHash = hashRow(
-      rawCategory || "",
-      rawLineItem || "",
-      rawMonth,
-      yearVal,
-      rawAmount,
-      rawInvoiceRef || ""
-    );
-
-    let matchedLine: typeof budgetLines[0] | undefined;
-
+    let line: typeof budgetLines[0] | undefined;
     if (rawCategory && rawLineItem) {
-      matchedLine = linesByCatAndItem.get(normalise(rawCategory) + "|" + normalise(rawLineItem));
+      line = linesByCatAndItem.get(normalise(rawCategory) + "|" + normalise(rawLineItem));
     }
-    if (!matchedLine && rawLineItem) {
-      matchedLine = linesByNormName.get(normalise(rawLineItem));
+    if (!line) {
+      line = linesByNormName.get(normalise(rawLineItem));
     }
-
-    if (!matchedLine && rawLineItem) {
+    if (!line) {
       const autoKey = normalise(rawCategory || "Uncategorized") + "|" + normalise(rawLineItem);
-      matchedLine = autoCreatedLines.get(autoKey);
-
-      if (!matchedLine) {
+      line = autoCreatedLines.get(autoKey);
+      if (!line) {
         const [created] = await db.insert(budgetLinesTable).values({
           category: rawCategory || "Uncategorized",
           lineItem: rawLineItem,
-          costStatus: "Variable",
+          owner: extraFields?.owner || null,
+          region: extraFields?.region || null,
+          costStatus: extraFields?.costStatus || "Variable",
+          boardApprovedAmount: extraFields?.boardApproved ?? null,
         }).returning();
         autoCreatedLines.set(autoKey, created);
         linesByNormName.set(normalise(created.lineItem), created);
         linesByCatAndItem.set(normalise(created.category) + "|" + normalise(created.lineItem), created);
-        matchedLine = created;
+        line = created;
       }
     }
+    return line;
+  }
 
-    if (matchedLine) {
-      matched++;
-      rowInserts.push({
-        importId: importRecord.id,
-        rowIndex: rowIndex,
-        rawCategory,
-        rawLineItem,
-        rawMonth,
-        rawYear: yearVal,
-        rawAmount,
-        rawInvoiceRef,
-        status: "matched",
-        budgetLineId: matchedLine.id,
-        errorMessage: null,
-        rowHash: rHash,
+  const [importRecord] = await db.insert(csvImportsTable).values({
+    filename: filename,
+    status: "pending",
+    totalRows: dataRows.length,
+  }).returning();
+
+  if (isMatrixFormat) {
+    const actualCols = monthColumns.length > 0 ? monthColumns : planMonthColumns;
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const cols = dataRows[i];
+      const rowIndex = i + 1;
+      const rawCategory = catIdx >= 0 ? (cols[catIdx] || null) : null;
+      const rawLineItem = lineItemIdx >= 0 ? (cols[lineItemIdx] || null) : null;
+
+      if (!rawLineItem || !rawLineItem.trim()) continue;
+
+      const rawOwner = ownerIdx >= 0 ? (cols[ownerIdx] || undefined) : undefined;
+      const rawRegion = regionIdx >= 0 ? (cols[regionIdx] || undefined) : undefined;
+      const rawCostStatus = costStatusIdx >= 0 ? (cols[costStatusIdx] || undefined) : undefined;
+      const rawBoardApproved = boardApprovedIdx >= 0 ? parseFloat(String(cols[boardApprovedIdx] || "").replace(/[£$,]/g, "")) : undefined;
+
+      const budgetLine = await findOrCreateBudgetLine(rawCategory, rawLineItem, {
+        owner: rawOwner,
+        region: rawRegion,
+        costStatus: rawCostStatus,
+        boardApproved: rawBoardApproved && !isNaN(rawBoardApproved) ? rawBoardApproved : undefined,
       });
-    } else {
-      unmatched++;
-      rowInserts.push({
-        importId: importRecord.id,
-        rowIndex: rowIndex,
-        rawCategory,
-        rawLineItem,
-        rawMonth,
-        rawYear: yearVal,
-        rawAmount,
-        rawInvoiceRef,
-        status: "unmatched",
-        budgetLineId: null,
-        errorMessage: null,
-        rowHash: rHash,
-      });
+
+      if (!budgetLine) {
+        errors++;
+        rowInserts.push({
+          importId: importRecord.id, rowIndex, rawCategory, rawLineItem,
+          rawMonth: null, rawYear: null, rawAmount: null, rawInvoiceRef: null,
+          status: "error", budgetLineId: null, errorMessage: "Missing line item name", rowHash: null,
+        });
+        continue;
+      }
+
+      if (planMonthColumns.length > 0) {
+        for (const mc of planMonthColumns) {
+          const valStr = String(cols[mc.colIdx] || "").replace(/[£$,]/g, "");
+          const val = parseFloat(valStr);
+          if (isNaN(val)) continue;
+          await db.insert(monthlyPlansTable).values({
+            budgetLineId: budgetLine.id,
+            month: mc.monthNum,
+            year: currentYear,
+            plannedAmount: val,
+          });
+        }
+      }
+
+      for (const mc of actualCols) {
+        const valStr = String(cols[mc.colIdx] || "").replace(/[£$,]/g, "");
+        const val = parseFloat(valStr);
+        if (isNaN(val) || val === 0) continue;
+
+        const rHash = hashRow(rawCategory || "", rawLineItem || "", mc.monthNum, currentYear, val, "");
+        matched++;
+        rowInserts.push({
+          importId: importRecord.id, rowIndex, rawCategory, rawLineItem,
+          rawMonth: mc.monthNum, rawYear: currentYear, rawAmount: val, rawInvoiceRef: null,
+          status: "matched", budgetLineId: budgetLine.id, errorMessage: null, rowHash: rHash,
+        });
+      }
+    }
+  } else {
+    for (let i = 0; i < dataRows.length; i++) {
+      const cols = dataRows[i];
+      const rowIndex = i + 1;
+      const rawCategory = catIdx >= 0 ? (cols[catIdx] || null) : null;
+      const rawLineItem = lineItemIdx >= 0 ? (cols[lineItemIdx] || null) : null;
+      const rawMonthStr = monthIdx >= 0 ? (cols[monthIdx] || "") : "";
+      const rawYearStr = yearIdx >= 0 ? (cols[yearIdx] || "") : "";
+      const rawAmountStr = amountIdx >= 0 ? (cols[amountIdx] || "") : "";
+      const rawInvoiceRef = invoiceIdx >= 0 ? (cols[invoiceIdx] || null) : null;
+
+      const rawMonth = parseMonth(rawMonthStr);
+      const rawYear = rawYearStr ? parseInt(rawYearStr, 10) : null;
+      const rawAmount = rawAmountStr ? parseFloat(rawAmountStr.replace(/[£$,]/g, "")) : null;
+
+      if (rawAmount == null || isNaN(rawAmount)) {
+        errors++;
+        rowInserts.push({
+          importId: importRecord.id, rowIndex, rawCategory, rawLineItem,
+          rawMonth, rawYear: rawYear && !isNaN(rawYear) ? rawYear : null,
+          rawAmount: null, rawInvoiceRef,
+          status: "error", budgetLineId: null, errorMessage: "Invalid or missing amount", rowHash: null,
+        });
+        continue;
+      }
+
+      if (rawMonth == null) {
+        errors++;
+        rowInserts.push({
+          importId: importRecord.id, rowIndex, rawCategory, rawLineItem,
+          rawMonth: null, rawYear: rawYear && !isNaN(rawYear) ? rawYear : null,
+          rawAmount, rawInvoiceRef,
+          status: "error", budgetLineId: null, errorMessage: "Invalid or missing month", rowHash: null,
+        });
+        continue;
+      }
+
+      const yearVal = rawYear && !isNaN(rawYear) ? rawYear : currentYear;
+      const rHash = hashRow(rawCategory || "", rawLineItem || "", rawMonth, yearVal, rawAmount, rawInvoiceRef || "");
+
+      const budgetLine = await findOrCreateBudgetLine(rawCategory, rawLineItem);
+
+      if (budgetLine) {
+        matched++;
+        rowInserts.push({
+          importId: importRecord.id, rowIndex, rawCategory, rawLineItem,
+          rawMonth, rawYear: yearVal, rawAmount, rawInvoiceRef,
+          status: "matched", budgetLineId: budgetLine.id, errorMessage: null, rowHash: rHash,
+        });
+      } else {
+        unmatched++;
+        rowInserts.push({
+          importId: importRecord.id, rowIndex, rawCategory, rawLineItem,
+          rawMonth, rawYear: yearVal, rawAmount, rawInvoiceRef,
+          status: "unmatched", budgetLineId: null, errorMessage: null, rowHash: rHash,
+        });
+      }
     }
   }
 
