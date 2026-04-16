@@ -8,6 +8,8 @@ import { BudgetTable, confirmDelete, CHANNEL_VALUES, CHANNEL_LABELS, type Channe
 import { MonthlyAmountModal } from "@/components/MonthlyAmountModal";
 import { AddLineModal } from "@/components/AddLineModal";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { WebRefreshButton } from "@/components/WebRefreshButton";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { ToastProvider, useToast } from "@/components/Toast";
@@ -93,7 +95,7 @@ function BudgetContent() {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const { data: budgetLines, isLoading, refetch } = useListBudgetLinesWithMonthly();
+  const { data: budgetLines, isLoading, isError, refetch } = useListBudgetLinesWithMonthly();
   const { data: allLines } = useListBudgetLines();
   const { data: alerts } = useListAlerts({ resolved: false });
   const { data: categoriesData } = useListBudgetLineCategories();
@@ -242,6 +244,18 @@ function BudgetContent() {
     );
   }
 
+  if (isError && !budgetLines) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ErrorState
+          title="Failed to load budget lines"
+          message="We couldn't fetch budget data. Check your connection and try again."
+          onRetry={handleRefresh}
+        />
+      </View>
+    );
+  }
+
   const linesWithPct = (allLines || []).reduce<Record<number, number>>((acc, l) => { acc[l.id] = l.projectionPct ?? 0; return acc; }, {});
 
   const tableData: BudgetLineRow[] = (budgetLines || [])
@@ -309,6 +323,8 @@ function BudgetContent() {
   const channelOptions: PickerOption[] = [{ value: "", label: "— None —" }, ...CHANNEL_VALUES.map((c) => ({ value: c, label: CHANNEL_LABELS[c] }))];
 
   const content = (
+    <View style={{ flex: 1 }}>
+    <WebRefreshButton onRefresh={handleRefresh} refreshing={refreshing} />
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.background }]}
       contentContainerStyle={[styles.contentContainer, { paddingTop: isWeb ? 67 : 0, paddingBottom: isWeb ? 34 : 20, paddingHorizontal: isDesktop ? 32 : 16 }]}
@@ -522,6 +538,7 @@ function BudgetContent() {
         onSave={handleSaveMonthly}
       />
     </ScrollView>
+    </View>
   );
 
   if (isDesktop) {

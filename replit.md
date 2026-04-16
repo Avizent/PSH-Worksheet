@@ -126,6 +126,13 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - Desktop: tabbed chart panel (5 tabs: Plan vs Actual, Cumulative, Categories, Projections, Events)
 - Mobile: horizontally swipeable full-width chart pager with page dots (6 pages including Remaining)
 
+### Error Handling & Refresh UX
+- `ErrorState` component (`components/ErrorState.tsx`) — shown when API queries fail, with alert-triangle icon, error message, and "Try Again" retry button
+- `WebRefreshButton` component (`components/WebRefreshButton.tsx`) — floating circular refresh button visible only on web (since RefreshControl is native-only), positioned top-right on all main screens
+- `ToastProvider` (`contexts/ToastContext.tsx`) — global toast/snackbar notification system for mutation failures (seed, resolve alert, import, projection updates). Animated slide-in toasts with auto-dismiss after 4 seconds. Supports error, success, and info types.
+- All main tab screens (Dashboard, Alerts, Budget, Events, Import, Reports) check `isError` from React Query and show ErrorState when data fails to load
+- All mutations include `onError` callbacks that trigger toast notifications
+
 ### Alert UX
 - Desktop: AlertCard with severity badges and resolve button
 - Mobile: SwipeableAlertCard with swipe-left-to-resolve gesture + "Swipe left to resolve" hint text

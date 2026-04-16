@@ -6,8 +6,11 @@ import { useLayout } from "@/hooks/useLayout";
 import { AlertCard } from "@/components/AlertCard";
 import { SwipeableAlertCard } from "@/components/SwipeableAlertCard";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { WebRefreshButton } from "@/components/WebRefreshButton";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { useToast } from "@/contexts/ToastContext";
 import {
   useListAlerts,
   useResolveAlert,
@@ -33,6 +36,7 @@ function AlertsContent() {
   const colors = useColors();
   const { mode } = useLayout();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const isDesktop = mode === "desktop";
   const isWeb = Platform.OS === "web";
 
@@ -40,7 +44,7 @@ function AlertsContent() {
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const [selectedAlert, setSelectedAlert] = useState<AlertItem | null>(null);
 
-  const { data: activeAlerts, isLoading: activeLoading, refetch: refetchActive } = useListAlerts({ resolved: false });
+  const { data: activeAlerts, isLoading: activeLoading, isError: activeError, refetch: refetchActive } = useListAlerts({ resolved: false });
   const { data: resolvedAlerts, isLoading: resolvedLoading, refetch: refetchResolved } = useListAlerts({ resolved: true });
 
   const resolveMutation = useResolveAlert();
@@ -60,6 +64,9 @@ function AlertsContent() {
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         setSelectedAlert(null);
       },
+      onError: () => {
+        showToast("Failed to resolve alert. Please try again.");
+      },
     });
   };
 
@@ -67,6 +74,18 @@ function AlertsContent() {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (activeError && !activeAlerts) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ErrorState
+          title="Failed to load alerts"
+          message="We couldn't fetch alerts. Check your connection and try again."
+          onRetry={handleRefresh}
+        />
       </View>
     );
   }
@@ -120,6 +139,8 @@ function AlertsContent() {
   };
 
   const content = (
+    <View style={{ flex: 1 }}>
+    <WebRefreshButton onRefresh={handleRefresh} refreshing={refreshing} />
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.background }]}
       contentContainerStyle={[
@@ -195,6 +216,7 @@ function AlertsContent() {
         </>
       )}
     </ScrollView>
+    </View>
   );
 
   const alertDetail = selectedAlert ? (

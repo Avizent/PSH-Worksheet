@@ -1,11 +1,13 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { View, ScrollView, StyleSheet, Text, ActivityIndicator, useWindowDimensions } from "react-native";
+import { View, ScrollView, StyleSheet, Text, ActivityIndicator, useWindowDimensions, Platform } from "react-native";
 import Svg, { Path, Text as SvgText, Rect, G, Line, Circle, Polyline } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { Pressable } from "react-native";
+import { ErrorState } from "@/components/ErrorState";
+import { WebRefreshButton } from "@/components/WebRefreshButton";
 import { useGetDashboardCharts, useGetDashboardSummary, useListBudgetLinesWithMonthly, useListAlerts } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
 import { CHANNEL_VALUES, CHANNEL_LABELS, type ChannelValue } from "@/components/BudgetTable";
@@ -359,12 +361,13 @@ function ReportsContent() {
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
+  const isWeb = Platform.OS === "web";
   const { width: windowWidth } = useWindowDimensions();
 
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
 
-  const { data: charts, isLoading: chartsLoading } = useGetDashboardCharts({ year: 2026 });
-  const { data: budgetLines, isLoading: linesLoading } = useListBudgetLinesWithMonthly({ year: 2026 });
+  const { data: charts, isLoading: chartsLoading, isError: chartsError, refetch: refetchCharts } = useGetDashboardCharts({ year: 2026 });
+  const { data: budgetLines, isLoading: linesLoading, isError: linesError, refetch: refetchLines } = useListBudgetLinesWithMonthly({ year: 2026 });
 
   const filteredLines = useMemo(() => {
     if (!budgetLines) return [] as BudgetLine[];
@@ -375,6 +378,13 @@ function ReportsContent() {
   }, [budgetLines, channelFilter]);
   const { data: alerts } = useListAlerts({ resolved: false });
   const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
+
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refetchCharts(), refetchLines()]);
+    setRefreshing(false);
+  };
 
   const { data: ownerData } = useAnalytics("owner-breakdown");
   const { data: regionalData } = useAnalytics("regional-investment");
@@ -467,12 +477,26 @@ function ReportsContent() {
     );
   }
 
+  if ((chartsError || linesError) && !charts && !budgetLines) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ErrorState
+          title="Failed to load reports"
+          message="We couldn't fetch report data. Check your connection and try again."
+          onRetry={() => { refetchCharts(); refetchLines(); }}
+        />
+      </View>
+    );
+  }
+
   const pieSize = isDesktop ? 200 : 180;
   const desktopContentWidth = windowWidth - 240 - 96;
   const chartWidth = isDesktop ? Math.min((desktopContentWidth - 16) / 2, 500) : windowWidth - 80;
   const fullChartWidth = isDesktop ? Math.min(desktopContentWidth, 900) : windowWidth - 80;
 
   const content = (
+    <View style={{ flex: 1 }}>
+    <WebRefreshButton onRefresh={handleRefresh} refreshing={refreshing} />
     <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={[styles.content, { paddingBottom: isDesktop ? 40 : 120 }]}>
       <SectionHeader title="Reports" subtitle={`Visual analytics and spend distribution \u00b7 FY2026`} />
 
@@ -624,6 +648,7 @@ function ReportsContent() {
         </View>
       )}
     </ScrollView>
+    </View>
   );
 
   if (isDesktop) {

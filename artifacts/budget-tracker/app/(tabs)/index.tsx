@@ -9,6 +9,8 @@ import { KpiCard } from "@/components/KpiCard";
 import { BudgetTable } from "@/components/BudgetTable";
 import { AlertCard } from "@/components/AlertCard";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { WebRefreshButton } from "@/components/WebRefreshButton";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { BarChart } from "@/components/BarChart";
@@ -16,6 +18,7 @@ import { LineChart } from "@/components/LineChart";
 import { DonutChart } from "@/components/DonutChart";
 import { ProjectionBarChart } from "@/components/ProjectionBarChart";
 import { EventsGantt } from "@/components/EventsGantt";
+import { useToast } from "@/contexts/ToastContext";
 import Svg, { Rect, Text as SvgText, G } from "react-native-svg";
 import {
   useGetDashboardSummary,
@@ -101,8 +104,10 @@ function DashboardContent() {
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
   const mobileScrollRef = useRef<ScrollView | null>(null);
 
-  const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetDashboardSummary();
-  const { data: budgetLines, isLoading: linesLoading, refetch: refetchLines } = useListBudgetLinesWithMonthly();
+  const { showToast } = useToast();
+
+  const { data: summary, isLoading: summaryLoading, isError: summaryError, refetch: refetchSummary } = useGetDashboardSummary();
+  const { data: budgetLines, isLoading: linesLoading, isError: linesError, refetch: refetchLines } = useListBudgetLinesWithMonthly();
   const { data: alerts, refetch: refetchAlerts } = useListAlerts({ resolved: false });
   const { data: charts, refetch: refetchCharts } = useGetDashboardCharts();
   const { data: projections } = useGetProjections();
@@ -128,10 +133,16 @@ function DashboardContent() {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
           },
+          onError: () => {
+            showToast("Failed to evaluate alerts after seeding.");
+          },
         });
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetDashboardChartsQueryKey() });
+      },
+      onError: () => {
+        showToast("Failed to seed sample data. Please try again.");
       },
     });
   };
@@ -142,10 +153,14 @@ function DashboardContent() {
         queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
       },
+      onError: () => {
+        showToast("Failed to resolve alert. Please try again.");
+      },
     });
   };
 
   const isLoading = summaryLoading || linesLoading;
+  const hasError = summaryError || linesError;
 
   const linesArray = Array.isArray(budgetLines) ? budgetLines : [];
   const tableData = linesArray.map((line) => {
@@ -173,6 +188,18 @@ function DashboardContent() {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (hasError && !hasData) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ErrorState
+          title="Failed to load dashboard"
+          message="We couldn't fetch your budget data. Check your connection and try again."
+          onRetry={handleRefresh}
+        />
       </View>
     );
   }
@@ -247,6 +274,8 @@ function DashboardContent() {
   const mobileChartWidth = windowWidth - 32;
 
   const content = (
+    <View style={{ flex: 1 }}>
+    <WebRefreshButton onRefresh={handleRefresh} refreshing={refreshing} />
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.background }]}
       contentContainerStyle={[
@@ -466,6 +495,7 @@ function DashboardContent() {
         </>
       )}
     </ScrollView>
+    </View>
   );
 
   if (isDesktop) {

@@ -21,6 +21,9 @@ import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { SectionHeader } from "@/components/SectionHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { AdminSubnav } from "@/components/AdminSubnav";
+import { ErrorState } from "@/components/ErrorState";
+import { WebRefreshButton } from "@/components/WebRefreshButton";
+import { useToast } from "@/contexts/ToastContext";
 import {
   useListImports,
   useGetImport,
@@ -85,8 +88,9 @@ function ImportContent() {
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
 
-  const { data: imports, isLoading: importsLoading, refetch: refetchImports } = useListImports();
+  const { data: imports, isLoading: importsLoading, isError: importsError, refetch: refetchImports } = useListImports();
   const { data: alerts } = useListAlerts({ resolved: false });
   const { data: budgetLines } = useListBudgetLines();
 
@@ -132,7 +136,7 @@ function ImportContent() {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        alert("Upload failed: " + (err.error || response.statusText));
+        showToast("Upload failed: " + (err.error || response.statusText));
         return;
       }
 
@@ -140,7 +144,7 @@ function ImportContent() {
       setActiveImportId(result.id);
       queryClient.invalidateQueries({ queryKey: getListImportsQueryKey() });
     } catch (e: unknown) {
-      alert("Upload error: " + (e instanceof Error ? e.message : String(e)));
+      showToast("Upload error: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setUploading(false);
     }
@@ -164,7 +168,7 @@ function ImportContent() {
         uploadFile(file);
       }
     } catch (e: unknown) {
-      alert("Error picking file: " + (e instanceof Error ? e.message : String(e)));
+      showToast("Error picking file: " + (e instanceof Error ? e.message : String(e)), "error");
     }
   };
 
@@ -203,6 +207,9 @@ function ImportContent() {
             queryClient.invalidateQueries({ queryKey: getListImportsQueryKey() });
           }
         },
+        onError: () => {
+          showToast("Failed to assign row. Please try again.");
+        },
       }
     );
   };
@@ -218,7 +225,10 @@ function ImportContent() {
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardChartsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
-          alert(`Import confirmed: ${result.created} records created, ${result.skippedDuplicate} duplicates skipped`);
+          showToast(`Import confirmed: ${result.created} records created, ${result.skippedDuplicate} duplicates skipped`, "success");
+        },
+        onError: () => {
+          showToast("Failed to confirm import. Please try again.");
         },
       }
     );
@@ -237,7 +247,7 @@ function ImportContent() {
           queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
         },
         onError: (e: unknown) => {
-          alert("Delete error: " + (e instanceof Error ? e.message : String(e)));
+          showToast("Delete error: " + (e instanceof Error ? e.message : String(e)));
         },
         onSettled: () => {
           setDeleting(false);
@@ -668,7 +678,21 @@ function ImportContent() {
     );
   }
 
+  if (importsError && !imports) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ErrorState
+          title="Failed to load imports"
+          message="We couldn't fetch import data. Check your connection and try again."
+          onRetry={handleRefresh}
+        />
+      </View>
+    );
+  }
+
   const content = (
+    <View style={{ flex: 1 }}>
+    <WebRefreshButton onRefresh={handleRefresh} refreshing={refreshing} />
     <ScrollView
       style={[styles.content, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentInner}
@@ -697,6 +721,7 @@ function ImportContent() {
       {renderDeleteConfirmModal()}
       {renderClearAllModal()}
     </ScrollView>
+    </View>
   );
 
   if (isDesktop) {

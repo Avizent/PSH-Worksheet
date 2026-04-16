@@ -4,6 +4,8 @@ import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { WebRefreshButton } from "@/components/WebRefreshButton";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { useListEvents, useListAlerts } from "@workspace/api-client-react";
@@ -28,7 +30,7 @@ function EventsContent() {
   const isDesktop = mode === "desktop";
   const isWeb = Platform.OS === "web";
 
-  const { data: events, isLoading, refetch } = useListEvents();
+  const { data: events, isLoading, isError, refetch } = useListEvents();
   const { data: alerts } = useListAlerts({ resolved: false });
   const [refreshing, setRefreshing] = useState(false);
 
@@ -46,6 +48,18 @@ function EventsContent() {
     );
   }
 
+  if (isError && !events) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ErrorState
+          title="Failed to load events"
+          message="We couldn't fetch events. Check your connection and try again."
+          onRetry={handleRefresh}
+        />
+      </View>
+    );
+  }
+
   const statusColors: Record<string, string> = {
     Planned: colors.primary,
     Confirmed: colors.success,
@@ -54,6 +68,8 @@ function EventsContent() {
   };
 
   const content = (
+    <View style={{ flex: 1 }}>
+    <WebRefreshButton onRefresh={handleRefresh} refreshing={refreshing} />
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.background }]}
       contentContainerStyle={[
@@ -108,6 +124,7 @@ function EventsContent() {
         </View>
       )}
     </ScrollView>
+    </View>
   );
 
   if (isDesktop) {

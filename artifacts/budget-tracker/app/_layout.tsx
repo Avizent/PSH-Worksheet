@@ -14,6 +14,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ToastProvider } from "@/contexts/ToastContext";
 import { setBaseUrl, setDefaultHeaders } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
 import { setVpSessionToken } from "@/utils/vpSession";
@@ -111,7 +112,9 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <GestureHandlerRootView>
               <KeyboardProvider>
-                <ThemedRoot />
+                <ToastProvider>
+                  <ThemedRoot />
+                </ToastProvider>
               </KeyboardProvider>
             </GestureHandlerRootView>
           </QueryClientProvider>
