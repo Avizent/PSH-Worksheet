@@ -16,6 +16,7 @@ import { LineChart } from "@/components/LineChart";
 import { DonutChart } from "@/components/DonutChart";
 import { ProjectionBarChart } from "@/components/ProjectionBarChart";
 import { EventsGantt } from "@/components/EventsGantt";
+import Svg, { Rect, Text as SvgText, G } from "react-native-svg";
 import {
   useGetDashboardSummary,
   useListBudgetLinesWithMonthly,
@@ -44,6 +45,42 @@ function formatCurrency(val: number): string {
     return "\u00a3" + (val / 1000).toFixed(1) + "k";
   }
   return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
+}
+
+const CHART_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+
+function RemainingBudgetChart({ categories, width }: { categories: { category: string; planned: number; actual: number }[]; width: number }) {
+  const colors = useColors();
+  const barHeight = 24;
+  const labelWidth = 130;
+  const chartWidth = width - labelWidth - 60;
+  const rowHeight = barHeight + 12;
+  const height = categories.length * rowHeight + 20;
+  const maxVal = Math.max(...categories.map(c => c.planned), 1);
+
+  return (
+    <View>
+      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 12 }}>Remaining Budget by Category</Text>
+      <Svg width={width} height={height}>
+        {categories.map((c, i) => {
+          const y = i * rowHeight + 5;
+          const plannedW = (c.planned / maxVal) * chartWidth;
+          const spentW = (c.actual / maxVal) * chartWidth;
+          const remaining = c.planned - c.actual;
+          return (
+            <G key={i}>
+              <SvgText x={0} y={y + barHeight / 2 + 4} fontSize={11} fill={colors.foreground}>{c.category.length > 16 ? c.category.slice(0, 16) + "\u2026" : c.category}</SvgText>
+              <Rect x={labelWidth} y={y} width={Math.max(plannedW, 2)} height={barHeight} fill={colors.border} rx={4} />
+              <Rect x={labelWidth} y={y} width={Math.max(spentW, 1)} height={barHeight} fill={remaining >= 0 ? colors.primary : colors.destructive} rx={4} />
+              <SvgText x={labelWidth + Math.max(plannedW, 2) + 6} y={y + barHeight / 2 + 4} fontSize={10} fill={remaining >= 0 ? colors.success : colors.destructive}>
+                {formatCurrency(remaining)}
+              </SvgText>
+            </G>
+          );
+        })}
+      </Svg>
+    </View>
+  );
 }
 
 const EXTRA_CHART_TABS = ["Projections", "Events"] as const;
@@ -173,7 +210,7 @@ function DashboardContent() {
     };
   }).sort((a, b) => a.month - b.month);
 
-  const MOBILE_CHART_TABS = ["Plan vs Actual", "Cumulative", "Categories", "Projections", "Events"] as const;
+  const MOBILE_CHART_TABS = ["Plan vs Actual", "Cumulative", "Categories", "Remaining", "Projections", "Events"] as const;
 
   const renderMobileChart = (tab: string) => {
     const w = windowWidth - 32;
@@ -184,6 +221,8 @@ function DashboardContent() {
         return <LineChart data={monthlyData.map(m => ({ label: m.monthLabel, cumPlanned: m.cumPlanned, cumActual: m.cumActual }))} width={w} height={220} />;
       case "Categories":
         return <DonutChart data={categoryData.map(c => ({ category: c.category, value: c.planned }))} size={donutSize} />;
+      case "Remaining":
+        return <RemainingBudgetChart categories={categoryData.map(c => ({ category: c.category, planned: c.planned, actual: c.actual }))} width={w} />;
       case "Projections":
         return <ProjectionBarChart data={projectionMonthly} width={w} height={220} />;
       case "Events":
@@ -251,11 +290,19 @@ function DashboardContent() {
                       />
                     </View>
                   </View>
-                  <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 12, alignSelf: "flex-start" }]}>
-                    <DonutChart
-                      data={categoryData.map(c => ({ category: c.category, value: c.planned }))}
-                      size={donutSize}
-                    />
+                  <View style={styles.chartsRow}>
+                    <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, alignSelf: "flex-start" }]}>
+                      <DonutChart
+                        data={categoryData.map(c => ({ category: c.category, value: c.planned }))}
+                        size={donutSize}
+                      />
+                    </View>
+                    <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}>
+                      <RemainingBudgetChart
+                        categories={categoryData.map(c => ({ category: c.category, planned: c.planned, actual: c.actual }))}
+                        width={chartHalfWidth}
+                      />
+                    </View>
                   </View>
                   <View style={styles.extraSection}>
                     <View style={styles.tabRow}>

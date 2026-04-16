@@ -14,6 +14,10 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Dashboard", icon: "bar-chart-2", route: "/" },
   { key: "budget", label: "Budget Lines", icon: "list", route: "/budget" },
+  { key: "quarterly", label: "Quarterly", icon: "columns", route: "/quarterly" },
+  { key: "annual", label: "Annual View", icon: "calendar", route: "/annual" },
+  { key: "monthly", label: "Monthly View", icon: "clock", route: "/monthly" },
+  { key: "reports", label: "Reports", icon: "pie-chart", route: "/reports" },
   { key: "alerts", label: "Alerts", icon: "bell", route: "/alerts" },
   { key: "events", label: "Events", icon: "calendar", route: "/events" },
   { key: "import", label: "Import", icon: "upload", route: "/import" },

@@ -101,6 +101,8 @@ function BudgetContent() {
   const updateMutation = useUpdateBudgetLine();
   const [refreshing, setRefreshing] = useState(false);
   const [editingLine, setEditingLine] = useState<{ id: number; lineItem: string; pct: number } | null>(null);
+  const [filterCategory, setFilterCategory] = useState<string>("All");
+  const [filterMonth, setFilterMonth] = useState<number>(0);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -135,9 +137,17 @@ function BudgetContent() {
     return acc;
   }, {});
 
+  const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
   const tableData = (budgetLines || []).map((line) => {
-    const totalPlan = (line.plans || []).reduce((sum, p) => sum + (p.plannedAmount || 0), 0);
-    const totalActual = (line.actuals || []).reduce((sum, a) => sum + (a.actualAmount || 0), 0);
+    const plans = (line.plans || []);
+    const actuals = (line.actuals || []);
+    const totalPlan = filterMonth > 0
+      ? plans.filter(p => p.month === filterMonth).reduce((sum, p) => sum + (p.plannedAmount || 0), 0)
+      : plans.reduce((sum, p) => sum + (p.plannedAmount || 0), 0);
+    const totalActual = filterMonth > 0
+      ? actuals.filter(a => a.month === filterMonth).reduce((sum, a) => sum + (a.actualAmount || 0), 0)
+      : actuals.reduce((sum, a) => sum + (a.actualAmount || 0), 0);
     return {
       id: line.id,
       category: line.category,
@@ -149,8 +159,9 @@ function BudgetContent() {
       variance: totalPlan - totalActual,
       projectionPct: linesWithPct[line.id] ?? 0,
     };
-  });
+  }).filter(d => filterCategory === "All" || d.category === filterCategory);
 
+  const allCategories = [...new Set((budgetLines || []).map((d) => d.category))];
   const categories = [...new Set(tableData.map((d) => d.category))];
 
   const content = (
@@ -171,6 +182,45 @@ function BudgetContent() {
       }
     >
       <SectionHeader title="Budget Lines" subtitle={`${tableData.length} line items across ${categories.length} categories`} />
+
+      <View style={[styles.filterBar, { borderColor: colors.border }]}>
+        <View style={styles.filterGroup}>
+          <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>Category</Text>
+          <View style={[styles.filterPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {["All", ...allCategories].map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                onPress={() => setFilterCategory(cat)}
+                style={[styles.filterChip, filterCategory === cat && { backgroundColor: colors.primary }]}
+              >
+                <Text style={[styles.filterChipText, { color: filterCategory === cat ? "#fff" : colors.foreground }]} numberOfLines={1}>
+                  {cat === "All" ? "All" : cat.length > 12 ? cat.slice(0, 12) + "\u2026" : cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        <View style={styles.filterGroup}>
+          <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>Month</Text>
+          <View style={[styles.filterPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setFilterMonth(0)}
+              style={[styles.filterChip, filterMonth === 0 && { backgroundColor: colors.primary }]}
+            >
+              <Text style={[styles.filterChipText, { color: filterMonth === 0 ? "#fff" : colors.foreground }]}>All</Text>
+            </TouchableOpacity>
+            {MONTH_LABELS.map((m, i) => (
+              <TouchableOpacity
+                key={m}
+                onPress={() => setFilterMonth(i + 1)}
+                style={[styles.filterChip, filterMonth === i + 1 && { backgroundColor: colors.primary }]}
+              >
+                <Text style={[styles.filterChipText, { color: filterMonth === i + 1 ? "#fff" : colors.foreground }]}>{m}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </View>
 
       {tableData.length === 0 ? (
         <EmptyState icon="list" title="No budget lines" message="Budget line items will appear here once data is seeded." />
@@ -215,6 +265,12 @@ function BudgetContent() {
                         <View style={styles.mobileMetric}>
                           <Text style={[styles.mobileMetricLabel, { color: colors.mutedForeground }]}>Variance</Text>
                           <Text style={[styles.mobileMetricValue, { color: varianceColor }]}>{formatCurrency(item.variance)}</Text>
+                        </View>
+                        <View style={styles.mobileMetric}>
+                          <Text style={[styles.mobileMetricLabel, { color: colors.mutedForeground }]}>Var %</Text>
+                          <Text style={[styles.mobileMetricValue, { color: varianceColor }]}>
+                            {item.totalPlan > 0 ? ((item.variance / item.totalPlan) * 100).toFixed(1) + "%" : "-"}
+                          </Text>
                         </View>
                       </View>
                       {item.costStatus === "Fixed Cost" && (
@@ -417,6 +473,36 @@ const styles = StyleSheet.create({
   modalSaveText: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
+  },
+  filterBar: {
+    marginBottom: 12,
+    gap: 10,
+  },
+  filterGroup: {
+    gap: 4,
+  },
+  filterLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+  },
+  filterPicker: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    padding: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  filterChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
   },
   desktopContainer: {
     flex: 1,

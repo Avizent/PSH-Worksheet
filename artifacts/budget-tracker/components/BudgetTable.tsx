@@ -70,6 +70,7 @@ export function BudgetTable({ data, showProjection, onProjectionChange }: Budget
             <Text style={[styles.cellNumber, styles.headerText, { color: colors.mutedForeground }]}>Plan</Text>
             <Text style={[styles.cellNumber, styles.headerText, { color: colors.mutedForeground }]}>Actual</Text>
             <Text style={[styles.cellNumber, styles.headerText, { color: colors.mutedForeground }]}>Variance</Text>
+            <Text style={[styles.cellVarPct, styles.headerText, { color: colors.mutedForeground }]}>Var %</Text>
             {showProjection && (
               <Text style={[styles.cellProjection, styles.headerText, { color: colors.mutedForeground }]}>Proj %</Text>
             )}
@@ -91,6 +92,9 @@ export function BudgetTable({ data, showProjection, onProjectionChange }: Budget
                 <Text style={[styles.cellNumber, { color: colors.foreground }]}>{formatCurrency(row.totalPlan)}</Text>
                 <Text style={[styles.cellNumber, { color: colors.foreground }]}>{formatCurrency(row.totalActual)}</Text>
                 <Text style={[styles.cellNumber, { color: varianceColor }]}>{formatCurrency(row.variance)}</Text>
+                <Text style={[styles.cellVarPct, { color: row.variance >= 0 ? colors.success : colors.destructive, fontFamily: "Inter_600SemiBold" }]}>
+                  {row.totalPlan > 0 ? ((row.variance / row.totalPlan) * 100).toFixed(1) + "%" : "-"}
+                </Text>
                 {showProjection && (
                   <View style={styles.cellProjection}>
                     {row.costStatus === "Fixed Cost" && onProjectionChange ? (
@@ -154,6 +158,12 @@ const styles = StyleSheet.create({
     width: 90,
     fontSize: 13,
     fontFamily: "Inter_500Medium",
+    textAlign: "right" as const,
+    paddingRight: 8,
+  },
+  cellVarPct: {
+    width: 65,
+    fontSize: 13,
     textAlign: "right" as const,
     paddingRight: 8,
   },

@@ -96,14 +96,29 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `large_payment` — Planned payment >£200k within 60 days (warning)
 - `unbooked_event` — Event within 45 days still in "planned" status (warning)
 
+### App Tabs (12 screens)
+- `index.tsx` — Dashboard with KPIs, charts (Plan vs Actual, Cumulative, Categories, Remaining Budget, Projections, Events)
+- `budget.tsx` — Budget Lines with category/month filters, Var % column, projection editing
+- `quarterly.tsx` — Quarterly View with Q1-Q4 picker, KPIs, horizontal bar chart, region table
+- `annual.tsx` — Annual View with By Category/Region tables (Var %), quarterly bar chart
+- `monthly.tsx` — Monthly View with spend trend line chart, month-by-month breakdown, quarterly roll-up
+- `reports.tsx` — Reports with 3 pie charts (Category/Region/Cost Type), quarterly + monthly trend charts
+- `alerts.tsx` — Alert management with resolve/swipe-to-resolve
+- `events.tsx` — Marketing events with status tracking
+- `reforecast.tsx` — Forecast versioning and comparison
+- `audit.tsx` — Audit log with filters
+- `import.tsx` — CSV import flow
+- `board.tsx` — Board view with share tokens
+
 ### Chart Components (SVG-based, cross-platform)
 - `BarChart.tsx` — Plan vs Actual monthly comparison
 - `LineChart.tsx` — Cumulative spend over time
 - `DonutChart.tsx` — Category breakdown
 - `ProjectionBarChart.tsx` — Stacked actual + projected spend with plan markers
 - `EventsGantt.tsx` — Events timeline showing events across months
+- `RemainingBudgetChart` (inline in index.tsx) — Horizontal bar chart showing remaining budget by category
 - Desktop: tabbed chart panel (5 tabs: Plan vs Actual, Cumulative, Categories, Projections, Events)
-- Mobile: horizontally swipeable full-width chart pager with page dots
+- Mobile: horizontally swipeable full-width chart pager with page dots (6 pages including Remaining)
 
 ### Alert UX
 - Desktop: AlertCard with severity badges and resolve button

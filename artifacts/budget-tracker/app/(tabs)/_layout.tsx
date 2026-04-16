@@ -29,6 +29,22 @@ function NativeTabLayout() {
         <Icon sf={{ default: "calendar", selected: "calendar" }} />
         <Label>Events</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="quarterly">
+        <Icon sf={{ default: "chart.bar.xaxis", selected: "chart.bar.xaxis" }} />
+        <Label>Quarterly</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="annual">
+        <Icon sf={{ default: "calendar", selected: "calendar" }} />
+        <Label>Annual</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="monthly">
+        <Icon sf={{ default: "clock", selected: "clock.fill" }} />
+        <Label>Monthly</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="reports">
+        <Icon sf={{ default: "chart.pie", selected: "chart.pie.fill" }} />
+        <Label>Reports</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="reforecast">
         <Icon sf={{ default: "arrow.triangle.2.circlepath", selected: "arrow.triangle.2.circlepath" }} />
         <Label>Reforecast</Label>
@@ -131,6 +147,7 @@ function ClassicTabLayout() {
         name="events"
         options={{
           title: "Events",
+          tabBarItemStyle: { display: "none" },
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="calendar" tintColor={color} size={24} />
@@ -140,9 +157,50 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="quarterly"
+        options={{
+          title: "Quarterly",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="chart.bar.xaxis" tintColor={color} size={24} />
+            ) : (
+              <Feather name="columns" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="annual"
+        options={{
+          title: "Annual",
+          tabBarItemStyle: { display: "none" },
+          tabBarIcon: ({ color }) => <Feather name="calendar" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="monthly"
+        options={{
+          title: "Monthly",
+          tabBarItemStyle: { display: "none" },
+          tabBarIcon: ({ color }) => <Feather name="clock" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="reports"
+        options={{
+          title: "Reports",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="chart.pie" tintColor={color} size={24} />
+            ) : (
+              <Feather name="pie-chart" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
         name="reforecast"
         options={{
           title: "Reforecast",
+          tabBarItemStyle: { display: "none" },
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="arrow.triangle.2.circlepath" tintColor={color} size={24} />
@@ -155,6 +213,7 @@ function ClassicTabLayout() {
         name="audit"
         options={{
           title: "Audit",
+          tabBarItemStyle: { display: "none" },
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="doc.text" tintColor={color} size={24} />
@@ -167,6 +226,7 @@ function ClassicTabLayout() {
         name="import"
         options={{
           title: "Import",
+          tabBarItemStyle: { display: "none" },
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="square.and.arrow.up" tintColor={color} size={24} />
@@ -179,6 +239,7 @@ function ClassicTabLayout() {
         name="board"
         options={{
           title: "Board",
+          tabBarItemStyle: { display: "none" },
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="rectangle.on.rectangle" tintColor={color} size={24} />
