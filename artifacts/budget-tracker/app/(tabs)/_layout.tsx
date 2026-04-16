@@ -58,6 +58,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "square.and.arrow.up", selected: "square.and.arrow.up.fill" }} />
         <Label>Import</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="owners">
+        <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
+        <Label>Admin</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="board">
         <Icon sf={{ default: "rectangle.on.rectangle", selected: "rectangle.on.rectangle.fill" }} />
         <Label>Board</Label>
@@ -278,6 +282,18 @@ function ClassicTabLayout() {
               <SymbolView name="rectangle.on.rectangle" tintColor={color} size={24} />
             ) : (
               <Feather name="monitor" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="owners"
+        options={{
+          title: "Admin",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="person.2" tintColor={color} size={24} />
+            ) : (
+              <Feather name="users" size={22} color={color} />
             ),
         }}
       />

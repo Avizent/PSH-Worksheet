@@ -12,7 +12,7 @@ interface NavItem {
   route: Href;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const MAIN_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Dashboard", icon: "bar-chart-2", route: "/" },
   { key: "budget", label: "Budget Lines", icon: "list", route: "/budget" },
   { key: "quarterly", label: "Quarterly", icon: "columns", route: "/quarterly" },
@@ -21,10 +21,14 @@ const NAV_ITEMS: NavItem[] = [
   { key: "reports", label: "Reports", icon: "pie-chart", route: "/reports" },
   { key: "alerts", label: "Alerts", icon: "bell", route: "/alerts" },
   { key: "events", label: "Events", icon: "calendar", route: "/events" },
-  { key: "import", label: "Import", icon: "upload", route: "/import" },
   { key: "reforecast", label: "Reforecast", icon: "refresh-cw", route: "/reforecast" },
-  { key: "audit", label: "Audit Log", icon: "file-text", route: "/audit" },
   { key: "board", label: "Board View", icon: "monitor", route: "/board" },
+];
+
+const ADMIN_ITEMS: NavItem[] = [
+  { key: "import", label: "Import", icon: "upload", route: "/import" },
+  { key: "audit", label: "Audit Log", icon: "file-text", route: "/audit" },
+  { key: "owners", label: "Owners", icon: "users", route: "/owners" },
 ];
 
 interface DesktopSidebarProps {
@@ -59,7 +63,7 @@ export function DesktopSidebar({ alertCount = 0 }: DesktopSidebarProps) {
       </View>
 
       <View style={styles.nav}>
-        {NAV_ITEMS.map((item) => {
+        {MAIN_ITEMS.map((item) => {
           const isActive = activeKey === item.key;
           return (
             <TouchableOpacity
@@ -90,6 +94,40 @@ export function DesktopSidebar({ alertCount = 0 }: DesktopSidebarProps) {
                   <Text style={styles.badgeText}>{alertCount}</Text>
                 </View>
               )}
+            </TouchableOpacity>
+          );
+        })}
+
+        <View style={[styles.adminDivider, { borderTopColor: colors.border }]}>
+          <Text style={[styles.adminLabel, { color: colors.mutedForeground }]}>ADMIN</Text>
+        </View>
+
+        {ADMIN_ITEMS.map((item) => {
+          const isActive = activeKey === item.key;
+          return (
+            <TouchableOpacity
+              key={item.key}
+              onPress={() => router.push(item.route)}
+              style={[
+                styles.navItem,
+                isActive && { backgroundColor: colors.primary + "10" },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Feather
+                name={item.icon}
+                size={18}
+                color={isActive ? colors.primary : colors.mutedForeground}
+              />
+              <Text
+                style={[
+                  styles.navLabel,
+                  { color: isActive ? colors.primary : colors.mutedForeground },
+                  isActive && { fontFamily: "Inter_600SemiBold" },
+                ]}
+              >
+                {item.label}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -149,6 +187,18 @@ const styles = StyleSheet.create({
   nav: {
     flex: 1,
     paddingHorizontal: 12,
+  },
+  adminDivider: {
+    borderTopWidth: 1,
+    marginTop: 12,
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    paddingBottom: 4,
+  },
+  adminLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1,
   },
   navItem: {
     flexDirection: "row",

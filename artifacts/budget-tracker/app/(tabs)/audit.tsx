@@ -15,6 +15,7 @@ import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { SectionHeader } from "@/components/SectionHeader";
+import { AdminSubnav } from "@/components/AdminSubnav";
 import { useListAuditLogs, useListAlerts } from "@workspace/api-client-react";
 
 interface AuditEntry {
@@ -115,6 +116,7 @@ export default function AuditScreen() {
       contentContainerStyle={{ padding: isDesktop ? 32 : 16, paddingBottom: isDesktop ? 32 : 120 }}
       refreshControl={<RefreshControl refreshing={false} onRefresh={() => refetch()} />}
     >
+      {!isDesktop && <AdminSubnav active="audit" />}
       <SectionHeader title="Audit Log" subtitle="Change history and activity trail" />
 
       <View style={[styles.filterBar, { backgroundColor: colors.card, borderColor: colors.border }]}>

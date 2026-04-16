@@ -20,6 +20,7 @@ import { useLayout } from "@/hooks/useLayout";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { SectionHeader } from "@/components/SectionHeader";
 import { EmptyState } from "@/components/EmptyState";
+import { AdminSubnav } from "@/components/AdminSubnav";
 import {
   useListImports,
   useGetImport,
@@ -675,6 +676,7 @@ function ImportContent() {
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
       }
     >
+      {!isDesktop && <AdminSubnav active="import" />}
       <SectionHeader title="Import Actuals" subtitle="Upload CSV or Excel files with monthly actual spend data" />
 
       {renderUploadArea()}
