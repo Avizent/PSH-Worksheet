@@ -196,6 +196,7 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
   const budgetLines = await db.select().from(budgetLinesTable);
   const linesByNormName = new Map<string, typeof budgetLines[0]>();
   const linesByCatAndItem = new Map<string, typeof budgetLines[0]>();
+  const autoCreatedLines = new Map<string, typeof budgetLines[0]>();
 
   for (const bl of budgetLines) {
     linesByNormName.set(normalise(bl.lineItem), bl);
@@ -299,6 +300,23 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
     }
     if (!matchedLine && rawLineItem) {
       matchedLine = linesByNormName.get(normalise(rawLineItem));
+    }
+
+    if (!matchedLine && rawLineItem) {
+      const autoKey = normalise(rawCategory || "Uncategorized") + "|" + normalise(rawLineItem);
+      matchedLine = autoCreatedLines.get(autoKey);
+
+      if (!matchedLine) {
+        const [created] = await db.insert(budgetLinesTable).values({
+          category: rawCategory || "Uncategorized",
+          lineItem: rawLineItem,
+          costStatus: "Variable",
+        }).returning();
+        autoCreatedLines.set(autoKey, created);
+        linesByNormName.set(normalise(created.lineItem), created);
+        linesByCatAndItem.set(normalise(created.category) + "|" + normalise(created.lineItem), created);
+        matchedLine = created;
+      }
     }
 
     if (matchedLine) {
@@ -611,6 +629,8 @@ router.post("/imports/clear-all", asyncHandler(async (_req, res): Promise<void> 
       shareTokens: (await tx.delete(shareTokensTable).returning()).length,
       boardSettings: (await tx.delete(boardSettingsTable).returning()).length,
       auditLogs: (await tx.delete(auditLogsTable).returning()).length,
+      monthlyPlans: (await tx.delete(monthlyPlansTable).returning()).length,
+      budgetLines: (await tx.delete(budgetLinesTable).returning()).length,
     };
 
     res.json({ success: true, cleared: d });

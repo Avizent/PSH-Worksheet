@@ -1,7 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAuthUsers } from "./lib/seedAuthUsers";
-import { seedBudgetData } from "./lib/seedBudgetData";
 
 const rawPort = process.env["PORT"];
 
@@ -30,11 +29,5 @@ app.listen(port, async (err) => {
     logger.info("Auth users seeded");
   } catch (e) {
     logger.error({ err: e }, "Failed to seed auth users");
-  }
-
-  try {
-    await seedBudgetData();
-  } catch (e) {
-    logger.error({ err: e }, "Failed to seed budget data");
   }
 });
