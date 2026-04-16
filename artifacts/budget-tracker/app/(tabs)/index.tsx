@@ -98,6 +98,7 @@ function DashboardContent() {
   const router = useRouter();
   const [extraTab, setExtraTab] = useState<ExtraChartTab>("Projections");
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
+  const mobileScrollRef = useRef<ScrollView | null>(null);
 
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetDashboardSummary();
   const { data: budgetLines, isLoading: linesLoading, refetch: refetchLines } = useListBudgetLinesWithMonthly();
@@ -332,9 +333,20 @@ function DashboardContent() {
               ) : (
                 <>
                   <ScrollView
+                    ref={mobileScrollRef}
                     horizontal
                     pagingEnabled
                     showsHorizontalScrollIndicator={false}
+                    scrollEventThrottle={16}
+                    onScroll={(e) => {
+                      const idx = Math.round(
+                        e.nativeEvent.contentOffset.x /
+                          Math.max(e.nativeEvent.layoutMeasurement.width, 1)
+                      );
+                      setMobileChartIndex(
+                        Math.max(0, Math.min(idx, MOBILE_CHART_TABS.length - 1))
+                      );
+                    }}
                     onMomentumScrollEnd={(e) => {
                       const idx = Math.round(e.nativeEvent.contentOffset.x / mobileChartWidth);
                       setMobileChartIndex(idx);
