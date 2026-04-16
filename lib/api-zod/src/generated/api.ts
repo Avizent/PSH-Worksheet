@@ -990,6 +990,7 @@ export const AnnualRolloverResponse = zod.object({
   targetYear: zod.number(),
   budgetLinesCopied: zod.number(),
   monthlyPlansCreated: zod.number(),
+  monthlyActualsCreated: zod.number(),
 });
 
 /**

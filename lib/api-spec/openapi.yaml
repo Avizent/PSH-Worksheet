@@ -1877,8 +1877,11 @@ components:
           type: integer
         monthlyPlansCreated:
           type: integer
+        monthlyActualsCreated:
+          type: integer
       required:
         - sourceYear
         - targetYear
         - budgetLinesCopied
         - monthlyPlansCreated
+        - monthlyActualsCreated

@@ -422,6 +422,7 @@ export interface AnnualRolloverResult {
   targetYear: number;
   budgetLinesCopied: number;
   monthlyPlansCreated: number;
+  monthlyActualsCreated: number;
 }
 
 export type GetDashboardSummaryParams = {

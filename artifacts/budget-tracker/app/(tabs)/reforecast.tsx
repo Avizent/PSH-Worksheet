@@ -168,7 +168,7 @@ export default function ReforecastScreen() {
   };
 
   const isLatest = activeVersion && latestVersion && activeVersion.id === latestVersion.id;
-  const canEdit = isLatest && !activeVersion?.isOriginal;
+  const canEdit = isLatest;
 
   if (versionsLoading) {
     return (
