@@ -54,24 +54,26 @@ export function SwipeableAlertCard({ type, severity, message, onResolve, resolve
 
   return (
     <View style={styles.wrapper}>
-      <View style={[styles.resolveAction, { backgroundColor: colors.success }]}>
-        <Feather name="check" size={16} color="#fff" />
-        <Text style={styles.resolveText}>Resolve</Text>
-      </View>
+      {!resolved && (
+        <View style={[styles.resolveAction, { backgroundColor: colors.success }]}>
+          <Feather name="check" size={16} color="#fff" />
+          <Text style={styles.resolveText}>Resolve</Text>
+        </View>
+      )}
       <Animated.View
         style={[
           styles.card,
           { backgroundColor: colors.card, borderRadius: colors.radius, opacity: resolved ? 0.5 : 1 },
-          { transform: [{ translateX }] },
+          !resolved ? { transform: [{ translateX }] } : undefined,
         ]}
-        {...panResponder.panHandlers}
+        {...(!resolved ? panResponder.panHandlers : {})}
       >
         <View style={[styles.tint, { backgroundColor: config.bg, borderRadius: colors.radius }]} />
         <View style={styles.content}>
           <Feather name={config.icon} size={18} color={config.color} style={styles.icon} />
           <View style={styles.textContainer}>
             <Text style={[styles.type, { color: config.color }]}>{type}</Text>
-            <Text style={[styles.message, { color: colors.foreground }]} numberOfLines={2}>{message}</Text>
+            <Text style={[styles.message, { color: colors.foreground }]} numberOfLines={3}>{message}</Text>
           </View>
         </View>
       </Animated.View>
@@ -106,7 +108,6 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     padding: 14,
     overflow: "hidden",
   },
@@ -121,13 +122,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     flex: 1,
+    minWidth: 0,
   },
   icon: {
     marginRight: 10,
     marginTop: 1,
+    flexShrink: 0,
   },
   textContainer: {
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   type: {
     fontSize: 12,
