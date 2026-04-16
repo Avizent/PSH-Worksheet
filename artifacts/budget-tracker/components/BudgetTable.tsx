@@ -25,15 +25,16 @@ interface BudgetTableProps {
   data: BudgetLineRow[];
   showProjection?: boolean;
   onProjectionChange?: (lineId: number, value: string) => void;
-  sortField: SortField | null;
-  sortDir: SortDir;
-  onSort: (field: SortField) => void;
-  categories: string[];
-  owners: Owner[];
-  amountColumnMode: "plan" | "actual";
-  onUpdateField: (id: number, field: "lineItem" | "category" | "owner" | "costStatus", value: string) => void;
-  onOpenMonthly: (id: number, lineItem: string, mode: "plan" | "actual") => void;
-  onDelete: (id: number, lineItem: string) => void;
+  sortField?: SortField | null;
+  sortDir?: SortDir;
+  onSort?: (field: SortField) => void;
+  categories?: string[];
+  owners?: Owner[];
+  amountColumnMode?: "plan" | "actual";
+  onUpdateField?: (id: number, field: "lineItem" | "category" | "owner" | "costStatus", value: string) => void;
+  onOpenMonthly?: (id: number, lineItem: string, mode: "plan" | "actual") => void;
+  onDelete?: (id: number, lineItem: string) => void;
+  readOnly?: boolean;
 }
 
 function formatCurrency(val: number): string {
@@ -78,39 +79,59 @@ function InlineProjectionInput({ lineId, value, onSave, colors }: { lineId: numb
   );
 }
 
-export function BudgetTable({ data, showProjection, onProjectionChange, sortField, sortDir, onSort, categories, owners, amountColumnMode, onUpdateField, onOpenMonthly, onDelete }: BudgetTableProps) {
+export function BudgetTable({ data, showProjection, onProjectionChange, sortField = null, sortDir = null, onSort, categories = [], owners = [], amountColumnMode = "plan", onUpdateField, onOpenMonthly, onDelete, readOnly }: BudgetTableProps) {
   const colors = useColors();
+  const interactive = !readOnly && !!onUpdateField && !!onOpenMonthly && !!onDelete && !!onSort;
 
   const categoryOptions: PickerOption[] = categories.map((c) => ({ value: c, label: c }));
   const ownerOptions: PickerOption[] = [{ value: "", label: "— None —" }, ...owners.map((o) => ({ value: o.name, label: o.name, color: o.color }))];
+
+  const noopSort = (_f: SortField) => {};
+  const sortHandler = onSort ?? noopSort;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
       <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === "web"}>
         <View>
           <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
-            <SortHeader label="Line Item" field="lineItem" sortField={sortField} sortDir={sortDir} onSort={onSort} style={styles.cellCategory} colors={colors} />
-            <SortHeader label="Category" field="category" sortField={sortField} sortDir={sortDir} onSort={onSort} style={styles.cellSmall} colors={colors} />
-            <SortHeader label="Owner" field="owner" sortField={sortField} sortDir={sortDir} onSort={onSort} style={styles.cellSmall} colors={colors} />
-            <SortHeader label="Type" field="costStatus" sortField={sortField} sortDir={sortDir} onSort={onSort} style={styles.cellSmall} colors={colors} />
-            <SortHeader label={amountColumnMode === "plan" ? "Plan ✎" : "Plan"} field="totalPlan" sortField={sortField} sortDir={sortDir} onSort={onSort} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
-            <SortHeader label={amountColumnMode === "actual" ? "Actual ✎" : "Actual"} field="totalActual" sortField={sortField} sortDir={sortDir} onSort={onSort} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
-            <SortHeader label="Variance" field="variance" sortField={sortField} sortDir={sortDir} onSort={onSort} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
+            <SortHeader label="Line Item" field="lineItem" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellCategory} colors={colors} />
+            <SortHeader label="Category" field="category" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
+            <SortHeader label="Owner" field="owner" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
+            <SortHeader label="Type" field="costStatus" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
+            <SortHeader label={interactive && amountColumnMode === "plan" ? "Plan ✎" : "Plan"} field="totalPlan" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
+            <SortHeader label={interactive && amountColumnMode === "actual" ? "Actual ✎" : "Actual"} field="totalActual" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
+            <SortHeader label="Variance" field="variance" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
             <Text style={[styles.cellVarPct, styles.headerText, { color: colors.mutedForeground }]}>Var %</Text>
             {showProjection && <Text style={[styles.cellProjection, styles.headerText, { color: colors.mutedForeground }]}>Proj %</Text>}
-            <Text style={[styles.cellAction, styles.headerText, { color: colors.mutedForeground }]}> </Text>
+            {interactive && <Text style={[styles.cellAction, styles.headerText, { color: colors.mutedForeground }]}> </Text>}
           </View>
           {data.map((row) => {
             const varianceColor = row.variance > 0 ? colors.success : row.variance < 0 ? colors.destructive : colors.foreground;
             return (
               <View key={row.id} style={[styles.row, { borderBottomColor: colors.border }]}>
-                <InlineText value={row.lineItem} onSave={(v) => onUpdateField(row.id, "lineItem", v)} colors={colors} style={styles.cellCategory} />
-                <PickerCell value={row.category} options={categoryOptions} onSelect={(v) => onUpdateField(row.id, "category", v)} colors={colors} style={styles.cellSmall} placeholder="—" allowNew newLabel="+ New category…" onCreateNew={(v) => onUpdateField(row.id, "category", v)} />
-                <PickerCell value={row.owner} options={ownerOptions} onSelect={(v) => onUpdateField(row.id, "owner", v)} colors={colors} style={styles.cellSmall} placeholder="—" withDots freeTextFallback />
+                {interactive && onUpdateField ? (
+                  <InlineText value={row.lineItem} onSave={(v) => onUpdateField(row.id, "lineItem", v)} colors={colors} style={styles.cellCategory} />
+                ) : (
+                  <View style={styles.cellCategory}><Text style={{ color: colors.foreground, fontSize: 13, fontFamily: "Inter_500Medium" }} numberOfLines={1}>{row.lineItem}</Text></View>
+                )}
+                {interactive && onUpdateField ? (
+                  <PickerCell value={row.category} options={categoryOptions} onSelect={(v) => onUpdateField(row.id, "category", v)} colors={colors} style={styles.cellSmall} placeholder="—" allowNew newLabel="+ New category…" onCreateNew={(v) => onUpdateField(row.id, "category", v)} />
+                ) : (
+                  <View style={styles.cellSmall}><Text style={{ color: colors.foreground, fontSize: 13 }} numberOfLines={1}>{row.category}</Text></View>
+                )}
+                {interactive && onUpdateField ? (
+                  <PickerCell value={row.owner} options={ownerOptions} onSelect={(v) => onUpdateField(row.id, "owner", v)} colors={colors} style={styles.cellSmall} placeholder="—" withDots freeTextFallback />
+                ) : (
+                  <View style={styles.cellSmall}><Text style={{ color: colors.foreground, fontSize: 13 }} numberOfLines={1}>{row.owner ?? "—"}</Text></View>
+                )}
                 <View style={styles.cellSmall}>
-                  <StatusBadge status={row.costStatus} onCycle={() => onUpdateField(row.id, "costStatus", nextStatus(row.costStatus))} colors={colors} />
+                  {interactive && onUpdateField ? (
+                    <StatusBadge status={row.costStatus} onCycle={() => onUpdateField(row.id, "costStatus", nextStatus(row.costStatus))} colors={colors} />
+                  ) : (
+                    <Text style={{ color: colors.foreground, fontSize: 12 }}>{row.costStatus}</Text>
+                  )}
                 </View>
-                {amountColumnMode === "plan" ? (
+                {interactive && amountColumnMode === "plan" && onOpenMonthly ? (
                   <TouchableOpacity onPress={() => onOpenMonthly(row.id, row.lineItem, "plan")} activeOpacity={0.6} style={styles.cellNumber}>
                     <Text style={[{ color: colors.primary, fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "right", textDecorationLine: "underline", textDecorationStyle: "dotted" }]}>{formatCurrency(row.totalPlan)}</Text>
                   </TouchableOpacity>
@@ -119,7 +140,7 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
                     <Text style={[{ color: colors.foreground, fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "right" }]}>{formatCurrency(row.totalPlan)}</Text>
                   </View>
                 )}
-                {amountColumnMode === "actual" ? (
+                {interactive && amountColumnMode === "actual" && onOpenMonthly ? (
                   <TouchableOpacity onPress={() => onOpenMonthly(row.id, row.lineItem, "actual")} activeOpacity={0.6} style={styles.cellNumber}>
                     <Text style={[{ color: colors.success, fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "right", textDecorationLine: "underline", textDecorationStyle: "dotted" }]}>{formatCurrency(row.totalActual)}</Text>
                   </TouchableOpacity>
@@ -141,11 +162,13 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
                     )}
                   </View>
                 )}
-                <View style={styles.cellAction}>
-                  <TouchableOpacity onPress={() => confirmDelete(row.lineItem, () => onDelete(row.id, row.lineItem))} hitSlop={8} activeOpacity={0.6}>
-                    <Feather name="trash-2" size={15} color={colors.destructive} />
-                  </TouchableOpacity>
-                </View>
+                {interactive && onDelete && (
+                  <View style={styles.cellAction}>
+                    <TouchableOpacity onPress={() => confirmDelete(row.lineItem, () => onDelete(row.id, row.lineItem))} hitSlop={8} activeOpacity={0.6}>
+                      <Feather name="trash-2" size={15} color={colors.destructive} />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             );
           })}
