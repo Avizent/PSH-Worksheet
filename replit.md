@@ -152,6 +152,14 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 4. **Board View** (COMPLETE) — Board visibility settings, shareable token links, iPhone-optimized board view, PDF/Excel exports, token-based export downloads
 5. **Admin & Governance** (COMPLETE) — Reforecast versioning (create/compare/view), audit log with filters, annual budget rollover with confirmation dialog
 
+### Data Source
+- Budget data sourced from the real FY26 marketing budget spreadsheet
+- 27 budget lines across 5 categories: Ads, Marketing and Sales Software, Other Costs, Marketing and PR, Events and Conferences
+- Data seeded automatically on server startup via `seedBudgetData.ts` (only if no budget lines exist)
+- Total planned budget: £2,296,441 | Actual spend: £657,272
+- Actuals cover Jan-Mar for most items, plus event-specific actuals for later months
+- 8 events seeded from the Events and Conferences category
+
 ### Auth Model
 
 #### User Login (App Gate)

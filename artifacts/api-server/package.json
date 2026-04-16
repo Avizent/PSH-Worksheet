@@ -25,6 +25,7 @@
     "pdfkit": "^0.18.0",
     "pino": "^9",
     "pino-http": "^10",
+    "xlsx": "^0.18.5",
     "zod": "catalog:"
   },
   "devDependencies": {
