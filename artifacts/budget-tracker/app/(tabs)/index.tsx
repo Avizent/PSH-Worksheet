@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
-import { useTheme } from "@/contexts/ThemeContext";
 import { KpiCard } from "@/components/KpiCard";
 import { BudgetTable } from "@/components/BudgetTable";
 import { AlertCard } from "@/components/AlertCard";
@@ -90,9 +89,6 @@ type ExtraChartTab = (typeof EXTRA_CHART_TABS)[number];
 function DashboardContent() {
   const colors = useColors();
   const { mode } = useLayout();
-  const { preference, cyclePreference } = useTheme();
-  const themeIcon: keyof typeof Feather.glyphMap =
-    preference === "light" ? "sun" : preference === "dark" ? "moon" : "monitor";
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const isDesktop = mode === "desktop";
@@ -266,19 +262,6 @@ function DashboardContent() {
         />
       ) : (
         <>
-          {!isDesktop && (
-            <View style={{ flexDirection: "row", justifyContent: "flex-end", marginBottom: -8 }}>
-              <TouchableOpacity
-                onPress={cyclePreference}
-                style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
-                activeOpacity={0.7}
-                accessibilityLabel="Toggle theme"
-              >
-                <Feather name={themeIcon} size={13} color={colors.foreground} />
-                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.foreground, textTransform: "capitalize" }}>{preference}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
           <SectionHeader title="Budget Overview" subtitle="FY26 Marketing Budget" />
           <View style={[styles.kpiRow, { flexDirection: isDesktop ? "row" : "column" }]}>
             <KpiCard title="Total Budget" value={formatCurrency(summary?.totalBudget ?? 0)} icon="target" color={colors.primary} />
