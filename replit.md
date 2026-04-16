@@ -129,6 +129,13 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - This avoids CORS issues between the Expo dev domain and the Replit dev domain
 - Native apps use `EXPO_PUBLIC_DOMAIN` env var to reach the API directly
 
+### Production Web Build
+- `build.js` creates both mobile (iOS/Android) bundles and a static web export
+- Web export: `expo export --platform web` with `experiments.baseUrl` temporarily set to `/budget-tracker`
+- `app.json` is modified before web export and restored afterward (mobile builds unaffected)
+- `serve.js` serves web build files with SPA fallback (all unmatched routes → `index.html`)
+- Mobile manifest requests (with `expo-platform` header) continue to serve iOS/Android manifests
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages

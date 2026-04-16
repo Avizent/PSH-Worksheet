@@ -287,8 +287,6 @@ async function downloadBundlesAndManifests(timestamp) {
   console.log("This may take several minutes for production builds...");
 
   try {
-    // Bundles are sequential — Metro can't handle both platforms simultaneously
-    // without stalling. Manifests are cheap and run in parallel after.
     await downloadBundle("ios", timestamp);
     await downloadBundle("android", timestamp);
 
@@ -505,6 +503,59 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
   console.log("Manifests updated");
 }
 
+async function exportWeb(domain, expoPublicReplId) {
+  console.log("Exporting web build...");
+  const webOutputDir = path.join(projectRoot, "static-build", "web");
+
+  const appJsonPath = path.join(projectRoot, "app.json");
+  const originalAppJson = fs.readFileSync(appJsonPath, "utf-8");
+
+  const appConfig = JSON.parse(originalAppJson);
+  const webBasePath = basePath || "";
+  if (webBasePath) {
+    appConfig.expo.experiments = appConfig.expo.experiments || {};
+    appConfig.expo.experiments.baseUrl = webBasePath;
+    fs.writeFileSync(appJsonPath, JSON.stringify(appConfig, null, 2) + "\n");
+    console.log(`Set experiments.baseUrl to "${webBasePath}" for web export`);
+  }
+
+  const env = {
+    ...process.env,
+    EXPO_PUBLIC_DOMAIN: domain,
+    EXPO_PUBLIC_REPL_ID: expoPublicReplId,
+  };
+
+  try {
+    await new Promise((resolve, reject) => {
+      const proc = spawn(
+        "pnpm",
+        ["exec", "expo", "export", "--platform", "web", "--output-dir", webOutputDir],
+        {
+          stdio: "inherit",
+          cwd: projectRoot,
+          env,
+        },
+      );
+      proc.on("close", (code) => {
+        if (code === 0) {
+          console.log("Web export complete");
+          resolve();
+        } else {
+          reject(new Error(`Web export failed with exit code ${code}`));
+        }
+      });
+      proc.on("error", (err) => {
+        reject(err);
+      });
+    });
+  } finally {
+    if (webBasePath) {
+      fs.writeFileSync(appJsonPath, originalAppJson);
+      console.log("Restored app.json");
+    }
+  }
+}
+
 async function main() {
   console.log("Building static Expo Go deployment...");
 
@@ -556,11 +607,19 @@ async function main() {
   console.log("Updating manifests and creating landing page...");
   updateManifests(manifests, timestamp, baseUrl, assetsByHash);
 
-  console.log("Build complete! Deploy to:", baseUrl);
-
   if (metroProcess) {
     metroProcess.kill();
+    metroProcess = null;
   }
+
+  await exportWeb(domain, expoPublicReplId);
+
+  const webIndex = path.join(projectRoot, "static-build", "web", "index.html");
+  if (!fs.existsSync(webIndex)) {
+    exitWithError("Web export succeeded but index.html is missing from output");
+  }
+
+  console.log("Build complete! Deploy to:", baseUrl);
   process.exit(0);
 }
 
