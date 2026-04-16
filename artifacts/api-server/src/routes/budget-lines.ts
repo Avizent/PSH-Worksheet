@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, budgetLinesTable } from "@workspace/db";
 import {
   CreateBudgetLineBody,
@@ -12,6 +12,7 @@ import {
   UpdateBudgetLineResponse,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { writeAuditLog, writeAuditDiff } from "../middleware/auditLog";
 
 const router: IRouter = Router();
 
@@ -38,6 +39,13 @@ router.post("/budget-lines", asyncHandler(async (req, res): Promise<void> => {
     return;
   }
   const [row] = await db.insert(budgetLinesTable).values(parsed.data).returning();
+  await writeAuditLog({
+    action: "create",
+    entityType: "budget_line",
+    entityId: row.id,
+    field: "lineItem",
+    newValue: row.lineItem,
+  });
   res.status(201).json(GetBudgetLineResponse.parse(row));
 }));
 
@@ -66,10 +74,15 @@ router.patch("/budget-lines/:id", asyncHandler(async (req, res): Promise<void> =
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [oldRow] = await db.select().from(budgetLinesTable).where(eq(budgetLinesTable.id, params.data.id));
   const [row] = await db.update(budgetLinesTable).set(parsed.data).where(eq(budgetLinesTable.id, params.data.id)).returning();
   if (!row) {
     res.status(404).json({ error: "Budget line not found" });
     return;
+  }
+  if (oldRow) {
+    await writeAuditDiff("update", "budget_line", row.id, oldRow, row,
+      ["category", "subcategory", "lineItem", "owner", "region", "costStatus", "projectionPct"]);
   }
   res.json(UpdateBudgetLineResponse.parse(row));
 }));
@@ -85,6 +98,13 @@ router.delete("/budget-lines/:id", asyncHandler(async (req, res): Promise<void> 
     res.status(404).json({ error: "Budget line not found" });
     return;
   }
+  await writeAuditLog({
+    action: "delete",
+    entityType: "budget_line",
+    entityId: row.id,
+    field: "lineItem",
+    oldValue: row.lineItem,
+  });
   res.sendStatus(204);
 }));
 

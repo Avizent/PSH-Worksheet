@@ -11,6 +11,7 @@ import {
   UpdateMonthlyPlanResponse,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { writeAuditLog } from "../middleware/auditLog";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,13 @@ router.post("/monthly-plans", asyncHandler(async (req, res): Promise<void> => {
     return;
   }
   const [row] = await db.insert(monthlyPlansTable).values(parsed.data).returning();
+  await writeAuditLog({
+    action: "create",
+    entityType: "monthly_plan",
+    entityId: row.id,
+    field: "plannedAmount",
+    newValue: String(row.plannedAmount),
+  });
   res.status(201).json(ListMonthlyPlansResponseItem.parse(row));
 }));
 
@@ -55,10 +63,21 @@ router.patch("/monthly-plans/:id", asyncHandler(async (req, res): Promise<void> 
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [oldRow] = await db.select().from(monthlyPlansTable).where(eq(monthlyPlansTable.id, params.data.id));
   const [row] = await db.update(monthlyPlansTable).set(parsed.data).where(eq(monthlyPlansTable.id, params.data.id)).returning();
   if (!row) {
     res.status(404).json({ error: "Monthly plan not found" });
     return;
+  }
+  if (oldRow && oldRow.plannedAmount !== row.plannedAmount) {
+    await writeAuditLog({
+      action: "update",
+      entityType: "monthly_plan",
+      entityId: row.id,
+      field: "plannedAmount",
+      oldValue: String(oldRow.plannedAmount),
+      newValue: String(row.plannedAmount),
+    });
   }
   res.json(UpdateMonthlyPlanResponse.parse(row));
 }));

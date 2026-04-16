@@ -19,13 +19,18 @@ import type {
 import type {
   Alert,
   AlertEvaluationResult,
+  AnnualRolloverBody,
+  AnnualRolloverResult,
   AssignImportRowBody,
+  AuditLogList,
   BoardSetting,
   BoardViewData,
   BudgetLine,
   BudgetLineWithMonthly,
+  CompareForecastVersionsParams,
   CreateBudgetLineBody,
   CreateEventBody,
+  CreateForecastVersionBody,
   CreateMonthlyActualBody,
   CreateMonthlyPlanBody,
   CreateShareTokenBody,
@@ -37,6 +42,9 @@ import type {
   EvaluateAlertsParams,
   ExportExcelParams,
   ExportPdfParams,
+  ForecastComparison,
+  ForecastVersion,
+  ForecastVersionWithPlans,
   GetBoardViewParams,
   GetDashboardChartsParams,
   GetDashboardSummaryParams,
@@ -44,8 +52,10 @@ import type {
   HealthStatus,
   ImportConfirmResult,
   ListAlertsParams,
+  ListAuditLogsParams,
   ListBudgetLinesParams,
   ListBudgetLinesWithMonthlyParams,
+  ListForecastVersionsParams,
   ListMonthlyActualsParams,
   ListMonthlyPlansParams,
   MarketingEvent,
@@ -3307,6 +3317,563 @@ export function useExportExcel<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List all forecast versions
+ */
+export const getListForecastVersionsUrl = (
+  params?: ListForecastVersionsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reforecast/versions?${stringifiedParams}`
+    : `/api/reforecast/versions`;
+};
+
+export const listForecastVersions = async (
+  params?: ListForecastVersionsParams,
+  options?: RequestInit,
+): Promise<ForecastVersion[]> => {
+  return customFetch<ForecastVersion[]>(getListForecastVersionsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListForecastVersionsQueryKey = (
+  params?: ListForecastVersionsParams,
+) => {
+  return [`/api/reforecast/versions`, ...(params ? [params] : [])] as const;
+};
+
+export const getListForecastVersionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listForecastVersions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListForecastVersionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listForecastVersions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListForecastVersionsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listForecastVersions>>
+  > = ({ signal }) =>
+    listForecastVersions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listForecastVersions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListForecastVersionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listForecastVersions>>
+>;
+export type ListForecastVersionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all forecast versions
+ */
+
+export function useListForecastVersions<
+  TData = Awaited<ReturnType<typeof listForecastVersions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListForecastVersionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listForecastVersions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListForecastVersionsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Submit a new reforecast version
+ */
+export const getCreateForecastVersionUrl = () => {
+  return `/api/reforecast/versions`;
+};
+
+export const createForecastVersion = async (
+  createForecastVersionBody: CreateForecastVersionBody,
+  options?: RequestInit,
+): Promise<ForecastVersion> => {
+  return customFetch<ForecastVersion>(getCreateForecastVersionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createForecastVersionBody),
+  });
+};
+
+export const getCreateForecastVersionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createForecastVersion>>,
+    TError,
+    { data: BodyType<CreateForecastVersionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createForecastVersion>>,
+  TError,
+  { data: BodyType<CreateForecastVersionBody> },
+  TContext
+> => {
+  const mutationKey = ["createForecastVersion"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createForecastVersion>>,
+    { data: BodyType<CreateForecastVersionBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createForecastVersion(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateForecastVersionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createForecastVersion>>
+>;
+export type CreateForecastVersionMutationBody =
+  BodyType<CreateForecastVersionBody>;
+export type CreateForecastVersionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Submit a new reforecast version
+ */
+export const useCreateForecastVersion = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createForecastVersion>>,
+    TError,
+    { data: BodyType<CreateForecastVersionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createForecastVersion>>,
+  TError,
+  { data: BodyType<CreateForecastVersionBody> },
+  TContext
+> => {
+  return useMutation(getCreateForecastVersionMutationOptions(options));
+};
+
+/**
+ * @summary Get a forecast version with its plan data
+ */
+export const getGetForecastVersionUrl = (id: number) => {
+  return `/api/reforecast/versions/${id}`;
+};
+
+export const getForecastVersion = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ForecastVersionWithPlans> => {
+  return customFetch<ForecastVersionWithPlans>(getGetForecastVersionUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetForecastVersionQueryKey = (id: number) => {
+  return [`/api/reforecast/versions/${id}`] as const;
+};
+
+export const getGetForecastVersionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getForecastVersion>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getForecastVersion>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetForecastVersionQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getForecastVersion>>
+  > = ({ signal }) => getForecastVersion(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getForecastVersion>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetForecastVersionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getForecastVersion>>
+>;
+export type GetForecastVersionQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a forecast version with its plan data
+ */
+
+export function useGetForecastVersion<
+  TData = Awaited<ReturnType<typeof getForecastVersion>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getForecastVersion>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetForecastVersionQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Compare two forecast versions side by side
+ */
+export const getCompareForecastVersionsUrl = (
+  params: CompareForecastVersionsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reforecast/compare?${stringifiedParams}`
+    : `/api/reforecast/compare`;
+};
+
+export const compareForecastVersions = async (
+  params: CompareForecastVersionsParams,
+  options?: RequestInit,
+): Promise<ForecastComparison> => {
+  return customFetch<ForecastComparison>(
+    getCompareForecastVersionsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getCompareForecastVersionsQueryKey = (
+  params?: CompareForecastVersionsParams,
+) => {
+  return [`/api/reforecast/compare`, ...(params ? [params] : [])] as const;
+};
+
+export const getCompareForecastVersionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof compareForecastVersions>>,
+  TError = ErrorType<unknown>,
+>(
+  params: CompareForecastVersionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof compareForecastVersions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getCompareForecastVersionsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof compareForecastVersions>>
+  > = ({ signal }) =>
+    compareForecastVersions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof compareForecastVersions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type CompareForecastVersionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof compareForecastVersions>>
+>;
+export type CompareForecastVersionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Compare two forecast versions side by side
+ */
+
+export function useCompareForecastVersions<
+  TData = Awaited<ReturnType<typeof compareForecastVersions>>,
+  TError = ErrorType<unknown>,
+>(
+  params: CompareForecastVersionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof compareForecastVersions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getCompareForecastVersionsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List audit log entries with optional filters
+ */
+export const getListAuditLogsUrl = (params?: ListAuditLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/audit-logs?${stringifiedParams}`
+    : `/api/audit-logs`;
+};
+
+export const listAuditLogs = async (
+  params?: ListAuditLogsParams,
+  options?: RequestInit,
+): Promise<AuditLogList> => {
+  return customFetch<AuditLogList>(getListAuditLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAuditLogsQueryKey = (params?: ListAuditLogsParams) => {
+  return [`/api/audit-logs`, ...(params ? [params] : [])] as const;
+};
+
+export const getListAuditLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAuditLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListAuditLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAuditLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAuditLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAuditLogs>>> = ({
+    signal,
+  }) => listAuditLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAuditLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAuditLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAuditLogs>>
+>;
+export type ListAuditLogsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List audit log entries with optional filters
+ */
+
+export function useListAuditLogs<
+  TData = Awaited<ReturnType<typeof listAuditLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListAuditLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAuditLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAuditLogsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Duplicate current year structure into next FY with zero actuals
+ */
+export const getAnnualRolloverUrl = () => {
+  return `/api/admin/rollover`;
+};
+
+export const annualRollover = async (
+  annualRolloverBody: AnnualRolloverBody,
+  options?: RequestInit,
+): Promise<AnnualRolloverResult> => {
+  return customFetch<AnnualRolloverResult>(getAnnualRolloverUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(annualRolloverBody),
+  });
+};
+
+export const getAnnualRolloverMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof annualRollover>>,
+    TError,
+    { data: BodyType<AnnualRolloverBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof annualRollover>>,
+  TError,
+  { data: BodyType<AnnualRolloverBody> },
+  TContext
+> => {
+  const mutationKey = ["annualRollover"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof annualRollover>>,
+    { data: BodyType<AnnualRolloverBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return annualRollover(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnnualRolloverMutationResult = NonNullable<
+  Awaited<ReturnType<typeof annualRollover>>
+>;
+export type AnnualRolloverMutationBody = BodyType<AnnualRolloverBody>;
+export type AnnualRolloverMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Duplicate current year structure into next FY with zero actuals
+ */
+export const useAnnualRollover = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof annualRollover>>,
+    TError,
+    { data: BodyType<AnnualRolloverBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof annualRollover>>,
+  TError,
+  { data: BodyType<AnnualRolloverBody> },
+  TContext
+> => {
+  return useMutation(getAnnualRolloverMutationOptions(options));
+};
 
 /**
  * Populates the database with sample marketing budget data for FY26

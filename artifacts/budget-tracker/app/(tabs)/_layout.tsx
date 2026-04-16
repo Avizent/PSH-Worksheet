@@ -29,6 +29,14 @@ function NativeTabLayout() {
         <Icon sf={{ default: "calendar", selected: "calendar" }} />
         <Label>Events</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="reforecast">
+        <Icon sf={{ default: "arrow.triangle.2.circlepath", selected: "arrow.triangle.2.circlepath" }} />
+        <Label>Reforecast</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="audit">
+        <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
+        <Label>Audit</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="import">
         <Icon sf={{ default: "square.and.arrow.up", selected: "square.and.arrow.up.fill" }} />
         <Label>Import</Label>
@@ -128,6 +136,30 @@ function ClassicTabLayout() {
               <SymbolView name="calendar" tintColor={color} size={24} />
             ) : (
               <Feather name="calendar" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="reforecast"
+        options={{
+          title: "Reforecast",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="arrow.triangle.2.circlepath" tintColor={color} size={24} />
+            ) : (
+              <Feather name="refresh-cw" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="audit"
+        options={{
+          title: "Audit",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="doc.text" tintColor={color} size={24} />
+            ) : (
+              <Feather name="file-text" size={22} color={color} />
             ),
         }}
       />

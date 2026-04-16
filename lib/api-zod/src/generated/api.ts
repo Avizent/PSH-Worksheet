@@ -834,6 +834,165 @@ export const ExportExcelQueryParams = zod.object({
 });
 
 /**
+ * @summary List all forecast versions
+ */
+export const listForecastVersionsQueryYearDefault = 2026;
+
+export const ListForecastVersionsQueryParams = zod.object({
+  year: zod.coerce.number().default(listForecastVersionsQueryYearDefault),
+});
+
+export const ListForecastVersionsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  versionNumber: zod.number(),
+  year: zod.number(),
+  isOriginal: zod.boolean(),
+  createdAt: zod.coerce.date(),
+});
+export const ListForecastVersionsResponse = zod.array(
+  ListForecastVersionsResponseItem,
+);
+
+/**
+ * @summary Submit a new reforecast version
+ */
+export const createForecastVersionBodyYearDefault = 2026;
+
+export const CreateForecastVersionBody = zod.object({
+  name: zod.string(),
+  description: zod.string().optional(),
+  year: zod.number().default(createForecastVersionBodyYearDefault),
+  plans: zod.array(
+    zod.object({
+      budgetLineId: zod.number(),
+      month: zod.number(),
+      plannedAmount: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a forecast version with its plan data
+ */
+export const GetForecastVersionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetForecastVersionResponse = zod.object({
+  version: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullish(),
+    versionNumber: zod.number(),
+    year: zod.number(),
+    isOriginal: zod.boolean(),
+    createdAt: zod.coerce.date(),
+  }),
+  plans: zod.array(
+    zod.object({
+      id: zod.number(),
+      versionId: zod.number(),
+      budgetLineId: zod.number(),
+      month: zod.number(),
+      year: zod.number(),
+      plannedAmount: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Compare two forecast versions side by side
+ */
+export const CompareForecastVersionsQueryParams = zod.object({
+  baseVersionId: zod.coerce.number(),
+  compareVersionId: zod.coerce.number(),
+});
+
+export const CompareForecastVersionsResponse = zod.object({
+  baseVersion: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullish(),
+    versionNumber: zod.number(),
+    year: zod.number(),
+    isOriginal: zod.boolean(),
+    createdAt: zod.coerce.date(),
+  }),
+  compareVersion: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullish(),
+    versionNumber: zod.number(),
+    year: zod.number(),
+    isOriginal: zod.boolean(),
+    createdAt: zod.coerce.date(),
+  }),
+  lines: zod.array(
+    zod.object({
+      budgetLineId: zod.number(),
+      lineItem: zod.string(),
+      category: zod.string(),
+      months: zod.array(
+        zod.object({
+          month: zod.number(),
+          basePlanned: zod.number(),
+          comparePlanned: zod.number(),
+          delta: zod.number(),
+        }),
+      ),
+    }),
+  ),
+});
+
+/**
+ * @summary List audit log entries with optional filters
+ */
+export const listAuditLogsQueryLimitDefault = 100;
+export const listAuditLogsQueryOffsetDefault = 0;
+
+export const ListAuditLogsQueryParams = zod.object({
+  entityType: zod.coerce.string().optional(),
+  startDate: zod.date().optional(),
+  endDate: zod.date().optional(),
+  limit: zod.coerce.number().default(listAuditLogsQueryLimitDefault),
+  offset: zod.coerce.number().default(listAuditLogsQueryOffsetDefault),
+});
+
+export const ListAuditLogsResponse = zod.object({
+  entries: zod.array(
+    zod.object({
+      id: zod.number(),
+      action: zod.string(),
+      entityType: zod.string(),
+      entityId: zod.number(),
+      field: zod.string(),
+      oldValue: zod.string().nullish(),
+      newValue: zod.string().nullish(),
+      userId: zod.number().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Duplicate current year structure into next FY with zero actuals
+ */
+export const AnnualRolloverBody = zod.object({
+  sourceYear: zod.number(),
+  targetYear: zod.number(),
+});
+
+export const AnnualRolloverResponse = zod.object({
+  sourceYear: zod.number(),
+  targetYear: zod.number(),
+  budgetLinesCopied: zod.number(),
+  monthlyPlansCreated: zod.number(),
+});
+
+/**
  * Populates the database with sample marketing budget data for FY26
  * @summary Seed budget data from sample data
  */

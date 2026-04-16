@@ -334,6 +334,96 @@ export interface BoardViewData {
   visibleSections: string[];
 }
 
+export interface ForecastVersion {
+  id: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  versionNumber: number;
+  year: number;
+  isOriginal: boolean;
+  createdAt: string;
+}
+
+export type CreateForecastVersionBodyPlansItem = {
+  budgetLineId: number;
+  month: number;
+  plannedAmount: number;
+};
+
+export interface CreateForecastVersionBody {
+  name: string;
+  description?: string;
+  year?: number;
+  plans: CreateForecastVersionBodyPlansItem[];
+}
+
+export interface ForecastPlan {
+  id: number;
+  versionId: number;
+  budgetLineId: number;
+  month: number;
+  year: number;
+  plannedAmount: number;
+}
+
+export interface ForecastVersionWithPlans {
+  version: ForecastVersion;
+  plans: ForecastPlan[];
+}
+
+export type ForecastComparisonLineMonthsItem = {
+  month: number;
+  basePlanned: number;
+  comparePlanned: number;
+  delta: number;
+};
+
+export interface ForecastComparisonLine {
+  budgetLineId: number;
+  lineItem: string;
+  category: string;
+  months: ForecastComparisonLineMonthsItem[];
+}
+
+export interface ForecastComparison {
+  baseVersion: ForecastVersion;
+  compareVersion: ForecastVersion;
+  lines: ForecastComparisonLine[];
+}
+
+export interface AuditLogEntry {
+  id: number;
+  action: string;
+  entityType: string;
+  entityId: number;
+  field: string;
+  /** @nullable */
+  oldValue?: string | null;
+  /** @nullable */
+  newValue?: string | null;
+  /** @nullable */
+  userId?: number | null;
+  createdAt: string;
+}
+
+export interface AuditLogList {
+  entries: AuditLogEntry[];
+  total: number;
+}
+
+export interface AnnualRolloverBody {
+  sourceYear: number;
+  targetYear: number;
+}
+
+export interface AnnualRolloverResult {
+  sourceYear: number;
+  targetYear: number;
+  budgetLinesCopied: number;
+  monthlyPlansCreated: number;
+}
+
 export type GetDashboardSummaryParams = {
   year?: number;
 };
@@ -383,4 +473,21 @@ export type ExportPdfParams = {
 
 export type ExportExcelParams = {
   token?: string;
+};
+
+export type ListForecastVersionsParams = {
+  year?: number;
+};
+
+export type CompareForecastVersionsParams = {
+  baseVersionId: number;
+  compareVersionId: number;
+};
+
+export type ListAuditLogsParams = {
+  entityType?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
 };

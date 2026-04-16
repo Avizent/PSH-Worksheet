@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Switch,
+  Modal,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,6 +30,7 @@ import {
   useCreateShareToken,
   useRevokeShareToken,
   useGetBoardPreview,
+  useAnnualRollover,
   getListBoardSettingsQueryKey,
   getListShareTokensQueryKey,
   getGetBoardPreviewQueryKey,
@@ -56,9 +58,14 @@ function BoardContent() {
   const createTokenMutation = useCreateShareToken();
   const revokeTokenMutation = useRevokeShareToken();
 
+  const rolloverMutation = useAnnualRollover();
+
   const [previewMode, setPreviewMode] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [copiedTokenId, setCopiedTokenId] = useState<number | null>(null);
+  const [showRollover, setShowRollover] = useState(false);
+  const [rolloverStatus, setRolloverStatus] = useState<"idle" | "success" | "error">("idle");
+  const [rolloverError, setRolloverError] = useState("");
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -89,6 +96,24 @@ function BoardContent() {
           queryClient.invalidateQueries({ queryKey: getListShareTokensQueryKey() });
         },
       }
+    );
+  };
+
+  const handleRollover = () => {
+    const targetYear = new Date().getFullYear() + 1;
+    setRolloverStatus("idle");
+    setRolloverError("");
+    rolloverMutation.mutate(
+      { data: { sourceYear: new Date().getFullYear(), targetYear } },
+      {
+        onSuccess: () => {
+          setRolloverStatus("success");
+        },
+        onError: (err: any) => {
+          setRolloverStatus("error");
+          setRolloverError(err?.message ?? "Rollover failed. Target year may already exist.");
+        },
+      },
     );
   };
 
@@ -360,6 +385,15 @@ function BoardContent() {
           <Feather name="download" size={16} color="#fff" />
           <Text style={styles.actionButtonText}>Export Excel</Text>
         </TouchableOpacity>
+        {isDesktop && (
+          <TouchableOpacity
+            onPress={() => { setRolloverStatus("idle"); setRolloverError(""); setShowRollover(true); }}
+            style={[styles.actionButton, { backgroundColor: "#7c3aed" }]}
+          >
+            <Feather name="rotate-cw" size={16} color="#fff" />
+            <Text style={styles.actionButtonText}>Annual Rollover</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -430,6 +464,49 @@ function BoardContent() {
           ))
         )}
       </View>
+
+      <Modal visible={showRollover} transparent animationType="fade" onRequestClose={() => setShowRollover(false)}>
+        <TouchableOpacity style={rolloverStyles.overlay} activeOpacity={1} onPress={() => setShowRollover(false)}>
+          <TouchableOpacity activeOpacity={1} style={[rolloverStyles.dialog, { backgroundColor: colors.card }]}>
+            <Feather name="rotate-cw" size={28} color="#7c3aed" style={{ marginBottom: 12 }} />
+            <Text style={[rolloverStyles.title, { color: colors.foreground }]}>Annual Budget Rollover</Text>
+            <Text style={[rolloverStyles.desc, { color: colors.mutedForeground }]}>
+              This will duplicate the current year's budget structure ({new Date().getFullYear()}) into {new Date().getFullYear() + 1}. All planned amounts will be copied and actuals reset to zero.
+            </Text>
+            {rolloverStatus === "success" ? (
+              <View style={rolloverStyles.resultBox}>
+                <Feather name="check-circle" size={20} color="#16a34a" />
+                <Text style={{ color: "#16a34a", fontFamily: "Inter_600SemiBold", fontSize: 14, marginLeft: 8 }}>
+                  Rollover complete! FY {new Date().getFullYear() + 1} has been created.
+                </Text>
+              </View>
+            ) : rolloverStatus === "error" ? (
+              <View style={rolloverStyles.resultBox}>
+                <Feather name="alert-circle" size={20} color="#dc2626" />
+                <Text style={{ color: "#dc2626", fontFamily: "Inter_500Medium", fontSize: 13, marginLeft: 8, flex: 1 }}>
+                  {rolloverError}
+                </Text>
+              </View>
+            ) : null}
+            <View style={rolloverStyles.buttonRow}>
+              <TouchableOpacity onPress={() => setShowRollover(false)} style={[rolloverStyles.cancelBtn, { borderColor: colors.border }]}>
+                <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium" }}>Cancel</Text>
+              </TouchableOpacity>
+              {rolloverStatus !== "success" && (
+                <TouchableOpacity
+                  onPress={handleRollover}
+                  disabled={rolloverMutation.isPending}
+                  style={[rolloverStyles.confirmBtn, { opacity: rolloverMutation.isPending ? 0.6 : 1 }]}
+                >
+                  <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>
+                    {rolloverMutation.isPending ? "Rolling over..." : "Confirm Rollover"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 
@@ -632,5 +709,59 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+});
+
+const rolloverStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dialog: {
+    width: "90%",
+    maxWidth: 480,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 8,
+  },
+  desc: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  resultBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    width: "100%",
+  },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+    justifyContent: "flex-end",
+  },
+  cancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  confirmBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#7c3aed",
   },
 });

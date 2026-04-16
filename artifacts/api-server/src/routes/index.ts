@@ -12,6 +12,9 @@ import chartsRouter from "./charts";
 import projectionsRouter from "./projections";
 import importsRouter from "./imports";
 import boardRouter from "./board";
+import reforecastRouter from "./reforecast";
+import auditLogsRouter from "./audit-logs";
+import adminRouter from "./admin";
 import seedRouter from "./seed";
 
 const router: IRouter = Router();
@@ -29,6 +32,9 @@ router.use(alertsEngineRouter);
 router.use(eventsRouter);
 router.use(importsRouter);
 router.use(boardRouter);
+router.use(reforecastRouter);
+router.use(auditLogsRouter);
+router.use(adminRouter);
 router.use(seedRouter);
 
 export default router;

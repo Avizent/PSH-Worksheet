@@ -31,18 +31,20 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `artifacts/budget-tracker` — Expo app (port 25099, Expo dev domain)
 - `artifacts/mockup-sandbox` — Design sandbox
 
-### Database Schema (11 tables)
+### Database Schema (13 tables)
 - `users` — Auth-ready user table with role field
 - `budgetLines` — Budget line items with category, owner, region, cost status, `projectionPct` (real, default 0)
 - `monthlyPlans` — Monthly planned amounts per budget line
 - `monthlyActuals` — Monthly actual spend per budget line
 - `alerts` — Budget alerts with severity levels (critical/warning/info), deduplication by type+budgetLineId+month+year
 - `events` — Marketing events with status tracking
-- `auditLogs` — Change audit trail
+- `auditLogs` — Change audit trail (entityType, entityId, field, oldValue, newValue, action: create/update/delete/rollover)
 - `csvImports` — CSV import records (filename, status, row counts)
 - `csvImportRows` — Individual parsed CSV rows (raw data, match status, budget line assignment, row hash for idempotency)
 - `boardSettings` — Board visibility settings (sectionKey, label, visible toggle, sortOrder)
 - `shareTokens` — Shareable access tokens (token UUID, label, expiresAt, revoked flag)
+- `forecastVersions` — Forecast version records (versionNumber, name, year, isOriginal flag)
+- `forecastPlans` — Per-version monthly planned amounts (versionId, budgetLineId, month, year, plannedAmount)
 
 ### API Routes (mounted at `/api`)
 - `GET/POST /budget-lines` — CRUD budget lines
@@ -69,6 +71,12 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `GET /board/preview` — Get board preview data (VP Marketing, no token)
 - `GET /exports/pdf` — Export board view as downloadable HTML report
 - `GET /exports/excel` — Export actuals + projections as Excel spreadsheet
+- `GET /reforecast/versions` — List forecast versions (year filter)
+- `POST /reforecast/versions` — Create new forecast version with plan entries
+- `GET /reforecast/versions/:id` — Get version with all plan entries
+- `GET /reforecast/compare` — Compare two forecast versions side-by-side
+- `GET /audit-logs` — List audit log entries (filters: entityType, startDate, endDate, limit, offset)
+- `POST /admin/rollover` — Annual budget rollover (sourceYear → targetYear, idempotent)
 - `POST /seed` — Seed sample data (clears existing first)
 
 ### CSV Import Flow
@@ -120,7 +128,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 2. **Intelligence Layer** (COMPLETE) — Charts (bar/line/donut), projections engine, 6-type alert engine, projection editing
 3. **Actuals Integration** (COMPLETE) — CSV import with auto-matching, manual assignment, idempotent confirmation
 4. **Board View** (COMPLETE) — Board visibility settings, shareable token links, iPhone-optimized board view, PDF/Excel exports, token-based export downloads
-5. **Admin & Governance** (PENDING) — Reforecast, audit trail, admin settings
+5. **Admin & Governance** (COMPLETE) — Reforecast versioning (create/compare/view), audit log with filters, annual budget rollover with confirmation dialog
 
 ### Auth Model
 - VP session flow: client calls `POST /auth/vp-login` with `x-api-key` header → receives a 24h session token

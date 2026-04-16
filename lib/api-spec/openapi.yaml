@@ -28,6 +28,12 @@ tags:
     description: PDF and Excel exports
   - name: seed
     description: Data seeding
+  - name: reforecast
+    description: Forecast versioning and reforecast
+  - name: audit
+    description: Audit log
+  - name: admin
+    description: Admin actions
 paths:
   /healthz:
     get:
@@ -763,6 +769,152 @@ paths:
               schema:
                 type: string
                 format: binary
+
+  /reforecast/versions:
+    get:
+      operationId: listForecastVersions
+      tags: [reforecast]
+      summary: List all forecast versions
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 2026
+      responses:
+        "200":
+          description: List of forecast versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ForecastVersion"
+    post:
+      operationId: createForecastVersion
+      tags: [reforecast]
+      summary: Submit a new reforecast version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateForecastVersionBody"
+      responses:
+        "201":
+          description: Created forecast version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForecastVersion"
+
+  /reforecast/versions/{id}:
+    get:
+      operationId: getForecastVersion
+      tags: [reforecast]
+      summary: Get a forecast version with its plan data
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Forecast version with plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForecastVersionWithPlans"
+        "404":
+          description: Not found
+
+  /reforecast/compare:
+    get:
+      operationId: compareForecastVersions
+      tags: [reforecast]
+      summary: Compare two forecast versions side by side
+      parameters:
+        - name: baseVersionId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: compareVersionId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Side-by-side comparison
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForecastComparison"
+
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: List audit log entries with optional filters
+      parameters:
+        - name: entityType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogList"
+
+  /admin/rollover:
+    post:
+      operationId: annualRollover
+      tags: [admin]
+      summary: Duplicate current year structure into next FY with zero actuals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnualRolloverBody"
+      responses:
+        "200":
+          description: Rollover result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnnualRolloverResult"
 
   /seed:
     post:
@@ -1519,3 +1671,214 @@ components:
         - events
         - projections
         - visibleSections
+
+    ForecastVersion:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        versionNumber:
+          type: integer
+        year:
+          type: integer
+        isOriginal:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - versionNumber
+        - year
+        - isOriginal
+        - createdAt
+
+    CreateForecastVersionBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        year:
+          type: integer
+          default: 2026
+        plans:
+          type: array
+          items:
+            type: object
+            properties:
+              budgetLineId:
+                type: integer
+              month:
+                type: integer
+              plannedAmount:
+                type: number
+            required:
+              - budgetLineId
+              - month
+              - plannedAmount
+      required:
+        - name
+        - plans
+
+    ForecastPlan:
+      type: object
+      properties:
+        id:
+          type: integer
+        versionId:
+          type: integer
+        budgetLineId:
+          type: integer
+        month:
+          type: integer
+        year:
+          type: integer
+        plannedAmount:
+          type: number
+      required:
+        - id
+        - versionId
+        - budgetLineId
+        - month
+        - year
+        - plannedAmount
+
+    ForecastVersionWithPlans:
+      type: object
+      properties:
+        version:
+          $ref: "#/components/schemas/ForecastVersion"
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/ForecastPlan"
+      required:
+        - version
+        - plans
+
+    ForecastComparisonLine:
+      type: object
+      properties:
+        budgetLineId:
+          type: integer
+        lineItem:
+          type: string
+        category:
+          type: string
+        months:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: integer
+              basePlanned:
+                type: number
+              comparePlanned:
+                type: number
+              delta:
+                type: number
+            required:
+              - month
+              - basePlanned
+              - comparePlanned
+              - delta
+      required:
+        - budgetLineId
+        - lineItem
+        - category
+        - months
+
+    ForecastComparison:
+      type: object
+      properties:
+        baseVersion:
+          $ref: "#/components/schemas/ForecastVersion"
+        compareVersion:
+          $ref: "#/components/schemas/ForecastVersion"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ForecastComparisonLine"
+      required:
+        - baseVersion
+        - compareVersion
+        - lines
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: integer
+        field:
+          type: string
+        oldValue:
+          type: ["string", "null"]
+        newValue:
+          type: ["string", "null"]
+        userId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - action
+        - entityType
+        - entityId
+        - field
+        - createdAt
+
+    AuditLogList:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogEntry"
+        total:
+          type: integer
+      required:
+        - entries
+        - total
+
+    AnnualRolloverBody:
+      type: object
+      properties:
+        sourceYear:
+          type: integer
+        targetYear:
+          type: integer
+      required:
+        - sourceYear
+        - targetYear
+
+    AnnualRolloverResult:
+      type: object
+      properties:
+        sourceYear:
+          type: integer
+        targetYear:
+          type: integer
+        budgetLinesCopied:
+          type: integer
+        monthlyPlansCreated:
+          type: integer
+      required:
+        - sourceYear
+        - targetYear
+        - budgetLinesCopied
+        - monthlyPlansCreated

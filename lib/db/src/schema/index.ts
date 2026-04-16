@@ -9,3 +9,4 @@ export * from "./csvImports";
 export * from "./csvImportRows";
 export * from "./boardSettings";
 export * from "./shareTokens";
+export * from "./forecastVersions";
