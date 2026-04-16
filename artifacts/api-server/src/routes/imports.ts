@@ -182,12 +182,16 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
   const headers = parsedHeaders.map(h => normalise(h));
   const headersLower = parsedHeaders.map(h => h.toLowerCase().trim());
 
-  const catIdx = headers.findIndex(h => ["category", "cat", "department", "dept", "costcentre"].includes(h));
-  const lineItemIdx = headers.findIndex(h => ["lineitem", "line", "description", "item", "budgetitem", "budgetline", "name"].includes(h));
-  const ownerIdx = headers.findIndex(h => ["owner", "budgetowner", "responsible", "manager"].includes(h));
-  const regionIdx = headers.findIndex(h => ["region", "geo", "geography", "market"].includes(h));
-  const costStatusIdx = headers.findIndex(h => ["coststatus", "costtype", "fixedvariable"].includes(h));
-  const boardApprovedIdx = headers.findIndex(h => ["boardapproved", "approvedbudget", "approved", "boardbudget", "annualbudget", "totalbudget"].includes(h));
+  const catIdx = headers.findIndex(h => ["category", "cat", "department", "dept", "costcentre", "vertical", "group", "team", "function", "segment"].includes(h));
+  let lineItemIdx = headers.findIndex(h => ["lineitem", "line", "description", "item", "budgetitem", "budgetline", "name",
+    "activity", "marketingactivity", "budgetactivity", "initiative", "programme", "program",
+    "campaign", "project", "task", "workstream", "expense", "expenseitem", "heading",
+    "title", "label", "spenditem", "costitem", "budgetdescription", "activityname"].includes(h));
+  if (lineItemIdx === -1) lineItemIdx = (catIdx === 0 ? 1 : 0);
+  const ownerIdx = headers.findIndex(h => ["owner", "budgetowner", "responsible", "manager", "lead", "assignee"].includes(h));
+  const regionIdx = headers.findIndex(h => ["region", "geo", "geography", "market", "territory", "location", "country"].includes(h));
+  const costStatusIdx = headers.findIndex(h => ["coststatus", "costtype", "fixedvariable", "type", "status", "expensetype"].includes(h));
+  const boardApprovedIdx = headers.findIndex(h => ["boardapproved", "approvedbudget", "approved", "boardbudget", "annualbudget", "totalbudget", "fy26budget", "fy26", "annualplan", "yearlybudget"].includes(h));
 
   const monthIdx = headers.findIndex(h => h === "month" || h === "mon");
   const yearIdx = headers.findIndex(h => h === "year" || h === "yr");
@@ -440,10 +444,26 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
     newValue: file.originalname,
   });
 
-  res.status(201).json(GetImportResponse.parse({
-    ...updatedImport[0],
-    rows: importRows,
-  }));
+  res.status(201).json({
+    ...GetImportResponse.parse({
+      ...updatedImport[0],
+      rows: importRows,
+    }),
+    _debug: {
+      detectedFormat: isMatrixFormat ? "matrix" : "transactional",
+      headers: parsedHeaders,
+      detectedColumns: {
+        category: catIdx >= 0 ? parsedHeaders[catIdx] : null,
+        lineItem: lineItemIdx >= 0 ? parsedHeaders[lineItemIdx] : "(fallback col 0)",
+        owner: ownerIdx >= 0 ? parsedHeaders[ownerIdx] : null,
+        region: regionIdx >= 0 ? parsedHeaders[regionIdx] : null,
+        costStatus: costStatusIdx >= 0 ? parsedHeaders[costStatusIdx] : null,
+        boardApproved: boardApprovedIdx >= 0 ? parsedHeaders[boardApprovedIdx] : null,
+        monthCols: monthColumns.map(m => parsedHeaders[m.colIdx]),
+        planCols: planMonthColumns.map(m => parsedHeaders[m.colIdx]),
+      },
+    },
+  });
 }));
 
 router.get("/imports/:id", asyncHandler(async (req, res): Promise<void> => {

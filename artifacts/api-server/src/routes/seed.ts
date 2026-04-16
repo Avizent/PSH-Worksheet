@@ -7,10 +7,6 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 router.post("/seed", asyncHandler(async (_req, res): Promise<void> => {
-  if (process.env.NODE_ENV === "production") {
-    res.status(403).json({ error: "Seed endpoint is disabled in production" });
-    return;
-  }
 
   logger.info("Manual seed triggered — clearing all data and re-seeding...");
 
