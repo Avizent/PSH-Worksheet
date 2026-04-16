@@ -63,12 +63,12 @@ export function SwipeableAlertCard({ type, severity, message, onResolve, resolve
       <Animated.View
         style={[
           styles.card,
-          { backgroundColor: colors.card, borderRadius: colors.radius, opacity: resolved ? 0.5 : 1 },
+          { backgroundColor: colors.card, opacity: resolved ? 0.5 : 1 },
           !resolved ? { transform: [{ translateX }] } : undefined,
         ]}
         {...(!resolved ? panResponder.panHandlers : {})}
       >
-        <View style={[styles.tint, { backgroundColor: config.bg, borderRadius: colors.radius }]} />
+        <View style={[styles.tint, { backgroundColor: config.bg }]} />
         <View style={styles.content}>
           <Feather name={config.icon} size={18} color={config.color} style={styles.icon} />
           <View style={styles.textContainer}>
@@ -98,7 +98,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexDirection: "column",
     gap: 2,
-    borderRadius: 8,
   },
   resolveText: {
     color: "#fff",
