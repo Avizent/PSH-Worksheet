@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import multer, { MulterError } from "multer";
 import crypto from "crypto";
+import XLSX from "xlsx";
 import {
   db,
   budgetLinesTable,
@@ -87,6 +88,38 @@ function parseMonth(raw: string): number | null {
   return MONTH_MAP[trimmed] ?? null;
 }
 
+function isExcelFile(filename: string, mimetype: string): boolean {
+  const ext = filename.toLowerCase().split(".").pop() || "";
+  if (ext === "csv") return false;
+  if (ext === "xlsx" || ext === "xls") return true;
+  return (
+    mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mimetype === "application/vnd.ms-excel"
+  );
+}
+
+function parseExcelToRows(buffer: Buffer): { headers: string[]; dataRows: string[][] } {
+  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) throw new Error("Excel file has no sheets");
+  const sheet = workbook.Sheets[sheetName];
+  const raw: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  if (raw.length < 2) throw new Error("Sheet must have a header row and at least one data row");
+  const headers = raw[0].map((h: unknown) => String(h ?? ""));
+  const dataRows = raw.slice(1)
+    .filter((row: unknown[]) => row.some((cell: unknown) => String(cell ?? "").trim() !== ""))
+    .map((row: unknown[]) => row.map((cell: unknown) => String(cell ?? "")));
+  return { headers, dataRows };
+}
+
+function parseCsvToRows(content: string): { headers: string[]; dataRows: string[][] } {
+  const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length < 2) throw new Error("File must have a header row and at least one data row");
+  const headers = parseCsvLine(lines[0]);
+  const dataRows = lines.slice(1).map(line => parseCsvLine(line));
+  return { headers, dataRows };
+}
+
 router.get("/imports", asyncHandler(async (_req, res): Promise<void> => {
   const rows = await db.select().from(csvImportsTable).orderBy(csvImportsTable.createdAt);
   res.json(ListImportsResponse.parse(rows));
@@ -111,16 +144,34 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
     return;
   }
 
-  const csvContent = file.buffer.toString("utf-8");
-  const lines = csvContent.split(/\r?\n/).filter(l => l.trim().length > 0);
+  const filename = file.originalname || "upload";
+  const excel = isExcelFile(filename, file.mimetype);
 
-  if (lines.length < 2) {
-    res.status(400).json({ error: "CSV must have a header row and at least one data row" });
+  let parsedHeaders: string[];
+  let dataRows: string[][];
+
+  try {
+    if (excel) {
+      const result = parseExcelToRows(file.buffer);
+      parsedHeaders = result.headers;
+      dataRows = result.dataRows;
+    } else {
+      const csvContent = file.buffer.toString("utf-8");
+      const result = parseCsvToRows(csvContent);
+      parsedHeaders = result.headers;
+      dataRows = result.dataRows;
+    }
+  } catch (e: unknown) {
+    res.status(400).json({ error: e instanceof Error ? e.message : "Failed to parse file" });
     return;
   }
 
-  const headerLine = lines[0];
-  const headers = parseCsvLine(headerLine).map(h => normalise(h));
+  if (dataRows.length === 0) {
+    res.status(400).json({ error: "File must have at least one data row" });
+    return;
+  }
+
+  const headers = parsedHeaders.map(h => normalise(h));
 
   const catIdx = headers.findIndex(h => h === "category" || h === "cat");
   const lineItemIdx = headers.findIndex(h => h === "lineitem" || h === "line" || h === "description" || h === "item");
@@ -130,7 +181,7 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
   const invoiceIdx = headers.findIndex(h => h === "invoiceref" || h === "invoice" || h === "ref" || h === "reference");
 
   if (amountIdx === -1) {
-    res.status(400).json({ error: "CSV must contain an 'Amount' or 'Actual' column" });
+    res.status(400).json({ error: "File must contain an 'Amount' or 'Actual' column" });
     return;
   }
 
@@ -146,9 +197,9 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
   }
 
   const [importRecord] = await db.insert(csvImportsTable).values({
-    filename: file.originalname || "upload.csv",
+    filename: filename,
     status: "pending",
-    totalRows: lines.length - 1,
+    totalRows: dataRows.length,
   }).returning();
 
   const rowInserts: Array<{
@@ -170,8 +221,9 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
   let unmatched = 0;
   let errors = 0;
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = parseCsvLine(lines[i]);
+  for (let i = 0; i < dataRows.length; i++) {
+    const cols = dataRows[i];
+    const rowIndex = i + 1;
     const rawCategory = catIdx >= 0 ? (cols[catIdx] || null) : null;
     const rawLineItem = lineItemIdx >= 0 ? (cols[lineItemIdx] || null) : null;
     const rawMonthStr = monthIdx >= 0 ? (cols[monthIdx] || "") : "";
@@ -187,7 +239,7 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
       errors++;
       rowInserts.push({
         importId: importRecord.id,
-        rowIndex: i,
+        rowIndex: rowIndex,
         rawCategory,
         rawLineItem,
         rawMonth,
@@ -206,7 +258,7 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
       errors++;
       rowInserts.push({
         importId: importRecord.id,
-        rowIndex: i,
+        rowIndex: rowIndex,
         rawCategory,
         rawLineItem,
         rawMonth: null,
@@ -245,7 +297,7 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
       matched++;
       rowInserts.push({
         importId: importRecord.id,
-        rowIndex: i,
+        rowIndex: rowIndex,
         rawCategory,
         rawLineItem,
         rawMonth,
@@ -261,7 +313,7 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
       unmatched++;
       rowInserts.push({
         importId: importRecord.id,
-        rowIndex: i,
+        rowIndex: rowIndex,
         rawCategory,
         rawLineItem,
         rawMonth,

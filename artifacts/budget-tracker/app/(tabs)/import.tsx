@@ -150,14 +150,14 @@ function ImportContent() {
     }
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: "text/csv",
+        type: ["text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"],
         copyToCacheDirectory: true,
       });
       if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
         const response = await fetch(asset.uri);
         const blob = await response.blob();
-        const file = new File([blob], asset.name || "import.csv", { type: "text/csv" });
+        const file = new File([blob], asset.name || "import.csv", { type: asset.mimeType || "text/csv" });
         uploadFile(file);
       }
     } catch (e: unknown) {
@@ -271,7 +271,7 @@ function ImportContent() {
         <input
           ref={fileInputRef as React.RefObject<HTMLInputElement>}
           type="file"
-          accept=".csv"
+          accept=".csv,.xlsx,.xls"
           style={{ display: "none" }}
           onChange={handleFileChange}
         />
@@ -302,10 +302,10 @@ function ImportContent() {
               <Feather name="upload-cloud" size={32} color={colors.primary} />
             </View>
             <Text style={[styles.uploadTitle, { color: colors.foreground }]}>
-              {isDesktop ? "Drag & drop CSV file here" : "Tap to upload CSV"}
+              {isDesktop ? "Drag & drop CSV or Excel file here" : "Tap to upload CSV or Excel"}
             </Text>
             <Text style={[styles.uploadSubtitle, { color: colors.mutedForeground }]}>
-              {isDesktop ? "or click to browse" : "CSV with Category, Line Item, Month, Year, Amount columns"}
+              {isDesktop ? "or click to browse" : "Supports CSV and Excel (.xlsx, .xls)"}
             </Text>
           </>
         )}
@@ -589,7 +589,7 @@ function ImportContent() {
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
       }
     >
-      <SectionHeader title="Import Actuals" subtitle="Upload CSV files with monthly actual spend data" />
+      <SectionHeader title="Import Actuals" subtitle="Upload CSV or Excel files with monthly actual spend data" />
 
       {renderUploadArea()}
 
@@ -601,7 +601,7 @@ function ImportContent() {
         <EmptyState
           icon="upload"
           title="No imports yet"
-          message="Upload a CSV file to import monthly actual spend data"
+          message="Upload a CSV or Excel file to import monthly actual spend data"
         />
       )}
 

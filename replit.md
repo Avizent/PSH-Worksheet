@@ -17,7 +17,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - **Build**: esbuild (CJS bundle)
 - **Frontend**: Expo (React Native + React Native Web)
 - **State management**: React Query (@tanstack/react-query)
-- **File uploads**: multer (multipart/form-data)
+- **File uploads**: multer (multipart/form-data), xlsx (Excel parsing)
 
 ## Architecture
 
@@ -39,7 +39,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `alerts` — Budget alerts with severity levels (critical/warning/info), deduplication by type+budgetLineId+month+year
 - `events` — Marketing events with status tracking
 - `auditLogs` — Change audit trail (entityType, entityId, field, oldValue, newValue, action: create/update/delete/rollover)
-- `csvImports` — CSV import records (filename, status, row counts, `deletedAt` timestamp for soft-delete)
+- `csvImports` — CSV/Excel import records (filename, status, row counts, `deletedAt` timestamp for soft-delete)
 - `csvImportRows` — Individual parsed CSV rows (raw data, match status, budget line assignment, row hash for idempotency)
 - `boardSettings` — Board visibility settings (sectionKey, label, visible toggle, sortOrder)
 - `shareTokens` — Shareable access tokens (token UUID, label, expiresAt, revoked flag)
@@ -58,7 +58,7 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `GET /dashboard/charts` — Monthly + category chart data
 - `GET /projections` — Fixed cost forward projection with % adjustment
 - `GET /imports` — List CSV imports with summary counts
-- `POST /imports/upload` — Upload CSV, parse, match rows to budget lines
+- `POST /imports/upload` — Upload CSV or Excel (.xlsx/.xls), parse, match rows to budget lines
 - `GET /imports/:id` — Get import with all rows
 - `PATCH /imports/rows/:id/assign` — Assign unmatched row to a budget line
 - `POST /imports/:id/confirm` — Confirm import, create MonthlyActual records (idempotent by row hash, tracks importId)
