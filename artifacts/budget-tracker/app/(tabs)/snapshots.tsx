@@ -13,6 +13,8 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
@@ -30,6 +32,7 @@ import {
   type SnapshotDiffLine,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { getApiUrl } from "@/utils/getApiUrl";
 
 const fmt = (n: number) => "£" + Math.round(n).toLocaleString("en-GB");
 
@@ -66,12 +69,14 @@ function LabelBadge({ label }: { label: string }) {
 interface SnapshotRowProps {
   snap: SnapshotMeta;
   isSelected: boolean;
+  isDownloading: boolean;
   onSelect: (id: string) => void;
+  onDownload: (id: string) => void;
   compareSlot?: "A" | "B" | null;
   compareMode?: boolean;
 }
 
-function SnapshotRow({ snap, isSelected, onSelect, compareSlot, compareMode }: SnapshotRowProps) {
+function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, compareSlot, compareMode }: SnapshotRowProps) {
   const colors = useColors();
 
   let borderColor = isSelected ? colors.primary : colors.border;
@@ -110,6 +115,21 @@ function SnapshotRow({ snap, isSelected, onSelect, compareSlot, compareMode }: S
         <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>spent {fmt(snap.totalSpent)}</Text>
         <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>{snap.lineCount} lines</Text>
       </View>
+      {!compareMode && (
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation?.(); onDownload(snap.id); }}
+          disabled={isDownloading}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.6}
+          style={styles.rowDownloadBtn}
+        >
+          {isDownloading ? (
+            <ActivityIndicator size="small" color={colors.mutedForeground} />
+          ) : (
+            <Feather name="download" size={14} color={colors.mutedForeground} />
+          )}
+        </TouchableOpacity>
+      )}
       <Feather name="chevron-right" size={14} color={compareSlot ? borderColor : (isSelected ? colors.primary : colors.mutedForeground)} />
     </TouchableOpacity>
   );
@@ -119,12 +139,14 @@ interface DetailPanelProps {
   snap: SnapshotMeta;
   onRestore: (id: string) => void;
   onDelete: (id: string) => void;
+  onDownload: (id: string) => void;
   onClose: () => void;
   restoring: boolean;
   deleting: boolean;
+  downloading: boolean;
 }
 
-function DetailPanel({ snap, onRestore, onDelete, onClose, restoring, deleting }: DetailPanelProps) {
+function DetailPanel({ snap, onRestore, onDelete, onDownload, onClose, restoring, deleting, downloading }: DetailPanelProps) {
   const colors = useColors();
   const spent = snap.totalBudget > 0 ? (snap.totalSpent / snap.totalBudget) * 100 : 0;
 
@@ -172,7 +194,7 @@ function DetailPanel({ snap, onRestore, onDelete, onClose, restoring, deleting }
         <TouchableOpacity
           style={[styles.detailBtn, { backgroundColor: colors.primary }]}
           onPress={() => onRestore(snap.id)}
-          disabled={restoring || deleting}
+          disabled={restoring || deleting || downloading}
           activeOpacity={0.8}
         >
           {restoring ? (
@@ -186,9 +208,25 @@ function DetailPanel({ snap, onRestore, onDelete, onClose, restoring, deleting }
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[styles.detailBtn, { backgroundColor: "#059669" }]}
+          onPress={() => onDownload(snap.id)}
+          disabled={restoring || deleting || downloading}
+          activeOpacity={0.8}
+        >
+          {downloading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Feather name="download" size={13} color="#fff" />
+              <Text style={styles.detailBtnText}>Download JSON</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.detailBtn, { backgroundColor: colors.destructive ?? "#ef4444" }]}
           onPress={() => onDelete(snap.id)}
-          disabled={restoring || deleting}
+          disabled={restoring || deleting || downloading}
           activeOpacity={0.8}
         >
           {deleting ? (
@@ -467,6 +505,7 @@ export default function SnapshotsScreen() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [labelInput, setLabelInput] = useState("");
 
@@ -605,6 +644,49 @@ export default function SnapshotsScreen() {
     }
   }, [compareMode, handleCompareSelect]);
 
+  const handleDownload = useCallback(async (id: string) => {
+    setDownloadingId(id);
+    try {
+      const url = `${getApiUrl()}/api/snapshots/${encodeURIComponent(id)}`;
+      if (Platform.OS === "web") {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Download failed");
+        const json = await res.json();
+        const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+        const href = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.download = `${id}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(href);
+      } else {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Download failed");
+        const json = await res.json();
+        const fileUri = `${FileSystem.cacheDirectory}${id}.json`;
+        await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(json, null, 2), {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: "application/json",
+            dialogTitle: "Save snapshot backup",
+            UTI: "public.json",
+          });
+        } else {
+          Alert.alert("Error", "Sharing is not available on this device.");
+        }
+      }
+    } catch {
+      Alert.alert("Error", "Failed to download snapshot.");
+    } finally {
+      setDownloadingId(null);
+    }
+  }, []);
+
   const selectedSnap = selectedId ? (snapshots as SnapshotMeta[]).find((s) => s.id === selectedId) ?? null : null;
 
   const listContent = (
@@ -676,7 +758,9 @@ export default function SnapshotsScreen() {
               key={snap.id}
               snap={snap}
               isSelected={!compareMode && selectedId === snap.id}
+              isDownloading={downloadingId === snap.id}
               onSelect={handleRowSelect}
+              onDownload={handleDownload}
               compareSlot={compareA === snap.id ? "A" : compareB === snap.id ? "B" : null}
               compareMode={compareMode}
             />
@@ -691,9 +775,11 @@ export default function SnapshotsScreen() {
       snap={selectedSnap}
       onRestore={handleRestore}
       onDelete={handleDelete}
+      onDownload={handleDownload}
       onClose={() => setSelectedId(null)}
       restoring={restoringId === selectedSnap.id}
       deleting={deletingId === selectedSnap.id}
+      downloading={downloadingId === selectedSnap.id}
     />
   ) : null;
 
@@ -839,6 +925,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   rowLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  rowDownloadBtn: { padding: 2 },
   rowMeta: { gap: 4 },
   rowDate: { fontSize: 13, fontFamily: "Inter_500Medium" },
   rowRight: { alignItems: "flex-end", gap: 2, marginRight: 4 },
