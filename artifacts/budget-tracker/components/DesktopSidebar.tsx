@@ -30,6 +30,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { key: "import", label: "Import", icon: "upload", route: "/import" },
   { key: "audit", label: "Audit Log", icon: "file-text", route: "/audit" },
   { key: "reforecast", label: "Reforecast", icon: "refresh-cw", route: "/reforecast" },
+  { key: "excel", label: "Excel", icon: "grid", route: "/excel" },
 ];
 
 interface DesktopSidebarProps {

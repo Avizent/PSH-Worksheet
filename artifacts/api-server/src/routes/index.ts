@@ -20,6 +20,7 @@ import seedRouter from "./seed";
 import analyticsRouter from "./analytics";
 import ownersRouter from "./owners";
 import categoriesRouter from "./categories";
+import excelRouter from "./excel";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(adminRouter);
 router.use(seedRouter);
 router.use(ownersRouter);
 router.use(categoriesRouter);
+router.use(excelRouter);
 
 export default router;

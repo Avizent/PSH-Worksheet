@@ -34,6 +34,8 @@ tags:
     description: Audit log
   - name: admin
     description: Admin actions
+  - name: excel
+    description: Excel export and import
 paths:
   /healthz:
     get:
@@ -1170,6 +1172,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SeedResult"
+
+  /excel/export:
+    get:
+      operationId: exportBudgetExcel
+      tags: [excel]
+      summary: Export budget as Excel
+      description: Downloads the complete current budget as a formatted .xlsx file
+      responses:
+        "200":
+          description: Excel file stream
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /excel/import:
+    post:
+      operationId: importBudgetExcel
+      tags: [excel]
+      summary: Import budget from Excel
+      description: Accepts an .xlsx file in the export format, validates it, then upserts the budget data
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+      responses:
+        "200":
+          description: Import succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExcelImportResult"
+        "422":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExcelImportValidationError"
 
 components:
   schemas:
@@ -2318,3 +2367,64 @@ components:
         - budgetLinesCopied
         - monthlyPlansCreated
         - monthlyActualsCreated
+
+    ExcelValidationError:
+      type: object
+      properties:
+        column:
+          type: string
+        row:
+          type: integer
+        message:
+          type: string
+      required:
+        - column
+        - row
+        - message
+
+    ExcelImportValidationError:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExcelValidationError"
+      required:
+        - valid
+        - errors
+
+    ExcelImportCounts:
+      type: object
+      properties:
+        upserted:
+          type: integer
+        inserted:
+          type: integer
+        deleted:
+          type: integer
+        plansWritten:
+          type: integer
+        actualsWritten:
+          type: integer
+      required:
+        - upserted
+        - inserted
+        - deleted
+        - plansWritten
+        - actualsWritten
+
+    ExcelImportResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        message:
+          type: string
+        counts:
+          $ref: "#/components/schemas/ExcelImportCounts"
+      required:
+        - valid
+        - message
+        - counts

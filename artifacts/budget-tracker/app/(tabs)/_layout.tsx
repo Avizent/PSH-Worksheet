@@ -58,6 +58,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "square.and.arrow.up", selected: "square.and.arrow.up.fill" }} />
         <Label>Import</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="excel" hidden>
+        <Icon sf={{ default: "tablecells", selected: "tablecells.fill" }} />
+        <Label>Excel</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="categories" hidden>
         <Icon sf={{ default: "tag", selected: "tag.fill" }} />
         <Label>Categories</Label>
@@ -274,6 +278,14 @@ function ClassicTabLayout() {
             ) : (
               <Feather name="upload" size={22} color={color} />
             ),
+        }}
+      />
+      <Tabs.Screen
+        name="excel"
+        options={{
+          title: "Excel",
+          tabBarItemStyle: { display: "none" },
+          tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} />,
         }}
       />
       <Tabs.Screen

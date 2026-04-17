@@ -1253,3 +1253,23 @@ export const SeedDataResponse = zod.object({
   monthlyPlansCreated: zod.number().optional(),
   monthlyActualsCreated: zod.number().optional(),
 });
+
+/**
+ * Accepts an .xlsx file in the export format, validates it, then upserts the budget data
+ * @summary Import budget from Excel
+ */
+export const ImportBudgetExcelBody = zod.object({
+  file: zod.instanceof(File),
+});
+
+export const ImportBudgetExcelResponse = zod.object({
+  valid: zod.boolean(),
+  message: zod.string(),
+  counts: zod.object({
+    upserted: zod.number(),
+    inserted: zod.number(),
+    deleted: zod.number(),
+    plansWritten: zod.number(),
+    actualsWritten: zod.number(),
+  }),
+});

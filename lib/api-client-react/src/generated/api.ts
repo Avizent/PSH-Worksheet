@@ -45,6 +45,8 @@ import type {
   DashboardSummary,
   DeleteImport200,
   EvaluateAlertsParams,
+  ExcelImportResult,
+  ExcelImportValidationError,
   ExportExcelParams,
   ExportPdfParams,
   ForecastComparison,
@@ -55,6 +57,7 @@ import type {
   GetDashboardSummaryParams,
   GetProjectionsParams,
   HealthStatus,
+  ImportBudgetExcelBody,
   ImportConfirmResult,
   ListAlertsParams,
   ListAuditLogsParams,
@@ -4961,4 +4964,170 @@ export const useSeedData = <
   TContext
 > => {
   return useMutation(getSeedDataMutationOptions(options));
+};
+
+/**
+ * Downloads the complete current budget as a formatted .xlsx file
+ * @summary Export budget as Excel
+ */
+export const getExportBudgetExcelUrl = () => {
+  return `/api/excel/export`;
+};
+
+export const exportBudgetExcel = async (
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getExportBudgetExcelUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportBudgetExcelQueryKey = () => {
+  return [`/api/excel/export`] as const;
+};
+
+export const getExportBudgetExcelQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportBudgetExcel>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof exportBudgetExcel>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportBudgetExcelQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportBudgetExcel>>
+  > = ({ signal }) => exportBudgetExcel({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportBudgetExcel>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportBudgetExcelQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportBudgetExcel>>
+>;
+export type ExportBudgetExcelQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Export budget as Excel
+ */
+
+export function useExportBudgetExcel<
+  TData = Awaited<ReturnType<typeof exportBudgetExcel>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof exportBudgetExcel>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportBudgetExcelQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Accepts an .xlsx file in the export format, validates it, then upserts the budget data
+ * @summary Import budget from Excel
+ */
+export const getImportBudgetExcelUrl = () => {
+  return `/api/excel/import`;
+};
+
+export const importBudgetExcel = async (
+  importBudgetExcelBody: ImportBudgetExcelBody,
+  options?: RequestInit,
+): Promise<ExcelImportResult> => {
+  const formData = new FormData();
+  formData.append(`file`, importBudgetExcelBody.file);
+
+  return customFetch<ExcelImportResult>(getImportBudgetExcelUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getImportBudgetExcelMutationOptions = <
+  TError = ErrorType<ExcelImportValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importBudgetExcel>>,
+    TError,
+    { data: BodyType<ImportBudgetExcelBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importBudgetExcel>>,
+  TError,
+  { data: BodyType<ImportBudgetExcelBody> },
+  TContext
+> => {
+  const mutationKey = ["importBudgetExcel"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importBudgetExcel>>,
+    { data: BodyType<ImportBudgetExcelBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return importBudgetExcel(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportBudgetExcelMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importBudgetExcel>>
+>;
+export type ImportBudgetExcelMutationBody = BodyType<ImportBudgetExcelBody>;
+export type ImportBudgetExcelMutationError =
+  ErrorType<ExcelImportValidationError>;
+
+/**
+ * @summary Import budget from Excel
+ */
+export const useImportBudgetExcel = <
+  TError = ErrorType<ExcelImportValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importBudgetExcel>>,
+    TError,
+    { data: BodyType<ImportBudgetExcelBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof importBudgetExcel>>,
+  TError,
+  { data: BodyType<ImportBudgetExcelBody> },
+  TContext
+> => {
+  return useMutation(getImportBudgetExcelMutationOptions(options));
 };

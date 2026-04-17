@@ -1,0 +1,571 @@
+import React, { useState, useRef } from "react";
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  Platform,
+  ActivityIndicator,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  Linking,
+} from "react-native";
+import { Feather } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import { useColors } from "@/hooks/useColors";
+import { useLayout } from "@/hooks/useLayout";
+import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { AdminSubnav } from "@/components/AdminSubnav";
+import { SectionHeader } from "@/components/SectionHeader";
+import { useToast } from "@/contexts/ToastContext";
+import { getApiUrl } from "@/utils/getApiUrl";
+import { useListAlerts } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getListBudgetLinesWithMonthlyQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+
+interface ValidationError {
+  column: string;
+  row: number;
+  message: string;
+}
+
+interface ImportResult {
+  valid: boolean;
+  message: string;
+  counts: {
+    upserted: number;
+    inserted: number;
+    deleted: number;
+    plansWritten: number;
+    actualsWritten: number;
+  };
+}
+
+type ImportState =
+  | { phase: "idle" }
+  | { phase: "uploading" }
+  | { phase: "errors"; errors: ValidationError[] }
+  | { phase: "confirm"; file: File }
+  | { phase: "importing" }
+  | { phase: "done"; result: ImportResult };
+
+export default function ExcelScreen() {
+  const colors = useColors();
+  const { mode } = useLayout();
+  const isDesktop = mode === "desktop";
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: alertsData } = useListAlerts({ resolved: false });
+  const activeAlerts = alertsData ?? [];
+
+  const [exportLoading, setExportLoading] = useState(false);
+  const [importState, setImportState] = useState<ImportState>({ phase: "idle" });
+  const [confirmText, setConfirmText] = useState("");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Export ────────────────────────────────────────────────────────────────
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      const baseUrl = getApiUrl();
+      const url = `${baseUrl}/api/excel/export`;
+
+      if (Platform.OS === "web") {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Export failed");
+        const blob = await res.blob();
+        const today = new Date().toISOString().slice(0, 10);
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `budget_export_${today}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast("Excel file downloaded.");
+      } else {
+        // On native, open URL in browser (expo-sharing not installed)
+        await Linking.openURL(url);
+        showToast("Opening export in browser…");
+      }
+    } catch {
+      showToast("Export failed. Please try again.", "error");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  // ─── Import: file picking ───────────────────────────────────────────────────
+
+  const uploadForValidation = async (file: File) => {
+    setImportState({ phase: "uploading" });
+    setConfirmText("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const baseUrl = getApiUrl();
+      const res = await fetch(`${baseUrl}/api/excel/import`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+
+      if (!res.ok || json.valid === false) {
+        setImportState({ phase: "errors", errors: json.errors ?? [{ column: "file", row: 0, message: json.error ?? "Unknown error" }] });
+        return;
+      }
+
+      // Validation passed on a dry run? No — the current route does the full import.
+      // We split the flow: validation IS the import. So if we get here, import is done.
+      const result = json as ImportResult;
+      setImportState({ phase: "done", result });
+      showToast("Budget imported. A pre-import snapshot has been saved to the Snapshot Manager.");
+      queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey({ year: 2026 }) });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey({ year: 2026 }) });
+    } catch (e: unknown) {
+      showToast("Upload error: " + (e instanceof Error ? e.message : String(e)), "error");
+      setImportState({ phase: "idle" });
+    }
+  };
+
+  // Show the confirm dialog before uploading
+  const pickAndStage = async () => {
+    if (Platform.OS === "web") {
+      fileInputRef.current?.click();
+      return;
+    }
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        const file = new File([blob], asset.name ?? "import.xlsx", {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        stageFile(file);
+      }
+    } catch (e: unknown) {
+      showToast("Error picking file: " + (e instanceof Error ? e.message : String(e)), "error");
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target?.files?.[0];
+    if (file) stageFile(file);
+    if (e.target) e.target.value = "";
+  };
+
+  const stageFile = (file: File) => {
+    setImportState({ phase: "confirm", file });
+    setConfirmText("");
+  };
+
+  const doImport = () => {
+    if (importState.phase !== "confirm") return;
+    uploadForValidation(importState.file);
+  };
+
+  const reset = () => {
+    setImportState({ phase: "idle" });
+    setConfirmText("");
+  };
+
+  const confirmEnabled = confirmText === "CONFIRM" && importState.phase === "confirm";
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+
+  const content = (
+    <ScrollView
+      style={[styles.scroll, { backgroundColor: colors.background }]}
+      contentContainerStyle={{ padding: isDesktop ? 32 : 16, paddingBottom: isDesktop ? 32 : 120 }}
+    >
+      {!isDesktop && <AdminSubnav active="excel" />}
+      <SectionHeader title="Excel" subtitle="Export and import budget data" />
+
+      {/* ─── Export card ─────────────────────────────────────────────────── */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.cardHeader}>
+          <View style={[styles.iconWrap, { backgroundColor: colors.primary + "15" }]}>
+            <Feather name="download" size={20} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: colors.foreground }]}>Export to Excel</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
+              Download all 27 budget lines with monthly plan and actual figures as a formatted .xlsx file
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.formatNote}>
+          <Text style={[styles.formatText, { color: colors.mutedForeground }]}>
+            Columns: Category, Subcategory, Line Item, Owner, Region, Channel, Cost Status, Projection %, Board Approved Amount, Jan–Dec Plan, Jan–Dec Actual
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={handleExport}
+          disabled={exportLoading}
+          style={[styles.secondaryBtn, { borderColor: colors.primary }]}
+          activeOpacity={0.7}
+        >
+          {exportLoading ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Feather name="download" size={16} color={colors.primary} />
+          )}
+          <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>
+            {exportLoading ? "Preparing…" : "Export to Excel"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ─── Import card ─────────────────────────────────────────────────── */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.cardHeader}>
+          <View style={[styles.iconWrap, { backgroundColor: "#f59e0b15" }]}>
+            <Feather name="upload" size={20} color="#f59e0b" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: colors.foreground }]}>Import from Excel</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
+              Upload an .xlsx file in the same format as the export. This will completely replace all budget data.
+            </Text>
+          </View>
+        </View>
+
+        {/* Hidden web file input */}
+        {Platform.OS === "web" && (
+          <input
+            ref={fileInputRef as React.RefObject<HTMLInputElement>}
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            style={{ display: "none" }}
+            onChange={handleFileChange}
+          />
+        )}
+
+        {/* Idle / pick */}
+        {importState.phase === "idle" && (
+          <TouchableOpacity
+            onPress={pickAndStage}
+            style={[styles.uploadArea, { borderColor: colors.border }]}
+            activeOpacity={0.7}
+          >
+            <Feather name="upload-cloud" size={28} color={colors.mutedForeground} />
+            <Text style={[styles.uploadLabel, { color: colors.foreground }]}>
+              {Platform.OS === "web" ? "Click to choose .xlsx file" : "Tap to choose .xlsx file"}
+            </Text>
+            <Text style={[styles.uploadSub, { color: colors.mutedForeground }]}>
+              Must match the export format exactly
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Uploading / validating */}
+        {importState.phase === "uploading" && (
+          <View style={styles.statusRow}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[styles.statusText, { color: colors.mutedForeground }]}>
+              Validating and importing…
+            </Text>
+          </View>
+        )}
+
+        {/* Importing */}
+        {importState.phase === "importing" && (
+          <View style={styles.statusRow}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[styles.statusText, { color: colors.mutedForeground }]}>
+              Saving snapshot and importing data…
+            </Text>
+          </View>
+        )}
+
+        {/* Validation errors */}
+        {importState.phase === "errors" && (
+          <View>
+            <View style={[styles.errorBox, { backgroundColor: "#fef2f2", borderColor: "#fca5a5" }]}>
+              <View style={styles.errorBoxHeader}>
+                <Feather name="x-circle" size={16} color="#dc2626" />
+                <Text style={[styles.errorBoxTitle, { color: "#dc2626" }]}>
+                  Validation failed — {importState.errors.length} error{importState.errors.length !== 1 ? "s" : ""}
+                </Text>
+              </View>
+              {importState.errors.map((err, i) => (
+                <Text key={i} style={styles.errorItem}>
+                  {err.row > 0 ? `Row ${err.row}, ` : ""}{err.column}: {err.message}
+                </Text>
+              ))}
+            </View>
+            <TouchableOpacity onPress={reset} style={[styles.secondaryBtn, { borderColor: colors.border, marginTop: 8 }]} activeOpacity={0.7}>
+              <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.secondaryBtnText, { color: colors.mutedForeground }]}>Try another file</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Confirm (staged) */}
+        {importState.phase === "confirm" && (
+          <View>
+            {/* Warning box */}
+            <View style={styles.warningBox}>
+              <View style={styles.warningHeader}>
+                <Feather name="alert-triangle" size={18} color="#92400e" />
+                <Text style={styles.warningTitle}>⚠ This will overwrite all current budget data</Text>
+              </View>
+              <Text style={styles.warningBody}>
+                Importing this file will{" "}
+                <Text style={{ fontFamily: "Inter_700Bold" }}>permanently replace</Text> all 27 budget
+                lines, their monthly plan figures, and all recorded actuals. This action cannot be undone
+                except by restoring from a snapshot.
+              </Text>
+              <Text style={styles.warningBody}>
+                A <Text style={{ fontFamily: "Inter_600SemiBold" }}>pre-import snapshot</Text> will be
+                saved automatically before the import begins so you can recover from the Snapshot Manager
+                if needed.
+              </Text>
+              <Text style={styles.warningBody}>
+                File ready: <Text style={{ fontFamily: "Inter_600SemiBold" }}>{(importState as { phase: "confirm"; file: File }).file.name}</Text>
+              </Text>
+            </View>
+
+            {/* CONFIRM gate */}
+            <View style={[styles.confirmGate, { borderColor: colors.border, backgroundColor: colors.background }]}>
+              <Text style={[styles.confirmLabel, { color: colors.foreground }]}>
+                Type{" "}
+                <Text style={{ fontFamily: "Inter_700Bold", color: "#dc2626" }}>CONFIRM</Text>{" "}
+                to enable the button below:
+              </Text>
+              <TextInput
+                value={confirmText}
+                onChangeText={setConfirmText}
+                placeholder="Type CONFIRM here"
+                placeholderTextColor={colors.mutedForeground}
+                autoCapitalize="characters"
+                style={[
+                  styles.confirmInput,
+                  {
+                    color: colors.foreground,
+                    borderColor: confirmText === "CONFIRM" ? "#16a34a" : colors.border,
+                    backgroundColor: colors.card,
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                onPress={reset}
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={doImport}
+                disabled={!confirmEnabled}
+                style={[
+                  styles.destructiveBtn,
+                  !confirmEnabled && styles.destructiveBtnDisabled,
+                ]}
+                activeOpacity={confirmEnabled ? 0.7 : 1}
+              >
+                <Feather name="upload" size={15} color="#fff" />
+                <Text style={styles.destructiveBtnText}>Yes, overwrite my budget</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Done */}
+        {importState.phase === "done" && (
+          <View>
+            <View style={[styles.successBox, { backgroundColor: "#f0fdf4", borderColor: "#86efac" }]}>
+              <View style={styles.successHeader}>
+                <Feather name="check-circle" size={16} color="#16a34a" />
+                <Text style={[styles.successTitle, { color: "#16a34a" }]}>Import complete</Text>
+              </View>
+              <Text style={[styles.successBody, { color: "#166534" }]}>
+                {importState.result.message}
+              </Text>
+              <View style={styles.countsRow}>
+                <View style={styles.countItem}>
+                  <Text style={styles.countNum}>{importState.result.counts.upserted}</Text>
+                  <Text style={styles.countLabel}>Updated</Text>
+                </View>
+                <View style={styles.countItem}>
+                  <Text style={styles.countNum}>{importState.result.counts.inserted}</Text>
+                  <Text style={styles.countLabel}>Added</Text>
+                </View>
+                <View style={styles.countItem}>
+                  <Text style={styles.countNum}>{importState.result.counts.deleted}</Text>
+                  <Text style={styles.countLabel}>Removed</Text>
+                </View>
+                <View style={styles.countItem}>
+                  <Text style={styles.countNum}>{importState.result.counts.plansWritten}</Text>
+                  <Text style={styles.countLabel}>Plan rows</Text>
+                </View>
+                <View style={styles.countItem}>
+                  <Text style={styles.countNum}>{importState.result.counts.actualsWritten}</Text>
+                  <Text style={styles.countLabel}>Actual rows</Text>
+                </View>
+              </View>
+              <Text style={[styles.snapshotNote, { color: "#166534" }]}>
+                A pre-import snapshot has been saved to the Snapshot Manager.
+              </Text>
+            </View>
+            <TouchableOpacity onPress={reset} style={[styles.secondaryBtn, { borderColor: colors.border, marginTop: 8 }]} activeOpacity={0.7}>
+              <Feather name="upload-cloud" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.secondaryBtnText, { color: colors.mutedForeground }]}>Import another file</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+
+  if (isDesktop) {
+    return (
+      <View style={styles.desktopRoot}>
+        <DesktopSidebar alertCount={activeAlerts.length} />
+        <View style={styles.desktopMain}>
+          <AdminSubnav active="excel" />
+          {content}
+        </View>
+      </View>
+    );
+  }
+
+  return content;
+}
+
+const styles = StyleSheet.create({
+  scroll: { flex: 1 },
+  desktopRoot: { flex: 1, flexDirection: "row" },
+  desktopMain: { flex: 1, overflow: "hidden" as const, paddingTop: 12, paddingHorizontal: 24 },
+
+  card: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 20,
+    marginBottom: 20,
+    gap: 16,
+  },
+  cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
+  iconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  cardTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
+  cardSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+
+  formatNote: { paddingHorizontal: 4 },
+  formatText: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 16 },
+
+  secondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignSelf: "flex-start" as const,
+  },
+  secondaryBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+
+  uploadArea: {
+    borderWidth: 1.5,
+    borderStyle: "dashed" as const,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    gap: 8,
+  },
+  uploadLabel: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  uploadSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 16 },
+  statusText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+
+  errorBox: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    gap: 6,
+  },
+  errorBoxHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  errorBoxTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  errorItem: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#991b1b", paddingLeft: 24, lineHeight: 18 },
+
+  warningBox: {
+    backgroundColor: "#fffbeb",
+    borderWidth: 1.5,
+    borderColor: "#f59e0b",
+    borderRadius: 10,
+    padding: 16,
+    gap: 10,
+  },
+  warningHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  warningTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#92400e" },
+  warningBody: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#78350f", lineHeight: 19 },
+
+  confirmGate: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    gap: 8,
+  },
+  confirmLabel: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  confirmInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 1,
+  },
+
+  confirmButtons: { flexDirection: "row", gap: 10, marginTop: 12, flexWrap: "wrap" as const },
+  cancelBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  cancelBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  destructiveBtn: {
+    flex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#dc2626",
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
+  destructiveBtnDisabled: { backgroundColor: "#fca5a5" },
+  destructiveBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+
+  successBox: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    gap: 10,
+  },
+  successHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  successTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  successBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  countsRow: { flexDirection: "row", gap: 12, flexWrap: "wrap" as const },
+  countItem: { alignItems: "center", gap: 2, minWidth: 60 },
+  countNum: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#166534" },
+  countLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#166534", textAlign: "center" as const },
+  snapshotNote: { fontSize: 12, fontFamily: "Inter_500Medium", fontStyle: "italic" as const },
+});

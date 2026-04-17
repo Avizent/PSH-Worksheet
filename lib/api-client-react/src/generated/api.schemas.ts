@@ -562,6 +562,31 @@ export interface AnnualRolloverResult {
   monthlyActualsCreated: number;
 }
 
+export interface ExcelValidationError {
+  column: string;
+  row: number;
+  message: string;
+}
+
+export interface ExcelImportValidationError {
+  valid: boolean;
+  errors: ExcelValidationError[];
+}
+
+export interface ExcelImportCounts {
+  upserted: number;
+  inserted: number;
+  deleted: number;
+  plansWritten: number;
+  actualsWritten: number;
+}
+
+export interface ExcelImportResult {
+  valid: boolean;
+  message: string;
+  counts: ExcelImportCounts;
+}
+
 export type GetDashboardSummaryParams = {
   year?: number;
 };
@@ -634,4 +659,8 @@ export type ListAuditLogsParams = {
   endDate?: string;
   limit?: number;
   offset?: number;
+};
+
+export type ImportBudgetExcelBody = {
+  file: Blob;
 };
