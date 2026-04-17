@@ -5747,3 +5747,90 @@ export const useRestoreSnapshot = <
 > => {
   return useMutation(getRestoreSnapshotMutationOptions(options));
 };
+
+/**
+ * Sets the pinned flag on a snapshot. Pinned snapshots are never removed during housekeeping.
+ * @summary Pin or unpin a snapshot
+ */
+export const getPinSnapshotUrl = (id: string) => {
+  return `/api/snapshots/${id}/pin`;
+};
+
+export const pinSnapshot = async (
+  id: string,
+  pinSnapshotBody: { pinned: boolean },
+  options?: RequestInit,
+): Promise<SnapshotMeta> => {
+  return customFetch<SnapshotMeta>(getPinSnapshotUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(pinSnapshotBody),
+  });
+};
+
+export const getPinSnapshotMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof pinSnapshot>>,
+    TError,
+    { id: string; data: { pinned: boolean } },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof pinSnapshot>>,
+  TError,
+  { id: string; data: { pinned: boolean } },
+  TContext
+> => {
+  const mutationKey = ["pinSnapshot"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof pinSnapshot>>,
+    { id: string; data: { pinned: boolean } }
+  > = (props) => {
+    const { id, data } = props ?? {};
+    return pinSnapshot(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PinSnapshotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof pinSnapshot>>
+>;
+
+export type PinSnapshotMutationError = ErrorType<void>;
+
+/**
+ * @summary Pin or unpin a snapshot
+ */
+export const usePinSnapshot = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof pinSnapshot>>,
+    TError,
+    { id: string; data: { pinned: boolean } },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof pinSnapshot>>,
+  TError,
+  { id: string; data: { pinned: boolean } },
+  TContext
+> => {
+  return useMutation(getPinSnapshotMutationOptions(options));
+};

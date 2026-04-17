@@ -1362,6 +1362,39 @@ paths:
         "404":
           description: One or both snapshots not found
 
+  /snapshots/{id}/pin:
+    patch:
+      operationId: pinSnapshot
+      tags: [snapshots]
+      summary: Pin or unpin a snapshot
+      description: Sets the pinned flag on a snapshot. Pinned snapshots are never removed during housekeeping.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pinned:
+                  type: boolean
+              required:
+                - pinned
+      responses:
+        "200":
+          description: Updated snapshot metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotMeta"
+        "404":
+          description: Snapshot not found
+
   /snapshots/{id}/restore:
     post:
       operationId: restoreSnapshot
@@ -2637,6 +2670,8 @@ components:
           type: number
         lineCount:
           type: integer
+        pinned:
+          type: boolean
       required:
         - id
         - timestamp
@@ -2644,6 +2679,7 @@ components:
         - totalBudget
         - totalSpent
         - lineCount
+        - pinned
 
     SnapshotPlan:
       type: object

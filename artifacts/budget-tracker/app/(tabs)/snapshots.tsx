@@ -26,6 +26,7 @@ import {
   useRestoreSnapshot,
   useDeleteSnapshot,
   useCompareSnapshots,
+  usePinSnapshot,
   getListSnapshotsQueryKey,
   type SnapshotMeta,
   type SnapshotDiff,
@@ -74,13 +75,16 @@ interface SnapshotRowProps {
   onDownload: (id: string) => void;
   compareSlot?: "A" | "B" | null;
   compareMode?: boolean;
+  onPin: (id: string, pinned: boolean) => void;
+  pinning: boolean;
 }
 
-function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, compareSlot, compareMode }: SnapshotRowProps) {
+function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, compareSlot, compareMode, onPin, pinning }: SnapshotRowProps) {
   const colors = useColors();
 
   let borderColor = isSelected ? colors.primary : colors.border;
   let bg = isSelected ? colors.primary + "10" : colors.card;
+  if (!compareSlot && snap.pinned) { borderColor = "#f59e0b"; }
   if (compareSlot === "A") { borderColor = "#2563eb"; bg = "#2563eb10"; }
   if (compareSlot === "B") { borderColor = "#16a34a"; bg = "#16a34a10"; }
 
@@ -107,7 +111,14 @@ function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, co
         )}
         <View style={styles.rowMeta}>
           <Text style={[styles.rowDate, { color: colors.foreground }]}>{fmtDate(snap.timestamp)}</Text>
-          <LabelBadge label={snap.label} />
+          <View style={styles.rowBadgeRow}>
+            <LabelBadge label={snap.label} />
+            {snap.pinned && (
+              <View style={[styles.badge, { backgroundColor: "#f59e0b20" }]}>
+                <Text style={[styles.badgeText, { color: "#f59e0b" }]}>pinned</Text>
+              </View>
+            )}
+          </View>
         </View>
       </View>
       <View style={styles.rowRight}>
@@ -130,6 +141,22 @@ function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, co
           )}
         </TouchableOpacity>
       )}
+      <TouchableOpacity
+        onPress={(e) => { e.stopPropagation?.(); onPin(snap.id, !snap.pinned); }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        disabled={pinning}
+        style={styles.pinBtn}
+      >
+        {pinning ? (
+          <ActivityIndicator size="small" color="#f59e0b" />
+        ) : (
+          <Feather
+            name="bookmark"
+            size={14}
+            color={snap.pinned ? "#f59e0b" : colors.mutedForeground}
+          />
+        )}
+      </TouchableOpacity>
       <Feather name="chevron-right" size={14} color={compareSlot ? borderColor : (isSelected ? colors.primary : colors.mutedForeground)} />
     </TouchableOpacity>
   );
@@ -140,18 +167,20 @@ interface DetailPanelProps {
   onRestore: (id: string) => void;
   onDelete: (id: string) => void;
   onDownload: (id: string) => void;
+  onPin: (id: string, pinned: boolean) => void;
   onClose: () => void;
   restoring: boolean;
   deleting: boolean;
   downloading: boolean;
+  pinning: boolean;
 }
 
-function DetailPanel({ snap, onRestore, onDelete, onDownload, onClose, restoring, deleting, downloading }: DetailPanelProps) {
+function DetailPanel({ snap, onRestore, onDelete, onDownload, onPin, onClose, restoring, deleting, downloading, pinning }: DetailPanelProps) {
   const colors = useColors();
   const spent = snap.totalBudget > 0 ? (snap.totalSpent / snap.totalBudget) * 100 : 0;
 
   return (
-    <View style={[styles.detail, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[styles.detail, { backgroundColor: colors.card, borderColor: snap.pinned ? "#f59e0b" : colors.border }]}>
       <View style={styles.detailHeader}>
         <Text style={[styles.detailTitle, { color: colors.foreground }]}>Snapshot Detail</Text>
         <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -166,6 +195,26 @@ function DetailPanel({ snap, onRestore, onDelete, onDownload, onClose, restoring
       <View style={[styles.detailSection, { borderColor: colors.border }]}>
         <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Label</Text>
         <LabelBadge label={snap.label} />
+      </View>
+      <View style={[styles.detailSection, { borderColor: colors.border }]}>
+        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Protected</Text>
+        <TouchableOpacity
+          onPress={() => onPin(snap.id, !snap.pinned)}
+          disabled={pinning || restoring || deleting}
+          style={[styles.pinToggle, { backgroundColor: snap.pinned ? "#f59e0b20" : colors.muted }]}
+          activeOpacity={0.7}
+        >
+          {pinning ? (
+            <ActivityIndicator size="small" color="#f59e0b" />
+          ) : (
+            <>
+              <Feather name="bookmark" size={13} color={snap.pinned ? "#f59e0b" : colors.mutedForeground} />
+              <Text style={[styles.pinToggleText, { color: snap.pinned ? "#f59e0b" : colors.mutedForeground }]}>
+                {snap.pinned ? "Pinned — tap to unpin" : "Tap to pin"}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
       </View>
       <View style={[styles.detailSection, { borderColor: colors.border }]}>
         <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Budget Lines</Text>
@@ -194,7 +243,7 @@ function DetailPanel({ snap, onRestore, onDelete, onDownload, onClose, restoring
         <TouchableOpacity
           style={[styles.detailBtn, { backgroundColor: colors.primary }]}
           onPress={() => onRestore(snap.id)}
-          disabled={restoring || deleting || downloading}
+          disabled={restoring || deleting || downloading || pinning}
           activeOpacity={0.8}
         >
           {restoring ? (
@@ -226,7 +275,7 @@ function DetailPanel({ snap, onRestore, onDelete, onDownload, onClose, restoring
         <TouchableOpacity
           style={[styles.detailBtn, { backgroundColor: colors.destructive ?? "#ef4444" }]}
           onPress={() => onDelete(snap.id)}
-          disabled={restoring || deleting || downloading}
+          disabled={restoring || deleting || downloading || pinning}
           activeOpacity={0.8}
         >
           {deleting ? (
@@ -242,6 +291,7 @@ function DetailPanel({ snap, onRestore, onDelete, onDownload, onClose, restoring
 
       <Text style={[styles.detailWarning, { color: colors.mutedForeground }]}>
         Restoring will overwrite all current data. A pre-restore backup will be saved automatically.
+        {snap.pinned ? " This snapshot is pinned and will never be auto-deleted." : ""}
       </Text>
     </View>
   );
@@ -506,6 +556,7 @@ export default function SnapshotsScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [pinningId, setPinningId] = useState<string | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [labelInput, setLabelInput] = useState("");
 
@@ -519,6 +570,7 @@ export default function SnapshotsScreen() {
   const createSnap = useCreateSnapshot();
   const restoreSnap = useRestoreSnapshot();
   const deleteSnap = useDeleteSnapshot();
+  const pinSnap = usePinSnapshot();
 
   const invalidate = useCallback(() => {
     qc.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
@@ -687,6 +739,18 @@ export default function SnapshotsScreen() {
     }
   }, []);
 
+  const handlePin = useCallback((id: string, pinned: boolean) => {
+    setPinningId(id);
+    pinSnap.mutate(
+      { id, data: { pinned } },
+      {
+        onSuccess: () => invalidate(),
+        onError: () => Alert.alert("Error", "Failed to update pin state."),
+        onSettled: () => setPinningId(null),
+      }
+    );
+  }, [pinSnap, invalidate]);
+
   const selectedSnap = selectedId ? (snapshots as SnapshotMeta[]).find((s) => s.id === selectedId) ?? null : null;
 
   const listContent = (
@@ -763,6 +827,8 @@ export default function SnapshotsScreen() {
               onDownload={handleDownload}
               compareSlot={compareA === snap.id ? "A" : compareB === snap.id ? "B" : null}
               compareMode={compareMode}
+              onPin={handlePin}
+              pinning={pinningId === snap.id}
             />
           ))}
         </View>
@@ -776,10 +842,12 @@ export default function SnapshotsScreen() {
       onRestore={handleRestore}
       onDelete={handleDelete}
       onDownload={handleDownload}
+      onPin={handlePin}
       onClose={() => setSelectedId(null)}
       restoring={restoringId === selectedSnap.id}
       deleting={deletingId === selectedSnap.id}
       downloading={downloadingId === selectedSnap.id}
+      pinning={pinningId === selectedSnap.id}
     />
   ) : null;
 
@@ -931,6 +999,8 @@ const styles = StyleSheet.create({
   rowRight: { alignItems: "flex-end", gap: 2, marginRight: 4 },
   rowBudget: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   rowLines: { fontSize: 11 },
+  rowBadgeRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  pinBtn: { padding: 2, marginRight: 2 },
   badge: { alignSelf: "flex-start", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
   slotBadge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
@@ -983,4 +1053,6 @@ const styles = StyleSheet.create({
   diffChangeRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   diffChangeField: { fontSize: 11, fontFamily: "Inter_500Medium", minWidth: 80 },
   diffChangeVal: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  pinToggle: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
+  pinToggleText: { fontSize: 12, fontFamily: "Inter_500Medium" },
 });

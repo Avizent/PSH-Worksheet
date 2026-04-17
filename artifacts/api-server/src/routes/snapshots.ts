@@ -33,6 +33,7 @@ interface SnapshotMeta {
   totalBudget: number;
   totalSpent: number;
   lineCount: number;
+  pinned: boolean;
 }
 
 interface SnapshotPlan {
@@ -81,6 +82,7 @@ interface SnapshotCategory {
 interface SnapshotBody {
   timestamp: string;
   label: string;
+  pinned?: boolean;
   budgetLines: SnapshotBudgetLine[];
   owners: SnapshotOwner[];
   categories: SnapshotCategory[];
@@ -103,6 +105,7 @@ function parseMeta(filename: string, body: SnapshotBody): SnapshotMeta {
     totalBudget,
     totalSpent,
     lineCount: body.budgetLines.length,
+    pinned: body.pinned ?? false,
   };
 }
 
@@ -140,6 +143,7 @@ async function captureSnapshot(label: string): Promise<{ meta: SnapshotMeta; fil
   const body: SnapshotBody = {
     timestamp,
     label,
+    pinned: false,
     budgetLines: budgetLines.map((bl) => ({
       id: bl.id,
       category: bl.category,
@@ -185,15 +189,16 @@ function applyHousekeeping() {
   let deleted = 0;
   for (const file of files) {
     if (deleted >= excess) break;
-    // Only auto-delete auto-open/auto-close snapshots
+    // Only auto-delete auto-open/auto-close snapshots; never delete pinned ones
     const isAuto = AUTO_LABELS.some((label) => file.includes(`_${label}.json`));
-    if (isAuto) {
-      try {
-        fs.unlinkSync(path.join(SNAPSHOTS_DIR, file));
-        deleted++;
-      } catch (e) {
-        logger.warn({ file, err: e }, "Failed to delete snapshot during housekeeping");
-      }
+    if (!isAuto) continue;
+    const body = readSnapshotFile(file);
+    if (body?.pinned) continue;
+    try {
+      fs.unlinkSync(path.join(SNAPSHOTS_DIR, file));
+      deleted++;
+    } catch (e) {
+      logger.warn({ file, err: e }, "Failed to delete snapshot during housekeeping");
     }
   }
 }
@@ -585,6 +590,31 @@ router.delete("/snapshots/:id", asyncHandler(async (req, res): Promise<void> => 
   fs.unlinkSync(filepath);
   logger.info({ filename }, "Snapshot deleted");
   res.status(204).send();
+}));
+
+// ─── PATCH /snapshots/:id/pin ─────────────────────────────────────────────────
+
+router.patch("/snapshots/:id/pin", asyncHandler(async (req, res): Promise<void> => {
+  const filename = idFromStem(req.params.id);
+  if (filename.includes("..") || filename.includes("/")) {
+    res.status(400).json({ error: "Invalid snapshot ID" });
+    return;
+  }
+  const body = readSnapshotFile(filename);
+  if (!body) {
+    res.status(404).json({ error: "Snapshot not found" });
+    return;
+  }
+  if (typeof req.body?.pinned !== "boolean") {
+    res.status(400).json({ error: "Request body must include a boolean 'pinned' field" });
+    return;
+  }
+  const pinned: boolean = req.body.pinned;
+  body.pinned = pinned;
+  const filepath = path.join(SNAPSHOTS_DIR, filename);
+  fs.writeFileSync(filepath, JSON.stringify(body, null, 2), "utf-8");
+  logger.info({ filename, pinned }, "Snapshot pin state updated");
+  res.json(parseMeta(filename, body));
 }));
 
 export default router;

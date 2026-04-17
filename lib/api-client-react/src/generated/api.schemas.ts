@@ -600,6 +600,7 @@ export interface SnapshotMeta {
   totalBudget: number;
   totalSpent: number;
   lineCount: number;
+  pinned: boolean;
 }
 
 export interface SnapshotPlan {
