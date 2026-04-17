@@ -47,6 +47,7 @@ import type {
   EvaluateAlertsParams,
   ExcelImportResult,
   ExcelImportValidationError,
+  ExcelValidateResult,
   ExportExcelParams,
   ExportPdfParams,
   ForecastComparison,
@@ -82,6 +83,7 @@ import type {
   UpdateOwnerBody,
   UpsertMonthlyActualByLineBody,
   UpsertMonthlyPlanByLineBody,
+  ValidateBudgetExcelBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -5041,6 +5043,96 @@ export function useExportBudgetExcel<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Validates the structure and data of an .xlsx file without writing to the database. Returns errors or a row count if valid.
+ * @summary Validate an Excel file without importing
+ */
+export const getValidateBudgetExcelUrl = () => {
+  return `/api/excel/validate`;
+};
+
+export const validateBudgetExcel = async (
+  validateBudgetExcelBody: ValidateBudgetExcelBody,
+  options?: RequestInit,
+): Promise<ExcelValidateResult> => {
+  const formData = new FormData();
+  formData.append(`file`, validateBudgetExcelBody.file);
+
+  return customFetch<ExcelValidateResult>(getValidateBudgetExcelUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getValidateBudgetExcelMutationOptions = <
+  TError = ErrorType<ExcelImportValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof validateBudgetExcel>>,
+    TError,
+    { data: BodyType<ValidateBudgetExcelBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof validateBudgetExcel>>,
+  TError,
+  { data: BodyType<ValidateBudgetExcelBody> },
+  TContext
+> => {
+  const mutationKey = ["validateBudgetExcel"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof validateBudgetExcel>>,
+    { data: BodyType<ValidateBudgetExcelBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return validateBudgetExcel(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ValidateBudgetExcelMutationResult = NonNullable<
+  Awaited<ReturnType<typeof validateBudgetExcel>>
+>;
+export type ValidateBudgetExcelMutationBody = BodyType<ValidateBudgetExcelBody>;
+export type ValidateBudgetExcelMutationError =
+  ErrorType<ExcelImportValidationError>;
+
+/**
+ * @summary Validate an Excel file without importing
+ */
+export const useValidateBudgetExcel = <
+  TError = ErrorType<ExcelImportValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof validateBudgetExcel>>,
+    TError,
+    { data: BodyType<ValidateBudgetExcelBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof validateBudgetExcel>>,
+  TError,
+  { data: BodyType<ValidateBudgetExcelBody> },
+  TContext
+> => {
+  return useMutation(getValidateBudgetExcelMutationOptions(options));
+};
 
 /**
  * Accepts an .xlsx file in the export format, validates it, then upserts the budget data

@@ -10,5 +10,6 @@ import type { ExcelImportCounts } from "./excelImportCounts";
 export interface ExcelImportResult {
   valid: boolean;
   message: string;
+  snapshotSaved: boolean;
   counts: ExcelImportCounts;
 }

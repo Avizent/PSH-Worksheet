@@ -1188,6 +1188,38 @@ paths:
                 type: string
                 format: binary
 
+  /excel/validate:
+    post:
+      operationId: validateBudgetExcel
+      tags: [excel]
+      summary: Validate an Excel file without importing
+      description: Validates the structure and data of an .xlsx file without writing to the database. Returns errors or a row count if valid.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+      responses:
+        "200":
+          description: Validation passed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExcelValidateResult"
+        "422":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExcelImportValidationError"
+
   /excel/import:
     post:
       operationId: importBudgetExcel
@@ -2415,6 +2447,17 @@ components:
         - plansWritten
         - actualsWritten
 
+    ExcelValidateResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        rowCount:
+          type: integer
+      required:
+        - valid
+        - rowCount
+
     ExcelImportResult:
       type: object
       properties:
@@ -2422,9 +2465,12 @@ components:
           type: boolean
         message:
           type: string
+        snapshotSaved:
+          type: boolean
         counts:
           $ref: "#/components/schemas/ExcelImportCounts"
       required:
         - valid
         - message
+        - snapshotSaved
         - counts

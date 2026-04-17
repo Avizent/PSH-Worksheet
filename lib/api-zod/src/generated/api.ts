@@ -1255,6 +1255,19 @@ export const SeedDataResponse = zod.object({
 });
 
 /**
+ * Validates the structure and data of an .xlsx file without writing to the database. Returns errors or a row count if valid.
+ * @summary Validate an Excel file without importing
+ */
+export const ValidateBudgetExcelBody = zod.object({
+  file: zod.instanceof(File),
+});
+
+export const ValidateBudgetExcelResponse = zod.object({
+  valid: zod.boolean(),
+  rowCount: zod.number(),
+});
+
+/**
  * Accepts an .xlsx file in the export format, validates it, then upserts the budget data
  * @summary Import budget from Excel
  */
@@ -1265,6 +1278,7 @@ export const ImportBudgetExcelBody = zod.object({
 export const ImportBudgetExcelResponse = zod.object({
   valid: zod.boolean(),
   message: zod.string(),
+  snapshotSaved: zod.boolean(),
   counts: zod.object({
     upserted: zod.number(),
     inserted: zod.number(),

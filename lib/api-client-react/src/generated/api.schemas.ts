@@ -581,9 +581,15 @@ export interface ExcelImportCounts {
   actualsWritten: number;
 }
 
+export interface ExcelValidateResult {
+  valid: boolean;
+  rowCount: number;
+}
+
 export interface ExcelImportResult {
   valid: boolean;
   message: string;
+  snapshotSaved: boolean;
   counts: ExcelImportCounts;
 }
 
@@ -659,6 +665,10 @@ export type ListAuditLogsParams = {
   endDate?: string;
   limit?: number;
   offset?: number;
+};
+
+export type ValidateBudgetExcelBody = {
+  file: Blob;
 };
 
 export type ImportBudgetExcelBody = {

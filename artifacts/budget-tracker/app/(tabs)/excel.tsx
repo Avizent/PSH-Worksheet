@@ -8,8 +8,6 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   TextInput,
-  Modal,
-  Linking,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -22,7 +20,10 @@ import { useToast } from "@/contexts/ToastContext";
 import { getApiUrl } from "@/utils/getApiUrl";
 import { useListAlerts } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getListBudgetLinesWithMonthlyQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import {
+  getListBudgetLinesWithMonthlyQueryKey,
+  getGetDashboardSummaryQueryKey,
+} from "@workspace/api-client-react";
 
 interface ValidationError {
   column: string;
@@ -33,6 +34,7 @@ interface ValidationError {
 interface ImportResult {
   valid: boolean;
   message: string;
+  snapshotSaved: boolean;
   counts: {
     upserted: number;
     inserted: number;
@@ -44,9 +46,9 @@ interface ImportResult {
 
 type ImportState =
   | { phase: "idle" }
-  | { phase: "uploading" }
+  | { phase: "validating" }
   | { phase: "errors"; errors: ValidationError[] }
-  | { phase: "confirm"; file: File }
+  | { phase: "confirm"; file: File; rowCount: number }
   | { phase: "importing" }
   | { phase: "done"; result: ImportResult };
 
@@ -86,52 +88,32 @@ export default function ExcelScreen() {
         URL.revokeObjectURL(a.href);
         showToast("Excel file downloaded.");
       } else {
-        // On native, open URL in browser (expo-sharing not installed)
-        await Linking.openURL(url);
-        showToast("Opening export in browser…");
+        // Native: download to cache then share via system share sheet
+        const { FileSystem, Sharing } = await loadNativeModules();
+        if (!FileSystem || !Sharing) {
+          showToast("Sharing not available on this device.", "error");
+          return;
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        const filename = `budget_export_${today}.xlsx`;
+        const localUri = `${FileSystem.cacheDirectory}${filename}`;
+        await FileSystem.downloadAsync(url, localUri);
+        await Sharing.shareAsync(localUri, {
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          dialogTitle: "Save or share budget export",
+          UTI: "org.openxmlformats.spreadsheetml.sheet",
+        });
       }
-    } catch {
-      showToast("Export failed. Please try again.", "error");
+    } catch (e: unknown) {
+      showToast("Export failed: " + (e instanceof Error ? e.message : String(e)), "error");
     } finally {
       setExportLoading(false);
     }
   };
 
-  // ─── Import: file picking ───────────────────────────────────────────────────
+  // ─── Import: Step 1 — pick and validate ────────────────────────────────────
 
-  const uploadForValidation = async (file: File) => {
-    setImportState({ phase: "uploading" });
-    setConfirmText("");
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const baseUrl = getApiUrl();
-      const res = await fetch(`${baseUrl}/api/excel/import`, {
-        method: "POST",
-        body: formData,
-      });
-      const json = await res.json();
-
-      if (!res.ok || json.valid === false) {
-        setImportState({ phase: "errors", errors: json.errors ?? [{ column: "file", row: 0, message: json.error ?? "Unknown error" }] });
-        return;
-      }
-
-      // Validation passed on a dry run? No — the current route does the full import.
-      // We split the flow: validation IS the import. So if we get here, import is done.
-      const result = json as ImportResult;
-      setImportState({ phase: "done", result });
-      showToast("Budget imported. A pre-import snapshot has been saved to the Snapshot Manager.");
-      queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey({ year: 2026 }) });
-      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey({ year: 2026 }) });
-    } catch (e: unknown) {
-      showToast("Upload error: " + (e instanceof Error ? e.message : String(e)), "error");
-      setImportState({ phase: "idle" });
-    }
-  };
-
-  // Show the confirm dialog before uploading
-  const pickAndStage = async () => {
+  const pickAndValidate = async () => {
     if (Platform.OS === "web") {
       fileInputRef.current?.click();
       return;
@@ -148,27 +130,80 @@ export default function ExcelScreen() {
         const file = new File([blob], asset.name ?? "import.xlsx", {
           type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         });
-        stageFile(file);
+        await validateFile(file);
       }
     } catch (e: unknown) {
       showToast("Error picking file: " + (e instanceof Error ? e.message : String(e)), "error");
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target?.files?.[0];
-    if (file) stageFile(file);
+    if (file) await validateFile(file);
     if (e.target) e.target.value = "";
   };
 
-  const stageFile = (file: File) => {
-    setImportState({ phase: "confirm", file });
+  const validateFile = async (file: File) => {
+    setImportState({ phase: "validating" });
     setConfirmText("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const baseUrl = getApiUrl();
+      const res = await fetch(`${baseUrl}/api/excel/validate`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+
+      if (!res.ok || json.valid === false) {
+        setImportState({
+          phase: "errors",
+          errors: json.errors ?? [{ column: "file", row: 0, message: json.error ?? "Unknown error" }],
+        });
+        return;
+      }
+
+      // Validation passed — move to confirm stage (no DB writes yet)
+      setImportState({ phase: "confirm", file, rowCount: json.rowCount });
+    } catch (e: unknown) {
+      showToast("Validation error: " + (e instanceof Error ? e.message : String(e)), "error");
+      setImportState({ phase: "idle" });
+    }
   };
 
-  const doImport = () => {
+  // ─── Import: Step 2 — confirmed import ─────────────────────────────────────
+
+  const doImport = async () => {
     if (importState.phase !== "confirm") return;
-    uploadForValidation(importState.file);
+    const { file } = importState;
+    setImportState({ phase: "importing" });
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const baseUrl = getApiUrl();
+      const res = await fetch(`${baseUrl}/api/excel/import`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+
+      if (!res.ok || json.valid === false) {
+        setImportState({
+          phase: "errors",
+          errors: json.errors ?? [{ column: "file", row: 0, message: json.error ?? "Import failed" }],
+        });
+        return;
+      }
+
+      const result = json as ImportResult;
+      setImportState({ phase: "done", result });
+      queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey({ year: 2026 }) });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey({ year: 2026 }) });
+    } catch (e: unknown) {
+      showToast("Import error: " + (e instanceof Error ? e.message : String(e)), "error");
+      setImportState({ phase: "idle" });
+    }
   };
 
   const reset = () => {
@@ -202,11 +237,9 @@ export default function ExcelScreen() {
           </View>
         </View>
 
-        <View style={styles.formatNote}>
-          <Text style={[styles.formatText, { color: colors.mutedForeground }]}>
-            Columns: Category, Subcategory, Line Item, Owner, Region, Channel, Cost Status, Projection %, Board Approved Amount, Jan–Dec Plan, Jan–Dec Actual
-          </Text>
-        </View>
+        <Text style={[styles.formatText, { color: colors.mutedForeground }]}>
+          Columns: Category, Subcategory, Line Item, Owner, Region, Channel, Cost Status, Projection %, Board Approved Amount, Jan–Dec Plan, Jan–Dec Actual
+        </Text>
 
         <TouchableOpacity
           onPress={handleExport}
@@ -234,7 +267,7 @@ export default function ExcelScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.cardTitle, { color: colors.foreground }]}>Import from Excel</Text>
             <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
-              Upload an .xlsx file in the same format as the export. This will completely replace all budget data.
+              Upload an .xlsx file in the same format as the export. The file is validated before any data is changed.
             </Text>
           </View>
         </View>
@@ -253,7 +286,7 @@ export default function ExcelScreen() {
         {/* Idle / pick */}
         {importState.phase === "idle" && (
           <TouchableOpacity
-            onPress={pickAndStage}
+            onPress={pickAndValidate}
             style={[styles.uploadArea, { borderColor: colors.border }]}
             activeOpacity={0.7}
           >
@@ -262,17 +295,17 @@ export default function ExcelScreen() {
               {Platform.OS === "web" ? "Click to choose .xlsx file" : "Tap to choose .xlsx file"}
             </Text>
             <Text style={[styles.uploadSub, { color: colors.mutedForeground }]}>
-              Must match the export format exactly
+              Only .xlsx files are accepted — not .xls, .xlsm, or CSV
             </Text>
           </TouchableOpacity>
         )}
 
-        {/* Uploading / validating */}
-        {importState.phase === "uploading" && (
+        {/* Validating */}
+        {importState.phase === "validating" && (
           <View style={styles.statusRow}>
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={[styles.statusText, { color: colors.mutedForeground }]}>
-              Validating and importing…
+              Checking file…
             </Text>
           </View>
         )}
@@ -282,7 +315,7 @@ export default function ExcelScreen() {
           <View style={styles.statusRow}>
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={[styles.statusText, { color: colors.mutedForeground }]}>
-              Saving snapshot and importing data…
+              Saving and importing data…
             </Text>
           </View>
         )}
@@ -302,36 +335,48 @@ export default function ExcelScreen() {
                   {err.row > 0 ? `Row ${err.row}, ` : ""}{err.column}: {err.message}
                 </Text>
               ))}
+              <Text style={[styles.errorHint, { color: "#991b1b" }]}>
+                No data was changed. Fix the file and try again.
+              </Text>
             </View>
-            <TouchableOpacity onPress={reset} style={[styles.secondaryBtn, { borderColor: colors.border, marginTop: 8 }]} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={reset}
+              style={[styles.secondaryBtn, { borderColor: colors.border, marginTop: 8 }]}
+              activeOpacity={0.7}
+            >
               <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
               <Text style={[styles.secondaryBtnText, { color: colors.mutedForeground }]}>Try another file</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Confirm (staged) */}
+        {/* Confirm — only shown after validation passes */}
         {importState.phase === "confirm" && (
           <View>
+            {/* Validation passed badge */}
+            <View style={styles.validBadge}>
+              <Feather name="check-circle" size={14} color="#16a34a" />
+              <Text style={styles.validBadgeText}>
+                File validated — {importState.rowCount} budget line{importState.rowCount !== 1 ? "s" : ""} ready to import
+              </Text>
+            </View>
+
             {/* Warning box */}
-            <View style={styles.warningBox}>
+            <View style={[styles.warningBox, { marginTop: 12 }]}>
               <View style={styles.warningHeader}>
                 <Feather name="alert-triangle" size={18} color="#92400e" />
-                <Text style={styles.warningTitle}>⚠ This will overwrite all current budget data</Text>
+                <Text style={styles.warningTitle}>This will overwrite all current budget data</Text>
               </View>
               <Text style={styles.warningBody}>
                 Importing this file will{" "}
-                <Text style={{ fontFamily: "Inter_700Bold" }}>permanently replace</Text> all 27 budget
-                lines, their monthly plan figures, and all recorded actuals. This action cannot be undone
+                <Text style={{ fontFamily: "Inter_700Bold" }}>permanently replace</Text> all budget
+                lines, their monthly plan figures, and all recorded actuals. This cannot be undone
                 except by restoring from a snapshot.
               </Text>
               <Text style={styles.warningBody}>
-                A <Text style={{ fontFamily: "Inter_600SemiBold" }}>pre-import snapshot</Text> will be
-                saved automatically before the import begins so you can recover from the Snapshot Manager
-                if needed.
-              </Text>
-              <Text style={styles.warningBody}>
-                File ready: <Text style={{ fontFamily: "Inter_600SemiBold" }}>{(importState as { phase: "confirm"; file: File }).file.name}</Text>
+                The system will attempt to save a{" "}
+                <Text style={{ fontFamily: "Inter_600SemiBold" }}>pre-import snapshot</Text> before
+                writing any data.
               </Text>
             </View>
 
@@ -340,7 +385,7 @@ export default function ExcelScreen() {
               <Text style={[styles.confirmLabel, { color: colors.foreground }]}>
                 Type{" "}
                 <Text style={{ fontFamily: "Inter_700Bold", color: "#dc2626" }}>CONFIRM</Text>{" "}
-                to enable the button below:
+                to enable the import button:
               </Text>
               <TextInput
                 value={confirmText}
@@ -416,11 +461,21 @@ export default function ExcelScreen() {
                   <Text style={styles.countLabel}>Actual rows</Text>
                 </View>
               </View>
-              <Text style={[styles.snapshotNote, { color: "#166534" }]}>
-                A pre-import snapshot has been saved to the Snapshot Manager.
-              </Text>
+              {importState.result.snapshotSaved ? (
+                <Text style={[styles.snapshotNote, { color: "#166534" }]}>
+                  A pre-import snapshot was saved to the Snapshot Manager.
+                </Text>
+              ) : (
+                <Text style={[styles.snapshotNote, { color: "#78350f" }]}>
+                  Note: the pre-import snapshot could not be saved (Snapshot Manager not yet available).
+                </Text>
+              )}
             </View>
-            <TouchableOpacity onPress={reset} style={[styles.secondaryBtn, { borderColor: colors.border, marginTop: 8 }]} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={reset}
+              style={[styles.secondaryBtn, { borderColor: colors.border, marginTop: 8 }]}
+              activeOpacity={0.7}
+            >
               <Feather name="upload-cloud" size={14} color={colors.mutedForeground} />
               <Text style={[styles.secondaryBtnText, { color: colors.mutedForeground }]}>Import another file</Text>
             </TouchableOpacity>
@@ -445,6 +500,20 @@ export default function ExcelScreen() {
   return content;
 }
 
+// Lazy-load expo native modules to avoid web bundling issues.
+// Uses expo-file-system/legacy for the string cacheDirectory + downloadAsync API.
+async function loadNativeModules() {
+  try {
+    const [fs, sharing] = await Promise.all([
+      import("expo-file-system/legacy"),
+      import("expo-sharing"),
+    ]);
+    return { FileSystem: fs, Sharing: sharing };
+  } catch {
+    return { FileSystem: null, Sharing: null };
+  }
+}
+
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   desktopRoot: { flex: 1, flexDirection: "row" },
@@ -455,14 +524,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 20,
     marginBottom: 20,
-    gap: 16,
+    gap: 14,
   },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
   iconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   cardTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
   cardSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
-
-  formatNote: { paddingHorizontal: 4 },
   formatText: { fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 16 },
 
   secondaryBtn: {
@@ -492,15 +559,24 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 16 },
   statusText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 
-  errorBox: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
-    gap: 6,
-  },
-  errorBoxHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  errorBox: { borderWidth: 1, borderRadius: 8, padding: 14, gap: 6 },
+  errorBoxHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
   errorBoxTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   errorItem: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#991b1b", paddingLeft: 24, lineHeight: 18 },
+  errorHint: { fontSize: 12, fontFamily: "Inter_500Medium", paddingLeft: 24, marginTop: 4 },
+
+  validBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#f0fdf4",
+    borderWidth: 1,
+    borderColor: "#86efac",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  validBadgeText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#166534" },
 
   warningBox: {
     backgroundColor: "#fffbeb",
@@ -514,13 +590,7 @@ const styles = StyleSheet.create({
   warningTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#92400e" },
   warningBody: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#78350f", lineHeight: 19 },
 
-  confirmGate: {
-    marginTop: 8,
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
-    gap: 8,
-  },
+  confirmGate: { marginTop: 8, borderWidth: 1, borderRadius: 8, padding: 14, gap: 8 },
   confirmLabel: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
   confirmInput: {
     borderWidth: 1,
@@ -533,13 +603,7 @@ const styles = StyleSheet.create({
   },
 
   confirmButtons: { flexDirection: "row", gap: 10, marginTop: 12, flexWrap: "wrap" as const },
-  cancelBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
+  cancelBtn: { flex: 1, borderWidth: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
   cancelBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
   destructiveBtn: {
     flex: 2,
@@ -554,12 +618,7 @@ const styles = StyleSheet.create({
   destructiveBtnDisabled: { backgroundColor: "#fca5a5" },
   destructiveBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
-  successBox: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
-    gap: 10,
-  },
+  successBox: { borderWidth: 1, borderRadius: 8, padding: 14, gap: 10 },
   successHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   successTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   successBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
