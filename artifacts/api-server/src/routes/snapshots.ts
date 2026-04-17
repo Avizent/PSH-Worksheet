@@ -8,6 +8,8 @@ import {
   monthlyActualsTable,
   ownersTable,
   categoriesTable,
+  csvImportRowsTable,
+  csvImportsTable,
 } from "@workspace/db";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { logger } from "../lib/logger";
@@ -581,7 +583,9 @@ router.post(
     }
 
     await db.transaction(async (tx) => {
-      // Delete in FK order
+      // Delete in FK order (csv_import_rows references budget_lines, must go first)
+      await tx.delete(csvImportRowsTable);
+      await tx.delete(csvImportsTable);
       await tx.delete(monthlyActualsTable);
       await tx.delete(monthlyPlansTable);
       await tx.delete(budgetLinesTable);
