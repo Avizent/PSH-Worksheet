@@ -13,6 +13,8 @@ import {
 } from "@workspace/db";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { logger } from "../lib/logger";
+import { isValidVpSession } from "../middleware/vpAuth";
+import { isValidUserSession } from "./userAuth";
 
 const router: IRouter = Router();
 
@@ -284,6 +286,157 @@ export async function createSnapshot(label: string): Promise<SnapshotMeta> {
   };
 }
 
+// ─── Diff helpers (shared by compare JSON and PDF endpoints) ─────────────────
+
+interface DiffChange { field: string; from: string | null; to: string | null; }
+interface DiffLine {
+  status: "added" | "removed" | "changed" | "unchanged";
+  lineItem: string;
+  category: string;
+  subcategory: string | null;
+  totalBudgetA: number | null;
+  totalBudgetB: number | null;
+  changes: DiffChange[];
+}
+interface SnapshotDiffResult {
+  snapshotA: SnapshotMeta;
+  snapshotB: SnapshotMeta;
+  lines: DiffLine[];
+  summary: { added: number; removed: number; changed: number; unchanged: number };
+}
+
+function lineKey(bl: SnapshotBudgetLine): string {
+  return [
+    bl.category,
+    bl.subcategory ?? "",
+    bl.lineItem,
+    bl.owner ?? "",
+    bl.region ?? "",
+    bl.channel ?? "",
+  ]
+    .map((v) => v.replace(/\|/g, "\x01"))
+    .join("|");
+}
+
+function comparePair(a: SnapshotBudgetLine, b: SnapshotBudgetLine): DiffLine {
+  const totalA = a.plans.reduce((s, p) => s + p.plannedAmount, 0);
+  const totalB = b.plans.reduce((s, p) => s + p.plannedAmount, 0);
+  const changes: DiffChange[] = [];
+
+  if (a.costStatus !== b.costStatus)
+    changes.push({ field: "costStatus", from: a.costStatus, to: b.costStatus });
+  if (a.projectionPct !== b.projectionPct)
+    changes.push({ field: "projectionPct", from: String(a.projectionPct), to: String(b.projectionPct) });
+  if ((a.boardApprovedAmount ?? null) !== (b.boardApprovedAmount ?? null))
+    changes.push({
+      field: "boardApprovedAmount",
+      from: a.boardApprovedAmount != null ? String(a.boardApprovedAmount) : null,
+      to: b.boardApprovedAmount != null ? String(b.boardApprovedAmount) : null,
+    });
+
+  const planKey = (p: SnapshotPlan) => `${p.year}-${String(p.month).padStart(2, "0")}`;
+  const aPlans = new Map<string, SnapshotPlan>();
+  for (const p of a.plans) aPlans.set(planKey(p), p);
+  const bPlans = new Map<string, SnapshotPlan>();
+  for (const p of b.plans) bPlans.set(planKey(p), p);
+  for (const pk of Array.from(new Set([...aPlans.keys(), ...bPlans.keys()])).sort()) {
+    const av = aPlans.get(pk)?.plannedAmount ?? 0;
+    const bv = bPlans.get(pk)?.plannedAmount ?? 0;
+    if (av !== bv) changes.push({ field: `plan:${pk}`, from: String(av), to: String(bv) });
+  }
+
+  const actualKey = (act: SnapshotActual) => `${act.year}-${String(act.month).padStart(2, "0")}`;
+  const aActuals = new Map<string, SnapshotActual>();
+  for (const act of a.actuals) aActuals.set(actualKey(act), act);
+  const bActuals = new Map<string, SnapshotActual>();
+  for (const act of b.actuals) bActuals.set(actualKey(act), act);
+  for (const ak of Array.from(new Set([...aActuals.keys(), ...bActuals.keys()])).sort()) {
+    const av = aActuals.get(ak)?.actualAmount ?? 0;
+    const bv = bActuals.get(ak)?.actualAmount ?? 0;
+    if (av !== bv) changes.push({ field: `actual:${ak}`, from: String(av), to: String(bv) });
+  }
+
+  return {
+    status: changes.length > 0 ? "changed" : "unchanged",
+    lineItem: a.lineItem,
+    category: a.category,
+    subcategory: a.subcategory,
+    totalBudgetA: totalA,
+    totalBudgetB: totalB,
+    changes,
+  };
+}
+
+function computeSnapshotDiff(aId: string, bId: string): SnapshotDiffResult | { error: string; status: number } {
+  const aFile = idFromStem(aId);
+  const bFile = idFromStem(bId);
+  if (aFile.includes("..") || aFile.includes("/") || bFile.includes("..") || bFile.includes("/"))
+    return { error: "Invalid snapshot ID", status: 400 };
+
+  const aBody = readSnapshotFile(aFile);
+  const bBody = readSnapshotFile(bFile);
+  if (!aBody) return { error: `Snapshot A not found: ${aId}`, status: 404 };
+  if (!bBody) return { error: `Snapshot B not found: ${bId}`, status: 404 };
+
+  const aMeta = parseMeta(aFile, aBody);
+  const bMeta = parseMeta(bFile, bBody);
+
+  const aMap = new Map<string, SnapshotBudgetLine[]>();
+  for (const bl of aBody.budgetLines) {
+    const k = lineKey(bl);
+    const arr = aMap.get(k) ?? [];
+    arr.push(bl);
+    aMap.set(k, arr);
+  }
+  const bMap = new Map<string, SnapshotBudgetLine[]>();
+  for (const bl of bBody.budgetLines) {
+    const k = lineKey(bl);
+    const arr = bMap.get(k) ?? [];
+    arr.push(bl);
+    bMap.set(k, arr);
+  }
+
+  const allKeys = new Set([...aMap.keys(), ...bMap.keys()]);
+  const diffLines: DiffLine[] = [];
+
+  for (const key of allKeys) {
+    const aArr = aMap.get(key) ?? [];
+    const bArr = bMap.get(key) ?? [];
+    const maxLen = Math.max(aArr.length, bArr.length);
+    for (let i = 0; i < maxLen; i++) {
+      const a = aArr[i];
+      const b = bArr[i];
+      if (a && !b) {
+        const totalA = a.plans.reduce((s, p) => s + p.plannedAmount, 0);
+        diffLines.push({ status: "removed", lineItem: a.lineItem, category: a.category, subcategory: a.subcategory, totalBudgetA: totalA, totalBudgetB: null, changes: [] });
+      } else if (!a && b) {
+        const totalB = b.plans.reduce((s, p) => s + p.plannedAmount, 0);
+        diffLines.push({ status: "added", lineItem: b.lineItem, category: b.category, subcategory: b.subcategory, totalBudgetA: null, totalBudgetB: totalB, changes: [] });
+      } else if (a && b) {
+        diffLines.push(comparePair(a, b));
+      }
+    }
+  }
+
+  diffLines.sort((x, y) => {
+    const order: Record<string, number> = { added: 0, removed: 1, changed: 2, unchanged: 3 };
+    const d = order[x.status] - order[y.status];
+    if (d !== 0) return d;
+    const cat = x.category.localeCompare(y.category);
+    if (cat !== 0) return cat;
+    return x.lineItem.localeCompare(y.lineItem);
+  });
+
+  const summary = {
+    added: diffLines.filter((l) => l.status === "added").length,
+    removed: diffLines.filter((l) => l.status === "removed").length,
+    changed: diffLines.filter((l) => l.status === "changed").length,
+    unchanged: diffLines.filter((l) => l.status === "unchanged").length,
+  };
+
+  return { snapshotA: aMeta, snapshotB: bMeta, lines: diffLines, summary };
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // ─── GET /snapshots ───────────────────────────────────────────────────────────
@@ -304,214 +457,194 @@ router.get(
   asyncHandler(async (req, res): Promise<void> => {
     const aId = String(req.query.a ?? "").trim();
     const bId = String(req.query.b ?? "").trim();
-
     if (!aId || !bId) {
       res.status(400).json({ error: "Both 'a' and 'b' query parameters are required" });
       return;
     }
+    const result = computeSnapshotDiff(aId, bId);
+    if ("error" in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json(result);
+  }),
+);
 
-    const aFile = idFromStem(aId);
-    const bFile = idFromStem(bId);
+// ─── GET /snapshots/compare/pdf ──────────────────────────────────────────────
 
-    if (
-      aFile.includes("..") ||
-      aFile.includes("/") ||
-      bFile.includes("..") ||
-      bFile.includes("/")
-    ) {
-      res.status(400).json({ error: "Invalid snapshot ID" });
+router.get(
+  "/snapshots/compare/pdf",
+  asyncHandler(async (req, res): Promise<void> => {
+    const vpSession = req.headers["x-vp-session"] as string | undefined;
+    const userSession = req.headers["x-user-session"] as string | undefined;
+    const authed =
+      (vpSession && isValidVpSession(vpSession)) ||
+      (userSession && isValidUserSession(userSession));
+    if (!authed) {
+      res.status(401).json({ error: "Authentication required" });
       return;
     }
 
-    const aBody = readSnapshotFile(aFile);
-    const bBody = readSnapshotFile(bFile);
-
-    if (!aBody) {
-      res.status(404).json({ error: `Snapshot A not found: ${aId}` });
+    const aId = String(req.query.a ?? "").trim();
+    const bId = String(req.query.b ?? "").trim();
+    if (!aId || !bId) {
+      res.status(400).json({ error: "Both 'a' and 'b' query parameters are required" });
       return;
     }
-    if (!bBody) {
-      res.status(404).json({ error: `Snapshot B not found: ${bId}` });
+    const includeUnchanged = String(req.query.includeUnchanged ?? "false") === "true";
+
+    const result = computeSnapshotDiff(aId, bId);
+    if ("error" in result) {
+      res.status(result.status).json({ error: result.error });
       return;
     }
 
-    const aMeta = parseMeta(aFile, aBody);
-    const bMeta = parseMeta(bFile, bBody);
+    const { snapshotA, snapshotB, lines, summary } = result;
+    const visibleLines = includeUnchanged ? lines : lines.filter((l) => l.status !== "unchanged");
 
-    // Build lookup maps keyed by composite identifying fields to avoid collisions.
-    const lineKey = (bl: SnapshotBudgetLine) =>
-      [
-        bl.category,
-        bl.subcategory ?? "",
-        bl.lineItem,
-        bl.owner ?? "",
-        bl.region ?? "",
-        bl.channel ?? "",
-      ]
-        .map((v) => v.replace(/\|/g, "\x01"))
-        .join("|");
+    const PDFDocument = (await import("pdfkit")).default;
+    const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
 
-    const aMap = new Map<string, SnapshotBudgetLine[]>();
-    for (const bl of aBody.budgetLines) {
-      const k = lineKey(bl);
-      const arr = aMap.get(k) ?? [];
-      arr.push(bl);
-      aMap.set(k, arr);
-    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'attachment; filename="snapshot-comparison.pdf"');
+    doc.pipe(res);
 
-    const bMap = new Map<string, SnapshotBudgetLine[]>();
-    for (const bl of bBody.budgetLines) {
-      const k = lineKey(bl);
-      const arr = bMap.get(k) ?? [];
-      arr.push(bl);
-      bMap.set(k, arr);
-    }
+    const fmtMoney = (v: number) => {
+      if (Math.abs(v) >= 1_000_000) return "\u00a3" + (v / 1_000_000).toFixed(2) + "M";
+      if (Math.abs(v) >= 1_000) return "\u00a3" + (v / 1_000).toFixed(1) + "k";
+      return "\u00a3" + Math.round(v).toLocaleString("en-GB");
+    };
+    const fmtDate = (iso: string) =>
+      new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-    const allKeys = new Set([...aMap.keys(), ...bMap.keys()]);
+    // ── Header ────────────────────────────────────────────────────────────────
+    doc.fontSize(20).font("Helvetica-Bold").fillColor("#1a1a2e")
+      .text("Hubert Marketing Budget", { align: "center" });
+    doc.moveDown(0.3);
+    doc.fontSize(11).font("Helvetica").fillColor("#6b7280")
+      .text(`Snapshot Comparison \u2014 Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, { align: "center" });
+    doc.moveDown(1);
 
-    interface DiffChange {
-      field: string;
-      from: string | null;
-      to: string | null;
-    }
-    interface DiffLine {
-      status: "added" | "removed" | "changed" | "unchanged";
-      lineItem: string;
-      category: string;
-      subcategory: string | null;
-      totalBudgetA: number | null;
-      totalBudgetB: number | null;
-      changes: DiffChange[];
-    }
+    // ── Snapshot labels ───────────────────────────────────────────────────────
+    const pageW = doc.page.width - 80;
+    const halfW = (pageW - 20) / 2;
+    const startY = doc.y;
 
-    const diffLines: DiffLine[] = [];
+    doc.rect(40, startY, halfW, 50).lineWidth(1).strokeColor("#2563eb").stroke();
+    doc.fontSize(9).font("Helvetica-Bold").fillColor("#2563eb").text("A  (BEFORE)", 48, startY + 6, { width: halfW - 16 });
+    doc.fontSize(8).font("Helvetica").fillColor("#1a1a2e").text(snapshotA.label, 48, startY + 18, { width: halfW - 16 });
+    doc.fontSize(7).fillColor("#6b7280").text(fmtDate(snapshotA.createdAt), 48, startY + 30, { width: halfW - 16 });
 
-    function comparePair(a: SnapshotBudgetLine, b: SnapshotBudgetLine): DiffLine {
-      const totalA = a.plans.reduce((s, p) => s + p.plannedAmount, 0);
-      const totalB = b.plans.reduce((s, p) => s + p.plannedAmount, 0);
+    const bx = 40 + halfW + 20;
+    doc.rect(bx, startY, halfW, 50).lineWidth(1).strokeColor("#16a34a").stroke();
+    doc.fontSize(9).font("Helvetica-Bold").fillColor("#16a34a").text("B  (AFTER)", bx + 8, startY + 6, { width: halfW - 16 });
+    doc.fontSize(8).font("Helvetica").fillColor("#1a1a2e").text(snapshotB.label, bx + 8, startY + 18, { width: halfW - 16 });
+    doc.fontSize(7).fillColor("#6b7280").text(fmtDate(snapshotB.createdAt), bx + 8, startY + 30, { width: halfW - 16 });
 
-      const changes: DiffChange[] = [];
+    doc.y = startY + 60;
+    doc.fillColor("#1a1a2e");
+    doc.moveDown(0.8);
 
-      if (a.costStatus !== b.costStatus) {
-        changes.push({ field: "costStatus", from: a.costStatus, to: b.costStatus });
-      }
-      if (a.projectionPct !== b.projectionPct) {
-        changes.push({
-          field: "projectionPct",
-          from: String(a.projectionPct),
-          to: String(b.projectionPct),
-        });
-      }
-      if ((a.boardApprovedAmount ?? null) !== (b.boardApprovedAmount ?? null)) {
-        changes.push({
-          field: "boardApprovedAmount",
-          from: a.boardApprovedAmount != null ? String(a.boardApprovedAmount) : null,
-          to: b.boardApprovedAmount != null ? String(b.boardApprovedAmount) : null,
-        });
-      }
-
-      const planKey = (p: SnapshotPlan) => `${p.year}-${String(p.month).padStart(2, "0")}`;
-      const aPlans = new Map<string, SnapshotPlan>();
-      for (const p of a.plans) aPlans.set(planKey(p), p);
-      const bPlans = new Map<string, SnapshotPlan>();
-      for (const p of b.plans) bPlans.set(planKey(p), p);
-
-      const allPlanKeys = new Set([...aPlans.keys(), ...bPlans.keys()]);
-      for (const pk of Array.from(allPlanKeys).sort()) {
-        const av = aPlans.get(pk)?.plannedAmount ?? 0;
-        const bv = bPlans.get(pk)?.plannedAmount ?? 0;
-        if (av !== bv) {
-          changes.push({ field: `plan:${pk}`, from: String(av), to: String(bv) });
-        }
-      }
-
-      const actualKey = (act: SnapshotActual) =>
-        `${act.year}-${String(act.month).padStart(2, "0")}`;
-      const aActuals = new Map<string, SnapshotActual>();
-      for (const act of a.actuals) aActuals.set(actualKey(act), act);
-      const bActuals = new Map<string, SnapshotActual>();
-      for (const act of b.actuals) bActuals.set(actualKey(act), act);
-
-      const allActualKeys = new Set([...aActuals.keys(), ...bActuals.keys()]);
-      for (const ak of Array.from(allActualKeys).sort()) {
-        const av = aActuals.get(ak)?.actualAmount ?? 0;
-        const bv = bActuals.get(ak)?.actualAmount ?? 0;
-        if (av !== bv) {
-          changes.push({ field: `actual:${ak}`, from: String(av), to: String(bv) });
-        }
-      }
-
-      const status = changes.length > 0 ? "changed" : "unchanged";
-      return {
-        status,
-        lineItem: a.lineItem,
-        category: a.category,
-        subcategory: a.subcategory,
-        totalBudgetA: totalA,
-        totalBudgetB: totalB,
-        changes,
-      };
-    }
-
-    for (const key of allKeys) {
-      const aArr = aMap.get(key) ?? [];
-      const bArr = bMap.get(key) ?? [];
-      const maxLen = Math.max(aArr.length, bArr.length);
-
-      for (let i = 0; i < maxLen; i++) {
-        const a = aArr[i];
-        const b = bArr[i];
-
-        if (a && !b) {
-          const totalA = a.plans.reduce((s, p) => s + p.plannedAmount, 0);
-          diffLines.push({
-            status: "removed",
-            lineItem: a.lineItem,
-            category: a.category,
-            subcategory: a.subcategory,
-            totalBudgetA: totalA,
-            totalBudgetB: null,
-            changes: [],
-          });
-        } else if (!a && b) {
-          const totalB = b.plans.reduce((s, p) => s + p.plannedAmount, 0);
-          diffLines.push({
-            status: "added",
-            lineItem: b.lineItem,
-            category: b.category,
-            subcategory: b.subcategory,
-            totalBudgetA: null,
-            totalBudgetB: totalB,
-            changes: [],
-          });
-        } else if (a && b) {
-          diffLines.push(comparePair(a, b));
-        }
-      }
-    }
-
-    diffLines.sort((x, y) => {
-      const order: Record<string, number> = {
-        added: 0,
-        removed: 1,
-        changed: 2,
-        unchanged: 3,
-      };
-      const diff = order[x.status] - order[y.status];
-      if (diff !== 0) return diff;
-      const cat = x.category.localeCompare(y.category);
-      if (cat !== 0) return cat;
-      return x.lineItem.localeCompare(y.lineItem);
+    // ── Summary chips ─────────────────────────────────────────────────────────
+    const chips = [
+      { label: "Added",     count: summary.added,     color: "#16a34a" },
+      { label: "Removed",   count: summary.removed,   color: "#dc2626" },
+      { label: "Changed",   count: summary.changed,   color: "#d97706" },
+      { label: "Unchanged", count: summary.unchanged, color: "#6b7280" },
+    ];
+    const chipW = pageW / 4;
+    const chipY = doc.y;
+    chips.forEach((chip, i) => {
+      const cx = 40 + i * chipW;
+      doc.rect(cx, chipY, chipW - 8, 36).lineWidth(0.5).strokeColor(chip.color).stroke();
+      doc.fontSize(16).font("Helvetica-Bold").fillColor(chip.color).text(String(chip.count), cx + 8, chipY + 4, { width: chipW - 24 });
+      doc.fontSize(7).font("Helvetica").fillColor(chip.color).text(chip.label.toUpperCase(), cx + 8, chipY + 22, { width: chipW - 24 });
     });
+    doc.y = chipY + 46;
+    doc.fillColor("#1a1a2e");
+    doc.moveDown(0.5);
 
-    const summary = {
-      added: diffLines.filter((l) => l.status === "added").length,
-      removed: diffLines.filter((l) => l.status === "removed").length,
-      changed: diffLines.filter((l) => l.status === "changed").length,
-      unchanged: diffLines.filter((l) => l.status === "unchanged").length,
+    if (!includeUnchanged && summary.unchanged > 0) {
+      doc.fontSize(8).font("Helvetica").fillColor("#6b7280")
+        .text(`${summary.unchanged} unchanged line${summary.unchanged !== 1 ? "s" : ""} hidden.`, { align: "right" });
+      doc.moveDown(0.3);
+    }
+
+    // ── Diff table ────────────────────────────────────────────────────────────
+    const STATUS_COLORS: Record<string, string> = {
+      added: "#16a34a", removed: "#dc2626", changed: "#d97706", unchanged: "#6b7280",
     };
 
-    res.json({ snapshotA: aMeta, snapshotB: bMeta, lines: diffLines, summary });
+    const colWidths = [70, 140, 80, 80, 70, 75];
+    const tableX = 40;
+    const totalTableW = colWidths.reduce((a, b) => a + b, 0);
+    const rowH = 18;
+    let y = doc.y;
+
+    const drawTableHeader = () => {
+      doc.rect(tableX, y, totalTableW, rowH).fill("#f3f4f6");
+      let cx = tableX;
+      for (const [h, w] of [
+        ["Status", colWidths[0]], ["Line Item", colWidths[1]], ["Category", colWidths[2]],
+        ["Budget A", colWidths[3]], ["Budget B", colWidths[4]], ["Delta", colWidths[5]],
+      ] as [string, number][]) {
+        doc.fontSize(7).font("Helvetica-Bold").fillColor("#374151").text(h, cx + 4, y + 5, { width: w - 8 });
+        cx += w;
+      }
+      y += rowH;
+    };
+
+    drawTableHeader();
+
+    for (const line of visibleLines) {
+      if (y > doc.page.height - 60) {
+        doc.addPage();
+        y = 40;
+        drawTableHeader();
+      }
+
+      const statusColor = STATUS_COLORS[line.status] ?? "#6b7280";
+      const delta = line.totalBudgetA != null && line.totalBudgetB != null
+        ? line.totalBudgetB - line.totalBudgetA : null;
+
+      const cells: [string, number, string][] = [
+        [line.status.charAt(0).toUpperCase() + line.status.slice(1), colWidths[0], statusColor],
+        [line.lineItem, colWidths[1], "#1a1a2e"],
+        [(line.category + (line.subcategory ? ` · ${line.subcategory}` : "")), colWidths[2], "#1a1a2e"],
+        [line.totalBudgetA != null ? fmtMoney(line.totalBudgetA) : "—", colWidths[3], "#6b7280"],
+        [line.totalBudgetB != null ? fmtMoney(line.totalBudgetB) : "—", colWidths[4], "#1a1a2e"],
+        [delta != null ? (delta > 0 ? "+" : "") + fmtMoney(delta) : "—", colWidths[5], delta != null && delta > 0 ? "#16a34a" : delta != null && delta < 0 ? "#dc2626" : "#6b7280"],
+      ];
+
+      let cx = tableX;
+      for (const [text, w, color] of cells) {
+        doc.fontSize(7).font("Helvetica").fillColor(color).text(text, cx + 4, y + 4, { width: w - 8, ellipsis: true, lineBreak: false });
+        cx += w;
+      }
+      doc.moveTo(tableX, y + rowH - 1).lineTo(tableX + totalTableW, y + rowH - 1).strokeColor("#f0f0f0").lineWidth(0.5).stroke();
+      y += rowH;
+
+      if (line.status === "changed" && line.changes.length > 0) {
+        const changeText = line.changes
+          .slice(0, 4)
+          .map((c) => `${c.field}: ${c.from ?? "—"} → ${c.to ?? "—"}`)
+          .join("  |  ");
+        if (y > doc.page.height - 60) { doc.addPage(); y = 40; drawTableHeader(); }
+        doc.fontSize(6).font("Helvetica").fillColor("#6b7280").text(changeText, tableX + colWidths[0] + 4, y + 2, { width: totalTableW - colWidths[0] - 8, ellipsis: true, lineBreak: false });
+        y += 12;
+      }
+    }
+
+    if (visibleLines.length === 0) {
+      doc.y = y + 8;
+      doc.fontSize(10).font("Helvetica").fillColor("#6b7280").text("No differences found between these snapshots.", { align: "center" });
+    }
+
+    doc.y = y + 16;
+    doc.fontSize(7).font("Helvetica").fillColor("#9ca3af")
+      .text("Hubert Marketing \u00b7 Confidential \u00b7 Snapshot Comparison", { align: "center" });
+
+    doc.end();
   }),
 );
 

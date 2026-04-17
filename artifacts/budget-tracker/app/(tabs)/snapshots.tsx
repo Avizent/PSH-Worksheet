@@ -120,15 +120,15 @@ function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, on
           <Feather
             name={compareMode ? "circle" : (snap.pinned ? "bookmark" : "camera")}
             size={14}
-            color={snap.pinned ? colors.primary : (isSelected ? colors.primary : colors.mutedForeground)}
+            color={snap.pinned ? "#f59e0b" : (isSelected ? colors.primary : colors.mutedForeground)}
           />
         )}
         <View style={styles.rowMeta}>
           <View style={styles.rowBadgeRow}>
             <LabelBadge label={snap.label} />
             {snap.pinned && (
-              <View style={[styles.badge, { backgroundColor: colors.primary + "20" }]}>
-                <Text style={[styles.badgeText, { color: colors.primary }]}>pinned</Text>
+              <View style={[styles.badge, { backgroundColor: "#f59e0b20" }]}>
+                <Text style={[styles.badgeText, { color: "#f59e0b" }]}>pinned</Text>
               </View>
             )}
           </View>
@@ -151,7 +151,11 @@ function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, on
             {pinning ? (
               <ActivityIndicator size="small" color={colors.mutedForeground} />
             ) : (
-              <Feather name="bookmark" size={14} color={snap.pinned ? colors.primary : colors.mutedForeground} />
+              <Feather
+                name="bookmark"
+                size={14}
+                color={snap.pinned ? "#f59e0b" : colors.mutedForeground}
+              />
             )}
           </TouchableOpacity>
           <TouchableOpacity
@@ -203,7 +207,20 @@ interface DetailPanelProps {
   renaming: boolean;
 }
 
-function DetailPanel({ snap, onRestore, onDelete, onDownload, onPin, onClose, onRename, restoring, deleting, downloading, pinning, renaming }: DetailPanelProps) {
+function DetailPanel({
+  snap,
+  onRestore,
+  onDelete,
+  onDownload,
+  onPin,
+  onClose,
+  onRename,
+  restoring,
+  deleting,
+  downloading,
+  pinning,
+  renaming,
+}: DetailPanelProps) {
   const colors = useColors();
   const [editMode, setEditMode] = useState(false);
   const [editLabel, setEditLabel] = useState(snap.label);
@@ -212,7 +229,10 @@ function DetailPanel({ snap, onRestore, onDelete, onDownload, onPin, onClose, on
 
   const handleSaveRename = async () => {
     const trimmed = editLabel.trim();
-    if (!trimmed || trimmed === snap.label) { setEditMode(false); return; }
+    if (!trimmed || trimmed === snap.label) {
+      setEditMode(false);
+      return;
+    }
     try {
       await onRename(trimmed);
       setEditMode(false);
@@ -282,27 +302,6 @@ function DetailPanel({ snap, onRestore, onDelete, onDownload, onPin, onClose, on
       </View>
 
       <View style={[styles.detailSection, { borderColor: colors.border }]}>
-        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Protected</Text>
-        <TouchableOpacity
-          onPress={() => onPin(snap.id, !snap.pinned)}
-          disabled={pinning || restoring || deleting}
-          style={[styles.pinToggle, { backgroundColor: snap.pinned ? "#f59e0b20" : colors.muted }]}
-          activeOpacity={0.7}
-        >
-          {pinning ? (
-            <ActivityIndicator size="small" color="#f59e0b" />
-          ) : (
-            <>
-              <Feather name="bookmark" size={13} color={snap.pinned ? "#f59e0b" : colors.mutedForeground} />
-              <Text style={[styles.pinToggleText, { color: snap.pinned ? "#f59e0b" : colors.mutedForeground }]}>
-                {snap.pinned ? "Pinned — tap to unpin" : "Tap to pin"}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.detailSection, { borderColor: colors.border }]}>
         <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Budget Lines</Text>
         <Text style={[styles.detailValue, { color: colors.foreground }]}>{snap.lineCount}</Text>
       </View>
@@ -352,8 +351,8 @@ function DetailPanel({ snap, onRestore, onDelete, onDownload, onPin, onClose, on
             <ActivityIndicator size="small" color={colors.foreground} />
           ) : (
             <>
-              <Feather name="bookmark" size={13} color={snap.pinned ? colors.primary : colors.foreground} />
-              <Text style={[styles.detailBtnText, { color: snap.pinned ? colors.primary : colors.foreground }]}>
+              <Feather name="bookmark" size={13} color={snap.pinned ? "#f59e0b" : colors.foreground} />
+              <Text style={[styles.detailBtnText, { color: snap.pinned ? "#f59e0b" : colors.foreground }]}>
                 {snap.pinned ? "Unpin Snapshot" : "Pin Snapshot"}
               </Text>
             </>
@@ -361,17 +360,17 @@ function DetailPanel({ snap, onRestore, onDelete, onDownload, onPin, onClose, on
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.detailBtn, { backgroundColor: colors.muted, borderColor: colors.border, borderWidth: 1 }]}
+          style={[styles.detailBtn, { backgroundColor: "#059669" }]}
           onPress={() => onDownload(snap.id)}
-          disabled={downloading}
+          disabled={restoring || deleting || downloading}
           activeOpacity={0.8}
         >
           {downloading ? (
-            <ActivityIndicator size="small" color={colors.foreground} />
+            <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
-              <Feather name="download" size={13} color={colors.foreground} />
-              <Text style={[styles.detailBtnText, { color: colors.foreground }]}>Download Backup</Text>
+              <Feather name="download" size={13} color="#fff" />
+              <Text style={styles.detailBtnText}>Download JSON</Text>
             </>
           )}
         </TouchableOpacity>
@@ -534,8 +533,63 @@ interface ComparePanelProps {
 function ComparePanel({ aId, bId, snapshots, onClose }: ComparePanelProps) {
   const colors = useColors();
   const [showUnchanged, setShowUnchanged] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfIncludeUnchanged, setPdfIncludeUnchanged] = useState(false);
 
   const { data: diff, isLoading, error } = useCompareSnapshots(aId, bId);
+
+  const handleExportPdf = useCallback(async () => {
+    setPdfLoading(true);
+    try {
+      const { getVpSessionToken } = await import("@/utils/vpSession");
+      const { getAuthSessionToken } = await import("@/lib/authSession");
+      const vpToken = getVpSessionToken();
+      const userToken = getAuthSessionToken?.();
+      const baseUrl = getApiUrl();
+      const params = new URLSearchParams({ a: aId, b: bId });
+      if (pdfIncludeUnchanged) params.set("includeUnchanged", "true");
+      const url = `${baseUrl}/api/snapshots/compare/pdf?${params.toString()}`;
+      const headers: Record<string, string> = {};
+      if (vpToken) headers["x-vp-session"] = vpToken;
+      if (userToken) headers["x-user-session"] = userToken;
+      const res = await fetch(url, { headers });
+      if (!res.ok) throw new Error("Export failed");
+      if (Platform.OS === "web") {
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "snapshot-comparison.pdf";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } else {
+        const buffer = await res.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        const chunkSize = 8192;
+        let binary = "";
+        for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+          const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.byteLength));
+          binary += String.fromCharCode(...Array.from(chunk));
+        }
+        const base64 = btoa(binary);
+        const fileUri = `${FileSystem.cacheDirectory}snapshot-comparison.pdf`;
+        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: "application/pdf",
+            dialogTitle: "Save PDF comparison",
+            UTI: "com.adobe.pdf",
+          });
+        } else {
+          Alert.alert("Error", "Sharing is not available on this device.");
+        }
+      }
+    } catch {
+      Alert.alert("Export Failed", "Could not generate the PDF. Please try again.");
+    } finally {
+      setPdfLoading(false);
+    }
+  }, [aId, bId, pdfIncludeUnchanged]);
 
   const snapA = snapshots.find((s) => s.id === aId);
   const snapB = snapshots.find((s) => s.id === bId);
@@ -624,6 +678,38 @@ function ComparePanel({ aId, bId, snapshots, onClose }: ComparePanelProps) {
               </Text>
             </TouchableOpacity>
           )}
+
+          <View style={styles.exportRow}>
+            <TouchableOpacity
+              onPress={() => setPdfIncludeUnchanged((v) => !v)}
+              style={[styles.toggleUnchanged, { flex: 1 }]}
+              activeOpacity={0.7}
+            >
+              <Feather
+                name={pdfIncludeUnchanged ? "check-square" : "square"}
+                size={13}
+                color={colors.mutedForeground}
+              />
+              <Text style={[styles.toggleUnchangedText, { color: colors.mutedForeground }]}>
+                Include unchanged lines in PDF
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleExportPdf}
+              disabled={pdfLoading}
+              activeOpacity={0.8}
+              style={[styles.exportPdfBtn, { backgroundColor: colors.primary, opacity: pdfLoading ? 0.7 : 1 }]}
+            >
+              {pdfLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Feather name="download" size={13} color="#fff" />
+                  <Text style={styles.exportPdfBtnText}>Export PDF</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
 
           {visibleLines.length === 0 ? (
             <View style={[styles.empty, { borderColor: colors.border, marginTop: 8 }]}>
@@ -1277,31 +1363,99 @@ const styles = StyleSheet.create({
   saveBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   saveBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   compareBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
+  rowLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  rowActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  rowIconBtn: { padding: 4 },
   compareBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  compareHint: { borderRadius: 8, borderWidth: 1, padding: 10, flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  compareHintText: { flex: 1, fontSize: 13, lineHeight: 18 },
-  explainer: { fontSize: 13, lineHeight: 18 },
-  rowList: { gap: 6 },
-  groupHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingBottom: 6, borderBottomWidth: 1, marginBottom: 4 },
-  groupHeaderText: { fontSize: 11, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.8 },
+  savePanel: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  savePanelHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  savePanelTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  savePanelSubtext: { fontSize: 13, marginBottom: 12 },
+  saveRow: { flexDirection: "row", gap: 8 },
+  labelInput: {
+    flex: 1,
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 13,
+  },
+  saveButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    height: 38,
+    borderRadius: 8,
+    gap: 8,
+  },
+  saveButtonText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  explainer: { fontSize: 13, marginBottom: 16 },
+  compareHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 8,
+  },
+  compareHintText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    flex: 1,
+  },
+  rowList: {
+    gap: 1,
+  },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    marginBottom: 4,
+  },
+  groupHeaderText: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  noSelection: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  noSelectionText: {
+    marginTop: 12,
+    fontSize: 14,
+    textAlign: "center",
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1,
-    gap: 6,
+    marginBottom: 4,
   },
-  rowLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  rowDownloadBtn: { padding: 2 },
   rowMeta: { gap: 4 },
-  rowDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  rowBadgeRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  rowDate: { fontSize: 13, fontFamily: "Inter_500Medium" },
   rowRight: { alignItems: "flex-end", gap: 2, marginRight: 4 },
   rowBudget: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   rowLines: { fontSize: 11 },
-  rowActions: { flexDirection: "row", alignItems: "center", gap: 4 },
-  rowIconBtn: { padding: 4 },
+  rowBadgeRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  pinBtn: { padding: 2, marginRight: 2 },
   badge: { alignSelf: "flex-start", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
   slotBadge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
@@ -1350,6 +1504,9 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
   toggleUnchanged: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
   toggleUnchangedText: { fontSize: 12 },
+  exportRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  exportPdfBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  exportPdfBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   diffList: { gap: 6 },
   diffRow: { borderWidth: 1, borderRadius: 8, overflow: "hidden" },
   diffRowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 10, gap: 8 },
