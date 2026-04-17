@@ -2,11 +2,10 @@ import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, desc, sql, type SQL } from "drizzle-orm";
 import { db, auditLogsTable } from "@workspace/db";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { requireVpAuth } from "../middleware/vpAuth";
 
 const router: IRouter = Router();
 
-router.get("/audit-logs", requireVpAuth, asyncHandler(async (req, res): Promise<void> => {
+router.get("/audit-logs", asyncHandler(async (req, res): Promise<void> => {
   const { entityType, startDate, endDate } = req.query;
   const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
   const offset = parseInt(req.query.offset as string) || 0;
