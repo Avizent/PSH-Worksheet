@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, budgetLinesTable } from "@workspace/db";
 import { ListBudgetLineCategoriesResponse } from "@workspace/api-zod";
+import { triggerAlertEvaluation } from "../lib/runAlertEvaluation";
 import {
   CreateBudgetLineBody,
   UpdateBudgetLineBody,
@@ -47,6 +48,7 @@ router.post("/budget-lines", asyncHandler(async (req, res): Promise<void> => {
     field: "lineItem",
     newValue: row.lineItem,
   });
+  triggerAlertEvaluation();
   res.status(201).json(GetBudgetLineResponse.parse(row));
 }));
 
@@ -103,6 +105,7 @@ router.patch("/budget-lines/:id", asyncHandler(async (req, res): Promise<void> =
     await writeAuditDiff("update", "budget_line", row.id, oldRow, row,
       ["category", "subcategory", "lineItem", "owner", "region", "channel", "costStatus", "projectionPct"]);
   }
+  triggerAlertEvaluation();
   res.json(UpdateBudgetLineResponse.parse(row));
 }));
 
@@ -124,6 +127,7 @@ router.delete("/budget-lines/:id", asyncHandler(async (req, res): Promise<void> 
     field: "lineItem",
     oldValue: row.lineItem,
   });
+  triggerAlertEvaluation();
   res.sendStatus(204);
 }));
 

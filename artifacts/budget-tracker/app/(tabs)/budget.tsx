@@ -29,6 +29,7 @@ import {
   getListBudgetLinesQueryKey,
   getGetProjectionsQueryKey,
   getListBudgetLineCategoriesQueryKey,
+  getListAlertsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -151,6 +152,9 @@ function BudgetContent() {
     queryClient.invalidateQueries({ queryKey: getListBudgetLinesQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetProjectionsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListBudgetLineCategoriesQueryKey() });
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
+    }, 1200);
   };
 
   const handleDesktopPctChange = (lineId: number, val: string) => {

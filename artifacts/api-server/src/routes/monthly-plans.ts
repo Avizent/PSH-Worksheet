@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, monthlyPlansTable } from "@workspace/db";
+import { triggerAlertEvaluation } from "../lib/runAlertEvaluation";
 import {
   CreateMonthlyPlanBody,
   UpdateMonthlyPlanBody,
@@ -52,6 +53,7 @@ router.post("/monthly-plans", asyncHandler(async (req, res): Promise<void> => {
     field: "plannedAmount",
     newValue: String(row.plannedAmount),
   });
+  triggerAlertEvaluation(row.year ?? undefined);
   res.status(201).json(ListMonthlyPlansResponseItem.parse(row));
 }));
 
@@ -82,6 +84,7 @@ router.patch("/monthly-plans/:id", asyncHandler(async (req, res): Promise<void> 
       newValue: String(row.plannedAmount),
     });
   }
+  triggerAlertEvaluation(row.year ?? undefined);
   res.json(UpdateMonthlyPlanResponse.parse(row));
 }));
 
@@ -135,6 +138,7 @@ router.put("/budget-lines/:id/plans", asyncHandler(async (req, res): Promise<voi
       newValue: String(plannedAmount),
     });
   }
+  triggerAlertEvaluation(row.year ?? undefined);
   res.json(UpsertMonthlyPlanByLineResponse.parse(row));
 }));
 

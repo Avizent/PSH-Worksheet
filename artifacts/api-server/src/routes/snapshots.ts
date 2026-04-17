@@ -15,6 +15,7 @@ import { asyncHandler } from "../middleware/asyncHandler";
 import { logger } from "../lib/logger";
 import { isValidVpSession } from "../middleware/vpAuth";
 import { isValidUserSession } from "./userAuth";
+import { triggerAlertEvaluation } from "../lib/runAlertEvaluation";
 
 const router: IRouter = Router();
 
@@ -951,6 +952,7 @@ router.post(
       restoredFrom: id,
       preRestoreSnapshot: preRestoreMeta,
     });
+    triggerAlertEvaluation();
   }),
 );
 

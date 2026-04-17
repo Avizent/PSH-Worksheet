@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { triggerAlertEvaluation } from "../lib/runAlertEvaluation";
 
 const router = Router();
 
@@ -59,6 +60,7 @@ router.post("/auth/login", async (req, res) => {
     expiresAt: Date.now() + SESSION_TTL_MS,
   });
 
+  triggerAlertEvaluation();
   res.json({ token, name: user.name, email: user.email });
 });
 

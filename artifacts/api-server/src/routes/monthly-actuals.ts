@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, monthlyActualsTable } from "@workspace/db";
+import { triggerAlertEvaluation } from "../lib/runAlertEvaluation";
 import {
   CreateMonthlyActualBody,
   UpdateMonthlyActualBody,
@@ -52,6 +53,7 @@ router.post("/monthly-actuals", asyncHandler(async (req, res): Promise<void> => 
     field: "actualAmount",
     newValue: String(row.actualAmount),
   });
+  triggerAlertEvaluation(row.year ?? undefined);
   res.status(201).json(ListMonthlyActualsResponseItem.parse(row));
 }));
 
@@ -75,6 +77,7 @@ router.patch("/monthly-actuals/:id", asyncHandler(async (req, res): Promise<void
   if (existing) {
     await writeAuditDiff("update", "monthly_actual", row.id, existing, row, ["actualAmount", "invoiceRef"]);
   }
+  triggerAlertEvaluation(row.year ?? undefined);
   res.json(UpdateMonthlyActualResponse.parse(row));
 }));
 
@@ -126,6 +129,7 @@ router.put("/budget-lines/:id/actuals", asyncHandler(async (req, res): Promise<v
       newValue: String(actualAmount),
     });
   }
+  triggerAlertEvaluation(row.year ?? undefined);
   res.json(UpsertMonthlyActualByLineResponse.parse(row));
 }));
 

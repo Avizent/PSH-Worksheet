@@ -37,6 +37,7 @@ import {
   getGetDashboardSummaryQueryKey,
   getGetDashboardChartsQueryKey,
   getListBudgetLinesWithMonthlyQueryKey,
+  getListAlertsQueryKey,
 } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
 
@@ -225,6 +226,9 @@ function ImportContent() {
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardChartsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
+          }, 1200);
           showToast(`Import confirmed: ${result.created} records created, ${result.skippedDuplicate} duplicates skipped`, "success");
         },
         onError: () => {
@@ -245,6 +249,9 @@ function ImportContent() {
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardChartsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey() });
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
+          }, 1200);
         },
         onError: (e: unknown) => {
           showToast("Delete error: " + (e instanceof Error ? e.message : String(e)));

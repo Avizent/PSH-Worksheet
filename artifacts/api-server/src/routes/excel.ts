@@ -12,6 +12,7 @@ import {
 import { asyncHandler } from "../middleware/asyncHandler";
 import { logger } from "../lib/logger";
 import { createSnapshot } from "./snapshots";
+import { triggerAlertEvaluation } from "../lib/runAlertEvaluation";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -496,6 +497,7 @@ router.post(
       }
     }
 
+    triggerAlertEvaluation();
     res.json({
       valid: true,
       message: "Budget imported successfully.",
