@@ -15,6 +15,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
+import * as DocumentPicker from "expo-document-picker";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
@@ -29,6 +30,7 @@ import {
   useDeleteSnapshot,
   useCompareSnapshots,
   usePinSnapshot,
+  useImportSnapshot,
   getListSnapshotsQueryKey,
 } from "@workspace/api-client-react/snapshots";
 import { useQueryClient } from "@tanstack/react-query";
@@ -55,6 +57,7 @@ const formatDate = (dateStr: string) => {
   const restoreMutation = useRestoreSnapshot();
   const deleteMutation = useDeleteSnapshot();
   const pinSnap = usePinSnapshot();
+  const importMutation = useImportSnapshot();
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
 
@@ -233,6 +236,53 @@ const formatDate = (dateStr: string) => {
     );
   }, [pinSnap, invalidate]);
 
+  const handleImport = useCallback(async () => {
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "application/json,.json";
+      input.onchange = async (e: Event) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        let json: Record<string, unknown>;
+        try {
+          const text = await file.text();
+          json = JSON.parse(text) as Record<string, unknown>;
+        } catch {
+          showToast("Invalid JSON file.", "error");
+          return;
+        }
+        try {
+          await importMutation.mutateAsync(json);
+          showToast("Snapshot imported successfully.");
+        } catch {
+          showToast("Failed to import. Make sure the file is a valid snapshot backup.", "error");
+        }
+      };
+      input.click();
+    } else {
+      try {
+        const result = await DocumentPicker.getDocumentAsync({ type: "application/json" });
+        if (result.canceled) return;
+        const fileUri = result.assets[0].uri;
+        let json: Record<string, unknown>;
+        try {
+          const text = await FileSystem.readAsStringAsync(fileUri, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          json = JSON.parse(text) as Record<string, unknown>;
+        } catch {
+          Alert.alert("Error", "Invalid JSON file.");
+          return;
+        }
+        await importMutation.mutateAsync(json);
+        showToast("Snapshot imported successfully.");
+      } catch {
+        Alert.alert("Error", "Failed to import. Make sure the file is a valid snapshot backup.");
+      }
+    }
+  }, [importMutation, showToast]);
+
   const selectedSnap = selectedId ? (snapshots as SnapshotMeta[]).find((s) => s.id === selectedId) ?? null : null;
 
   const listContent = (
@@ -244,6 +294,28 @@ const formatDate = (dateStr: string) => {
           subtitle={`${snapshots.length} snapshot${snapshots.length !== 1 ? "s" : ""} saved`}
         />
         <View style={styles.topBarActions}>
+          <TouchableOpacity
+            style={[
+              styles.compareBtn,
+              {
+                backgroundColor: colors.muted,
+                borderColor: colors.border,
+                opacity: importMutation.isPending ? 0.6 : 1,
+              },
+            ]}
+            onPress={handleImport}
+            disabled={importMutation.isPending}
+            activeOpacity={0.8}
+          >
+            {importMutation.isPending ? (
+              <ActivityIndicator size="small" color={colors.foreground} />
+            ) : (
+              <>
+                <Feather name="upload" size={13} color={colors.foreground} />
+                <Text style={[styles.compareBtnText, { color: colors.foreground }]}>Import from file</Text>
+              </>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.compareBtn,

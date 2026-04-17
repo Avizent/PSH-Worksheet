@@ -547,6 +547,157 @@ router.post(
   }),
 );
 
+// ─── POST /snapshots/import ───────────────────────────────────────────────────
+// NOTE: Must be registered before /snapshots/:id/restore to avoid "import" being captured as :id
+
+router.post(
+  "/snapshots/import",
+  asyncHandler(async (req, res): Promise<void> => {
+    ensureDir();
+
+    const body = req.body as Record<string, unknown> | null | undefined;
+
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      res.status(400).json({ error: "Request body must be a JSON object" });
+      return;
+    }
+
+    // Accept the joined format returned by GET /snapshots/:id
+    // { id, label, createdAt, pinned, budgetLines (with .plans/.actuals), owners, categories }
+    const budgetLines = body.budgetLines;
+    const owners = body.owners ?? [];
+    const categories = body.categories ?? [];
+
+    if (!Array.isArray(budgetLines)) {
+      res.status(400).json({ error: "Invalid snapshot: budgetLines must be an array" });
+      return;
+    }
+
+    if (!Array.isArray(owners) || !Array.isArray(categories)) {
+      res.status(400).json({ error: "Invalid snapshot: owners and categories must be arrays" });
+      return;
+    }
+
+    // Validate budget line shapes and their embedded plans/actuals
+    for (const bl of budgetLines as unknown[]) {
+      if (!bl || typeof bl !== "object" || Array.isArray(bl)) {
+        res.status(400).json({ error: "Invalid snapshot: each budget line must be an object" });
+        return;
+      }
+      const blObj = bl as Record<string, unknown>;
+
+      if (typeof blObj.id !== "number") {
+        res.status(400).json({
+          error: "Invalid snapshot: each budget line must have a numeric id field",
+        });
+        return;
+      }
+      if (typeof blObj.lineItem !== "string" || !blObj.lineItem) {
+        res.status(400).json({
+          error: "Invalid snapshot: each budget line must have a non-empty lineItem string",
+        });
+        return;
+      }
+      if (typeof blObj.category !== "string" || !blObj.category) {
+        res.status(400).json({
+          error: "Invalid snapshot: each budget line must have a non-empty category string",
+        });
+        return;
+      }
+
+      if (!Array.isArray(blObj.plans) || !Array.isArray(blObj.actuals)) {
+        res.status(400).json({
+          error: "Invalid snapshot: each budget line must have plans and actuals arrays",
+        });
+        return;
+      }
+
+      for (const p of blObj.plans as unknown[]) {
+        if (!p || typeof p !== "object" || Array.isArray(p)) {
+          res.status(400).json({ error: "Invalid snapshot: each plan entry must be an object" });
+          return;
+        }
+        const pObj = p as Record<string, unknown>;
+        if (typeof pObj.month !== "number" || typeof pObj.year !== "number" || typeof pObj.plannedAmount !== "number") {
+          res.status(400).json({
+            error: "Invalid snapshot: each plan must have numeric month, year, and plannedAmount",
+          });
+          return;
+        }
+      }
+
+      for (const a of blObj.actuals as unknown[]) {
+        if (!a || typeof a !== "object" || Array.isArray(a)) {
+          res.status(400).json({ error: "Invalid snapshot: each actual entry must be an object" });
+          return;
+        }
+        const aObj = a as Record<string, unknown>;
+        if (typeof aObj.month !== "number" || typeof aObj.year !== "number" || typeof aObj.actualAmount !== "number") {
+          res.status(400).json({
+            error: "Invalid snapshot: each actual must have numeric month, year, and actualAmount",
+          });
+          return;
+        }
+      }
+    }
+
+    enforceLimit();
+
+    // Generate a fresh ID so it never collides with an existing snapshot
+    const now = new Date();
+    const ts = now.toISOString().slice(0, 19).replace(/:/g, "-");
+    const rawLabel = body.label;
+    const importedLabel =
+      typeof rawLabel === "string" && rawLabel.trim() ? rawLabel.trim() : "imported";
+    const safeLabel = importedLabel.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+    const newId = `snapshot_${ts}_${safeLabel}`;
+    const filename = `${newId}.json`;
+
+    // Convert the joined format back to the flat on-disk format
+    const flatBudgetLines = (budgetLines as Array<Record<string, unknown>>).map((bl) => {
+      const { plans: _plans, actuals: _actuals, ...rest } = bl;
+      return rest;
+    });
+
+    const monthlyPlans: unknown[] = [];
+    const monthlyActuals: unknown[] = [];
+    for (const bl of budgetLines as Array<Record<string, unknown>>) {
+      const blId = bl.id;
+      for (const p of bl.plans as Array<Record<string, unknown>>) {
+        monthlyPlans.push({ ...p, budgetLineId: blId });
+      }
+      for (const a of bl.actuals as Array<Record<string, unknown>>) {
+        monthlyActuals.push({ ...a, budgetLineId: blId });
+      }
+    }
+
+    const snap = {
+      id: newId,
+      label: importedLabel,
+      createdAt: now.toISOString(),
+      pinned: false,
+      data: {
+        budgetLines: flatBudgetLines,
+        monthlyPlans,
+        monthlyActuals,
+        owners,
+        categories,
+      },
+    };
+
+    fs.writeFileSync(path.join(SNAPSHOTS_DIR, filename), JSON.stringify(snap, null, 2), "utf-8");
+    logger.info({ id: newId, label: importedLabel }, "Snapshot imported from file");
+
+    // Build and return meta
+    const storedBody = readSnapshotFile(filename);
+    if (!storedBody) {
+      res.status(500).json({ error: "Failed to read snapshot after import" });
+      return;
+    }
+    res.status(201).json(parseMeta(filename, storedBody));
+  }),
+);
+
 // ─── POST /snapshots/:id/restore ─────────────────────────────────────────────
 
 router.post(

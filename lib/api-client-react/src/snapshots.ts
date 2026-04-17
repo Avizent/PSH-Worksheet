@@ -66,3 +66,20 @@ export function useRestoreSnapshot(options?: {
     ...options?.mutation,
   });
 }
+
+export function useImportSnapshot(options?: {
+  mutation?: Partial<Parameters<typeof useMutation>[0]>;
+}): UseMutationResult<SnapshotMeta, Error, Record<string, unknown>> {
+  const queryClient = useQueryClient();
+  return useMutation<SnapshotMeta, Error, Record<string, unknown>>({
+    mutationFn: (snapshotJson: Record<string, unknown>) =>
+      customFetch<SnapshotMeta>("/api/snapshots/import", {
+        method: "POST",
+        body: JSON.stringify(snapshotJson),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
+    },
+    ...options?.mutation,
+  });
+}
