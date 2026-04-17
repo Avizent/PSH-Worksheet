@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { AdminSubnav } from "@/components/AdminSubnav";
 import { SectionHeader } from "@/components/SectionHeader";
 import {
   useListForecastVersions,
@@ -197,6 +198,7 @@ export default function ReforecastScreen() {
       contentContainerStyle={{ padding: isDesktop ? 32 : 16, paddingBottom: isDesktop ? 32 : 120 }}
       refreshControl={<RefreshControl refreshing={false} onRefresh={() => refetchVersions()} />}
     >
+      {!isDesktop && <AdminSubnav active="reforecast" />}
       <SectionHeader title="Reforecast" subtitle="Manage budget forecast versions" />
 
       <View style={[styles.versionBar, { backgroundColor: colors.card, borderColor: colors.border }]}>

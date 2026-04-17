@@ -21,7 +21,6 @@ const MAIN_ITEMS: NavItem[] = [
   { key: "reports", label: "Reports", icon: "pie-chart", route: "/reports" },
   { key: "alerts", label: "Alerts", icon: "bell", route: "/alerts" },
   { key: "events", label: "Events", icon: "calendar", route: "/events" },
-  { key: "reforecast", label: "Reforecast", icon: "refresh-cw", route: "/reforecast" },
   { key: "board", label: "Board View", icon: "monitor", route: "/board" },
 ];
 
@@ -30,6 +29,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { key: "categories", label: "Categories", icon: "tag", route: "/categories" },
   { key: "import", label: "Import", icon: "upload", route: "/import" },
   { key: "audit", label: "Audit Log", icon: "file-text", route: "/audit" },
+  { key: "reforecast", label: "Reforecast", icon: "refresh-cw", route: "/reforecast" },
 ];
 
 interface DesktopSidebarProps {

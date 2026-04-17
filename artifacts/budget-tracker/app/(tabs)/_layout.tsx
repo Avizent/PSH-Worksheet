@@ -46,7 +46,7 @@ function NativeTabLayout() {
         <Icon sf={{ default: "chart.pie", selected: "chart.pie.fill" }} />
         <Label>Reports</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="reforecast">
+      <NativeTabs.Trigger name="reforecast" hidden>
         <Icon sf={{ default: "arrow.triangle.2.circlepath", selected: "arrow.triangle.2.circlepath" }} />
         <Label>Reforecast</Label>
       </NativeTabs.Trigger>
