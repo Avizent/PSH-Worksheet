@@ -19,6 +19,7 @@ import adminRouter from "./admin";
 import seedRouter from "./seed";
 import analyticsRouter from "./analytics";
 import ownersRouter from "./owners";
+import categoriesRouter from "./categories";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(auditLogsRouter);
 router.use(adminRouter);
 router.use(seedRouter);
 router.use(ownersRouter);
+router.use(categoriesRouter);
 
 export default router;

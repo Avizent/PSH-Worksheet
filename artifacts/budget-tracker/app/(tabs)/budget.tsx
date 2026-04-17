@@ -108,10 +108,11 @@ function BudgetContent() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [editingLine, setEditingLine] = useState<{ id: number; lineItem: string; pct: number } | null>(null);
-  const params = useLocalSearchParams<{ owner?: string }>();
+  const params = useLocalSearchParams<{ owner?: string; category?: string }>();
   const router = useRouter();
   const initialOwner = typeof params.owner === "string" ? params.owner : "";
-  const [filterCategory, setFilterCategory] = useState<string>("All");
+  const initialCategory = typeof params.category === "string" ? params.category : "All";
+  const [filterCategory, setFilterCategory] = useState<string>(initialCategory);
   const [filterChannel, setFilterChannel] = useState<string>("All");
   const [filterMonth, setFilterMonth] = useState<number>(0);
   const [filterOwner, setFilterOwner] = useState<string>(initialOwner);
@@ -121,6 +122,12 @@ function BudgetContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.owner]);
+  useEffect(() => {
+    if (typeof params.category === "string" && params.category !== filterCategory) {
+      setFilterCategory(params.category);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.category]);
   const clearOwnerFilter = () => {
     setFilterOwner("");
     router.setParams({ owner: undefined });

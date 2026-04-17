@@ -243,6 +243,58 @@ export const UpsertMonthlyActualByLineResponse = zod.object({
 });
 
 /**
+ * @summary List all categories with line count
+ */
+export const ListCategoriesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  color: zod.string(),
+  description: zod.string().nullish(),
+  lineCount: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem);
+
+/**
+ * @summary Create a category
+ */
+export const CreateCategoryBody = zod.object({
+  name: zod.string(),
+  color: zod.string(),
+  description: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a category (renames budget lines referencing the old name)
+ */
+export const UpdateCategoryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateCategoryBody = zod.object({
+  name: zod.string().optional(),
+  color: zod.string().optional(),
+  description: zod.string().nullish(),
+});
+
+export const UpdateCategoryResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  color: zod.string(),
+  description: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a category from the registry
+ */
+export const DeleteCategoryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List all owners
  */
 export const ListOwnersResponseItem = zod.object({

@@ -167,6 +167,37 @@ export interface UpsertMonthlyActualByLineBody {
   invoiceRef?: string;
 }
 
+export interface Category {
+  id: number;
+  name: string;
+  color: string;
+  description?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CategoryWithCount {
+  id: number;
+  name: string;
+  color: string;
+  description?: string | null;
+  lineCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCategoryBody {
+  name: string;
+  color: string;
+  description?: string | null;
+}
+
+export interface UpdateCategoryBody {
+  name?: string;
+  color?: string;
+  description?: string | null;
+}
+
 export interface Owner {
   id: number;
   name: string;

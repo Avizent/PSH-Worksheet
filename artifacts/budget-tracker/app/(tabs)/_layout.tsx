@@ -58,6 +58,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "square.and.arrow.up", selected: "square.and.arrow.up.fill" }} />
         <Label>Import</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="categories" hidden>
+        <Icon sf={{ default: "tag", selected: "tag.fill" }} />
+        <Label>Categories</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="owners">
         <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
         <Label>Admin</Label>
@@ -283,6 +287,14 @@ function ClassicTabLayout() {
             ) : (
               <Feather name="monitor" size={22} color={color} />
             ),
+        }}
+      />
+      <Tabs.Screen
+        name="categories"
+        options={{
+          title: "Categories",
+          tabBarItemStyle: { display: "none" },
+          tabBarIcon: ({ color }) => <Feather name="tag" size={22} color={color} />,
         }}
       />
       <Tabs.Screen

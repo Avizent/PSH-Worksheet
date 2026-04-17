@@ -11,3 +11,4 @@ export * from "./boardSettings";
 export * from "./shareTokens";
 export * from "./forecastVersions";
 export * from "./owners";
+export * from "./categories";

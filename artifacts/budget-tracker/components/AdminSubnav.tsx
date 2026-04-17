@@ -4,10 +4,11 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 
-type AdminKey = "owners" | "import" | "audit";
+type AdminKey = "owners" | "categories" | "import" | "audit";
 
 const ITEMS: { key: AdminKey; label: string; icon: keyof typeof Feather.glyphMap; route: Href }[] = [
   { key: "owners", label: "Owners", icon: "users", route: "/owners" },
+  { key: "categories", label: "Categories", icon: "tag", route: "/categories" },
   { key: "import", label: "Import", icon: "upload", route: "/import" },
   { key: "audit", label: "Audit Log", icon: "file-text", route: "/audit" },
 ];
