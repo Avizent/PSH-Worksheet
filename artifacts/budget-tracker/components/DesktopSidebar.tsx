@@ -31,7 +31,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { key: "audit", label: "Audit Log", icon: "file-text", route: "/audit" },
   { key: "reforecast", label: "Reforecast", icon: "refresh-cw", route: "/reforecast" },
   { key: "excel", label: "Excel", icon: "grid", route: "/excel" },
-  { key: "snapshots", label: "Snapshots", icon: "camera", route: "/snapshots" },
+  { key: "snapshots", label: "Snapshots", icon: "archive", route: "/snapshots" },
 ];
 
 interface DesktopSidebarProps {

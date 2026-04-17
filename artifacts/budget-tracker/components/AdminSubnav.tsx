@@ -13,7 +13,7 @@ const ITEMS: { key: AdminKey; label: string; icon: keyof typeof Feather.glyphMap
   { key: "audit", label: "Audit Log", icon: "file-text", route: "/audit" },
   { key: "reforecast", label: "Reforecast", icon: "refresh-cw", route: "/reforecast" },
   { key: "excel", label: "Excel", icon: "grid", route: "/excel" },
-  { key: "snapshots", label: "Snapshots", icon: "camera", route: "/snapshots" },
+  { key: "snapshots", label: "Snapshots", icon: "archive", route: "/snapshots" },
 ];
 
 interface AdminSubnavProps {

@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { logger } from "../lib/logger";
+import { createSnapshot } from "./snapshots";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -356,19 +357,12 @@ router.post(
     const { parsed } = validation;
 
     // Attempt pre-import snapshot before any DB writes.
-    // TODO(Task #62): POST /api/snapshots will be implemented by the Snapshots feature.
-    // Until then, this call is expected to fail (non-fatal); snapshotSaved will be false.
     let snapshotSaved = false;
     try {
-      const snapshotUrl = `http://localhost:${process.env["PORT"]}/api/snapshots`;
-      const snapRes = await fetch(snapshotUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: "pre-import" }),
-      });
-      snapshotSaved = snapRes.ok;
+      await createSnapshot("pre-import");
+      snapshotSaved = true;
     } catch (e) {
-      logger.warn({ err: e }, "Pre-import snapshot failed (non-fatal — Task #62 snapshot API not yet deployed)");
+      logger.warn({ err: e }, "Pre-import snapshot failed (non-fatal)");
     }
 
     const existingLines = await db.select().from(budgetLinesTable);

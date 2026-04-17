@@ -67,7 +67,7 @@ function NativeTabLayout() {
         <Label>Categories</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="snapshots" hidden>
-        <Icon sf={{ default: "camera", selected: "camera.fill" }} />
+        <Icon sf={{ default: "archivebox", selected: "archivebox.fill" }} />
         <Label>Snapshots</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="owners">
@@ -318,7 +318,7 @@ function ClassicTabLayout() {
         options={{
           title: "Snapshots",
           tabBarItemStyle: { display: "none" },
-          tabBarIcon: ({ color }) => <Feather name="camera" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="archive" size={22} color={color} />,
         }}
       />
       <Tabs.Screen

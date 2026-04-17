@@ -1,15 +1,15 @@
 import React, { useState, useCallback } from "react";
 import {
   View,
-  ScrollView,
-  StyleSheet,
   Text,
-  Platform,
-  ActivityIndicator,
-  RefreshControl,
+  StyleSheet,
   TouchableOpacity,
+  ActivityIndicator,
+  Platform,
   TextInput,
   Modal,
+  ScrollView,
+  RefreshControl,
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -20,6 +20,8 @@ import { useLayout } from "@/hooks/useLayout";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { AdminSubnav } from "@/components/AdminSubnav";
 import { SectionHeader } from "@/components/SectionHeader";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useToast } from "@/contexts/ToastContext";
 import {
   useListSnapshots,
   useCreateSnapshot,
@@ -28,627 +30,97 @@ import {
   useCompareSnapshots,
   usePinSnapshot,
   getListSnapshotsQueryKey,
-  type SnapshotMeta,
-  type SnapshotDiff,
-  type SnapshotDiffLine,
-} from "@workspace/api-client-react";
+} from "@workspace/api-client-react/snapshots";
 import { useQueryClient } from "@tanstack/react-query";
 import { getApiUrl } from "@/utils/getApiUrl";
 
-const fmt = (n: number) => "£" + Math.round(n).toLocaleString("en-GB");
+const PROTECTED_LABELS = ["pre-import", "pre-restore"];
 
-const fmtDate = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleString("en-GB", {
-    day: "2-digit",
+const formatDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return d.toLocaleString(undefined, {
     month: "short",
-    year: "numeric",
+    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
 };
 
-function LabelBadge({ label }: { label: string }) {
-  const colors = useColors();
-  const isAuto = label.startsWith("auto-");
-  const isPreRestore = label === "pre-restore";
-  const isPreImport = label === "pre-import";
-
-  let bg = colors.muted;
-  let fg = colors.mutedForeground;
-  if (isAuto) { bg = colors.primary + "20"; fg = colors.primary; }
-  if (isPreRestore) { bg = "#7c3aed20"; fg = "#7c3aed"; }
-  if (isPreImport) { bg = "#ea580c20"; fg = "#ea580c"; }
-
-  return (
-    <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text style={[styles.badgeText, { color: fg }]}>{label}</Text>
-    </View>
-  );
-}
-
-interface SnapshotRowProps {
-  snap: SnapshotMeta;
-  isSelected: boolean;
-  isDownloading: boolean;
-  onSelect: (id: string) => void;
-  onDownload: (id: string) => void;
-  compareSlot?: "A" | "B" | null;
-  compareMode?: boolean;
-  onPin: (id: string, pinned: boolean) => void;
-  pinning: boolean;
-}
-
-function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, compareSlot, compareMode, onPin, pinning }: SnapshotRowProps) {
-  const colors = useColors();
-
-  let borderColor = isSelected ? colors.primary : colors.border;
-  let bg = isSelected ? colors.primary + "10" : colors.card;
-  if (!compareSlot && snap.pinned) { borderColor = "#f59e0b"; }
-  if (compareSlot === "A") { borderColor = "#2563eb"; bg = "#2563eb10"; }
-  if (compareSlot === "B") { borderColor = "#16a34a"; bg = "#16a34a10"; }
-
-  return (
-    <TouchableOpacity
-      onPress={() => onSelect(snap.id)}
-      activeOpacity={0.7}
-      style={[styles.row, { backgroundColor: bg, borderColor }]}
-    >
-      <View style={styles.rowLeft}>
-        {compareSlot ? (
-          <View style={[
-            styles.slotBadge,
-            { backgroundColor: compareSlot === "A" ? "#2563eb" : "#16a34a" },
-          ]}>
-            <Text style={styles.slotBadgeText}>{compareSlot}</Text>
-          </View>
-        ) : (
-          <Feather
-            name={compareMode ? "circle" : "camera"}
-            size={14}
-            color={isSelected ? colors.primary : colors.mutedForeground}
-          />
-        )}
-        <View style={styles.rowMeta}>
-          <Text style={[styles.rowDate, { color: colors.foreground }]}>{fmtDate(snap.timestamp)}</Text>
-          <View style={styles.rowBadgeRow}>
-            <LabelBadge label={snap.label} />
-            {snap.pinned && (
-              <View style={[styles.badge, { backgroundColor: "#f59e0b20" }]}>
-                <Text style={[styles.badgeText, { color: "#f59e0b" }]}>pinned</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
-      <View style={styles.rowRight}>
-        <Text style={[styles.rowBudget, { color: colors.foreground }]}>{fmt(snap.totalBudget)}</Text>
-        <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>spent {fmt(snap.totalSpent)}</Text>
-        <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>{snap.lineCount} lines</Text>
-      </View>
-      {!compareMode && (
-        <TouchableOpacity
-          onPress={(e) => { e.stopPropagation?.(); onDownload(snap.id); }}
-          disabled={isDownloading}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          activeOpacity={0.6}
-          style={styles.rowDownloadBtn}
-        >
-          {isDownloading ? (
-            <ActivityIndicator size="small" color={colors.mutedForeground} />
-          ) : (
-            <Feather name="download" size={14} color={colors.mutedForeground} />
-          )}
-        </TouchableOpacity>
-      )}
-      <TouchableOpacity
-        onPress={(e) => { e.stopPropagation?.(); onPin(snap.id, !snap.pinned); }}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        disabled={pinning}
-        style={styles.pinBtn}
-      >
-        {pinning ? (
-          <ActivityIndicator size="small" color="#f59e0b" />
-        ) : (
-          <Feather
-            name="bookmark"
-            size={14}
-            color={snap.pinned ? "#f59e0b" : colors.mutedForeground}
-          />
-        )}
-      </TouchableOpacity>
-      <Feather name="chevron-right" size={14} color={compareSlot ? borderColor : (isSelected ? colors.primary : colors.mutedForeground)} />
-    </TouchableOpacity>
-  );
-}
-
-interface DetailPanelProps {
-  snap: SnapshotMeta;
-  onRestore: (id: string) => void;
-  onDelete: (id: string) => void;
-  onDownload: (id: string) => void;
-  onPin: (id: string, pinned: boolean) => void;
-  onClose: () => void;
-  restoring: boolean;
-  deleting: boolean;
-  downloading: boolean;
-  pinning: boolean;
-}
-
-function DetailPanel({ snap, onRestore, onDelete, onDownload, onPin, onClose, restoring, deleting, downloading, pinning }: DetailPanelProps) {
-  const colors = useColors();
-  const spent = snap.totalBudget > 0 ? (snap.totalSpent / snap.totalBudget) * 100 : 0;
-
-  return (
-    <View style={[styles.detail, { backgroundColor: colors.card, borderColor: snap.pinned ? "#f59e0b" : colors.border }]}>
-      <View style={styles.detailHeader}>
-        <Text style={[styles.detailTitle, { color: colors.foreground }]}>Snapshot Detail</Text>
-        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="x" size={18} color={colors.mutedForeground} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.detailSection, { borderColor: colors.border }]}>
-        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Saved</Text>
-        <Text style={[styles.detailValue, { color: colors.foreground }]}>{fmtDate(snap.timestamp)}</Text>
-      </View>
-      <View style={[styles.detailSection, { borderColor: colors.border }]}>
-        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Label</Text>
-        <LabelBadge label={snap.label} />
-      </View>
-      <View style={[styles.detailSection, { borderColor: colors.border }]}>
-        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Protected</Text>
-        <TouchableOpacity
-          onPress={() => onPin(snap.id, !snap.pinned)}
-          disabled={pinning || restoring || deleting}
-          style={[styles.pinToggle, { backgroundColor: snap.pinned ? "#f59e0b20" : colors.muted }]}
-          activeOpacity={0.7}
-        >
-          {pinning ? (
-            <ActivityIndicator size="small" color="#f59e0b" />
-          ) : (
-            <>
-              <Feather name="bookmark" size={13} color={snap.pinned ? "#f59e0b" : colors.mutedForeground} />
-              <Text style={[styles.pinToggleText, { color: snap.pinned ? "#f59e0b" : colors.mutedForeground }]}>
-                {snap.pinned ? "Pinned — tap to unpin" : "Tap to pin"}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-      <View style={[styles.detailSection, { borderColor: colors.border }]}>
-        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Budget Lines</Text>
-        <Text style={[styles.detailValue, { color: colors.foreground }]}>{snap.lineCount}</Text>
-      </View>
-      <View style={[styles.detailSection, { borderColor: colors.border }]}>
-        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Total Budget</Text>
-        <Text style={[styles.detailValue, { color: colors.foreground }]}>{fmt(snap.totalBudget)}</Text>
-      </View>
-      <View style={[styles.detailSection, { borderColor: colors.border }]}>
-        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Total Spent</Text>
-        <Text style={[styles.detailValue, { color: colors.foreground }]}>{fmt(snap.totalSpent)}</Text>
-      </View>
-      <View style={[styles.detailSection, { borderColor: colors.border }]}>
-        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Utilisation</Text>
-        <Text style={[styles.detailValue, { color: spent > 90 ? (colors.destructive ?? "#ef4444") : colors.foreground }]}>
-          {spent.toFixed(1)}%
-        </Text>
-      </View>
-      <View style={[styles.detailSection, { borderColor: colors.border }]}>
-        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Snapshot ID</Text>
-        <Text style={[styles.detailId, { color: colors.mutedForeground }]} numberOfLines={2}>{snap.id}</Text>
-      </View>
-
-      <View style={styles.detailActions}>
-        <TouchableOpacity
-          style={[styles.detailBtn, { backgroundColor: colors.primary }]}
-          onPress={() => onRestore(snap.id)}
-          disabled={restoring || deleting || downloading || pinning}
-          activeOpacity={0.8}
-        >
-          {restoring ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Feather name="rotate-ccw" size={13} color="#fff" />
-              <Text style={styles.detailBtnText}>Restore This Snapshot</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.detailBtn, { backgroundColor: "#059669" }]}
-          onPress={() => onDownload(snap.id)}
-          disabled={restoring || deleting || downloading}
-          activeOpacity={0.8}
-        >
-          {downloading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Feather name="download" size={13} color="#fff" />
-              <Text style={styles.detailBtnText}>Download JSON</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.detailBtn, { backgroundColor: colors.destructive ?? "#ef4444" }]}
-          onPress={() => onDelete(snap.id)}
-          disabled={restoring || deleting || downloading || pinning}
-          activeOpacity={0.8}
-        >
-          {deleting ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Feather name="trash-2" size={13} color="#fff" />
-              <Text style={styles.detailBtnText}>Delete</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <Text style={[styles.detailWarning, { color: colors.mutedForeground }]}>
-        Restoring will overwrite all current data. A pre-restore backup will be saved automatically.
-        {snap.pinned ? " This snapshot is pinned and will never be auto-deleted." : ""}
-      </Text>
-    </View>
-  );
-}
-
-// ─── Diff status badge ────────────────────────────────────────────────────────
-
-const STATUS_COLORS: Record<string, { bg: string; fg: string; label: string }> = {
-  added:     { bg: "#16a34a20", fg: "#16a34a", label: "Added" },
-  removed:   { bg: "#dc262620", fg: "#dc2626", label: "Removed" },
-  changed:   { bg: "#d9770620", fg: "#d97706", label: "Changed" },
-  unchanged: { bg: "#6b728020", fg: "#6b7280", label: "Unchanged" },
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const c = STATUS_COLORS[status] ?? STATUS_COLORS.unchanged;
-  return (
-    <View style={[styles.badge, { backgroundColor: c.bg }]}>
-      <Text style={[styles.badgeText, { color: c.fg }]}>{c.label}</Text>
-    </View>
-  );
-}
-
-// ─── Diff line row ────────────────────────────────────────────────────────────
-
-function DiffLineRow({ line }: { line: SnapshotDiffLine }) {
-  const colors = useColors();
-  const [expanded, setExpanded] = useState(false);
-
-  const budgetDelta =
-    line.totalBudgetA != null && line.totalBudgetB != null
-      ? line.totalBudgetB - line.totalBudgetA
-      : null;
-
-  const planChanges = line.changes.filter((c) => c.field.startsWith("plan:"));
-  const actualChanges = line.changes.filter((c) => c.field.startsWith("actual:"));
-  const fieldChanges = line.changes.filter((c) => !c.field.startsWith("plan:") && !c.field.startsWith("actual:"));
-
-  return (
-    <View style={[styles.diffRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <TouchableOpacity
-        onPress={() => line.changes.length > 0 && setExpanded((e) => !e)}
-        activeOpacity={line.changes.length > 0 ? 0.7 : 1}
-        style={styles.diffRowHeader}
-      >
-        <View style={styles.diffRowLeft}>
-          <StatusBadge status={line.status} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.diffLineItem, { color: colors.foreground }]} numberOfLines={1}>
-              {line.lineItem}
-            </Text>
-            <Text style={[styles.diffCategory, { color: colors.mutedForeground }]}>
-              {line.category}{line.subcategory ? ` · ${line.subcategory}` : ""}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.diffRowRight}>
-          {line.totalBudgetA != null && (
-            <Text style={[styles.diffBudget, { color: colors.mutedForeground }]}>{fmt(line.totalBudgetA)}</Text>
-          )}
-          {line.totalBudgetA != null && line.totalBudgetB != null && (
-            <Feather name="arrow-right" size={11} color={colors.mutedForeground} />
-          )}
-          {line.totalBudgetB != null && (
-            <Text style={[styles.diffBudget, { color: colors.foreground }]}>{fmt(line.totalBudgetB)}</Text>
-          )}
-          {budgetDelta != null && budgetDelta !== 0 && (
-            <Text style={[styles.diffDelta, { color: budgetDelta > 0 ? "#16a34a" : "#dc2626" }]}>
-              {budgetDelta > 0 ? "+" : ""}{fmt(budgetDelta)}
-            </Text>
-          )}
-          {line.changes.length > 0 && (
-            <Feather name={expanded ? "chevron-up" : "chevron-down"} size={13} color={colors.mutedForeground} />
-          )}
-        </View>
-      </TouchableOpacity>
-
-      {expanded && line.changes.length > 0 && (
-        <View style={[styles.diffDetail, { borderColor: colors.border }]}>
-          {fieldChanges.length > 0 && (
-            <View style={styles.diffSection}>
-              <Text style={[styles.diffSectionTitle, { color: colors.mutedForeground }]}>Field changes</Text>
-              {fieldChanges.map((c) => (
-                <View key={c.field} style={styles.diffChangeRow}>
-                  <Text style={[styles.diffChangeField, { color: colors.mutedForeground }]}>{c.field}</Text>
-                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{c.from ?? "—"}</Text>
-                  <Feather name="arrow-right" size={10} color={colors.mutedForeground} />
-                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{c.to ?? "—"}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-          {planChanges.length > 0 && (
-            <View style={styles.diffSection}>
-              <Text style={[styles.diffSectionTitle, { color: colors.mutedForeground }]}>Monthly plan changes</Text>
-              {planChanges.map((c) => (
-                <View key={c.field} style={styles.diffChangeRow}>
-                  <Text style={[styles.diffChangeField, { color: colors.mutedForeground }]}>{c.field.replace("plan:", "")}</Text>
-                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{"£" + Number(c.from ?? 0).toLocaleString("en-GB")}</Text>
-                  <Feather name="arrow-right" size={10} color={colors.mutedForeground} />
-                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{"£" + Number(c.to ?? 0).toLocaleString("en-GB")}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-          {actualChanges.length > 0 && (
-            <View style={styles.diffSection}>
-              <Text style={[styles.diffSectionTitle, { color: colors.mutedForeground }]}>Monthly actual changes</Text>
-              {actualChanges.map((c) => (
-                <View key={c.field} style={styles.diffChangeRow}>
-                  <Text style={[styles.diffChangeField, { color: colors.mutedForeground }]}>{c.field.replace("actual:", "")}</Text>
-                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{"£" + Number(c.from ?? 0).toLocaleString("en-GB")}</Text>
-                  <Feather name="arrow-right" size={10} color={colors.mutedForeground} />
-                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{"£" + Number(c.to ?? 0).toLocaleString("en-GB")}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
-// ─── Compare panel ────────────────────────────────────────────────────────────
-
-interface ComparePanelProps {
-  aId: string;
-  bId: string;
-  snapshots: SnapshotMeta[];
-  onClose: () => void;
-}
-
-function ComparePanel({ aId, bId, snapshots, onClose }: ComparePanelProps) {
-  const colors = useColors();
-  const [showUnchanged, setShowUnchanged] = useState(false);
-
-  const { data: diff, isLoading, error } = useCompareSnapshots({ a: aId, b: bId });
-
-  const snapA = snapshots.find((s) => s.id === aId);
-  const snapB = snapshots.find((s) => s.id === bId);
-
-  const visibleLines = diff?.lines.filter((l) =>
-    showUnchanged ? true : l.status !== "unchanged"
-  ) ?? [];
-
-  return (
-    <View style={[styles.comparePanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.detailHeader}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Feather name="git-merge" size={16} color={colors.primary} />
-          <Text style={[styles.detailTitle, { color: colors.foreground }]}>Snapshot Comparison</Text>
-        </View>
-        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="x" size={18} color={colors.mutedForeground} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.compareAB, { borderColor: colors.border }]}>
-        <View style={styles.compareSlot}>
-          <View style={[styles.slotBadge, { backgroundColor: "#2563eb" }]}>
-            <Text style={styles.slotBadgeText}>A</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowDate, { color: colors.foreground }]} numberOfLines={1}>
-              {snapA ? fmtDate(snapA.timestamp) : aId}
-            </Text>
-            {snapA && <LabelBadge label={snapA.label} />}
-          </View>
-        </View>
-        <Feather name="arrow-right" size={14} color={colors.mutedForeground} style={{ alignSelf: "center" }} />
-        <View style={styles.compareSlot}>
-          <View style={[styles.slotBadge, { backgroundColor: "#16a34a" }]}>
-            <Text style={styles.slotBadgeText}>B</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowDate, { color: colors.foreground }]} numberOfLines={1}>
-              {snapB ? fmtDate(snapB.timestamp) : bId}
-            </Text>
-            {snapB && <LabelBadge label={snapB.label} />}
-          </View>
-        </View>
-      </View>
-
-      {isLoading && (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
-      )}
-
-      {error && (
-        <View style={[styles.compareError, { borderColor: "#dc2626", backgroundColor: "#dc262610" }]}>
-          <Feather name="alert-circle" size={16} color="#dc2626" />
-          <Text style={[styles.compareErrorText, { color: "#dc2626" }]}>Failed to load comparison</Text>
-        </View>
-      )}
-
-      {diff && (
-        <>
-          <View style={styles.summaryRow}>
-            {([
-              { label: "Added", count: diff.summary.added, color: "#16a34a" },
-              { label: "Removed", count: diff.summary.removed, color: "#dc2626" },
-              { label: "Changed", count: diff.summary.changed, color: "#d97706" },
-              { label: "Unchanged", count: diff.summary.unchanged, color: "#6b7280" },
-            ] as const).map((s) => (
-              <View key={s.label} style={[styles.summaryChip, { backgroundColor: s.color + "20" }]}>
-                <Text style={[styles.summaryCount, { color: s.color }]}>{s.count}</Text>
-                <Text style={[styles.summaryLabel, { color: s.color }]}>{s.label}</Text>
-              </View>
-            ))}
-          </View>
-
-          {diff.summary.unchanged > 0 && (
-            <TouchableOpacity
-              onPress={() => setShowUnchanged((v) => !v)}
-              style={styles.toggleUnchanged}
-            >
-              <Feather
-                name={showUnchanged ? "eye-off" : "eye"}
-                size={13}
-                color={colors.mutedForeground}
-              />
-              <Text style={[styles.toggleUnchangedText, { color: colors.mutedForeground }]}>
-                {showUnchanged ? "Hide unchanged lines" : `Show ${diff.summary.unchanged} unchanged line${diff.summary.unchanged !== 1 ? "s" : ""}`}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {visibleLines.length === 0 ? (
-            <View style={[styles.empty, { borderColor: colors.border, marginTop: 8 }]}>
-              <Feather name="check-circle" size={28} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                No differences found between these snapshots.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.diffList}>
-              {visibleLines.map((line, idx) => (
-                <DiffLineRow key={`${line.category}|${line.lineItem}|${idx}`} line={line} />
-              ))}
-            </View>
-          )}
-
-          <Text style={[styles.detailWarning, { color: colors.mutedForeground, marginTop: 8 }]}>
-            This view is read-only. Use the normal snapshot list to restore.
-          </Text>
-        </>
-      )}
-    </View>
-  );
-}
-
-// ─── Main screen ──────────────────────────────────────────────────────────────
-
-export default function SnapshotsScreen() {
-  const colors = useColors();
-  const { mode } = useLayout();
-  const isDesktop = mode === "desktop";
-  const qc = useQueryClient();
-
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [restoringId, setRestoringId] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [pinningId, setPinningId] = useState<string | null>(null);
-  const [showSaveModal, setShowSaveModal] = useState(false);
-  const [labelInput, setLabelInput] = useState("");
-
-  const [compareMode, setCompareMode] = useState(false);
-  const [compareA, setCompareA] = useState<string | null>(null);
-  const [compareB, setCompareB] = useState<string | null>(null);
-  const [showCompare, setShowCompare] = useState(false);
+  const fmt = (v: number) => "£" + Math.round(v).toLocaleString("en-GB");
+  const fmtDate = (d: string) => formatDate(d);
 
   const { data: snapshots = [], isLoading, refetch, isFetching } = useListSnapshots();
 
-  const createSnap = useCreateSnapshot();
-  const restoreSnap = useRestoreSnapshot();
-  const deleteSnap = useDeleteSnapshot();
+  const createMutation = useCreateSnapshot();
+  const restoreMutation = useRestoreSnapshot();
+  const deleteMutation = useDeleteSnapshot();
   const pinSnap = usePinSnapshot();
 
-  const invalidate = useCallback(() => {
-    qc.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
-  }, [qc]);
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
 
-  const handleSave = useCallback(() => {
-    const label = labelInput.trim() || "manual";
+  const handleSave = async () => {
     setSavingId("saving");
-    createSnap.mutate(
-      { data: { label } },
-      {
-        onSuccess: () => {
-          setShowSaveModal(false);
-          setLabelInput("");
-          invalidate();
-        },
-        onError: () => Alert.alert("Error", "Failed to save snapshot."),
-        onSettled: () => setSavingId(null),
-      }
-    );
-  }, [labelInput, createSnap, invalidate]);
-
-  const handleRestore = useCallback((id: string) => {
-    const msg = "Restore this snapshot? Current data will be overwritten. A pre-restore backup will be saved automatically.";
-    if (Platform.OS === "web") {
-      if (!window.confirm(msg)) return;
-      doRestore(id);
-    } else {
-      Alert.alert("Restore Snapshot", msg, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Restore", style: "destructive", onPress: () => doRestore(id) },
-      ]);
+    try {
+      const label = saveLabel.trim() || "manual";
+      await createMutation.mutateAsync({ label });
+      showToast(`Snapshot "${label}" saved.`);
+      setSaveLabel("");
+      queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
+    } catch {
+      showToast("Failed to save snapshot.", "error");
+    } finally {
+      setSavingId(null);
     }
-  }, []);
+  };
 
-  const doRestore = useCallback((id: string) => {
-    setRestoringId(id);
-    restoreSnap.mutate(
-      { id },
-      {
-        onSuccess: () => {
-          invalidate();
-          setSelectedId(null);
-          Alert.alert("Restored", "Snapshot restored. A pre-restore backup was saved automatically.");
-        },
-        onError: () => Alert.alert("Error", "Failed to restore snapshot."),
-        onSettled: () => setRestoringId(null),
-      }
-    );
-  }, [restoreSnap, invalidate]);
+  const openRestoreModal = (snap: SnapshotMeta) => {
+    setRestoreTarget(snap);
+    setConfirmText("");
+  };
 
-  const handleDelete = useCallback((id: string) => {
-    const msg = "Delete this snapshot? This cannot be undone.";
-    if (Platform.OS === "web") {
-      if (!window.confirm(msg)) return;
-      doDelete(id);
-    } else {
-      Alert.alert("Delete Snapshot", msg, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => doDelete(id) },
-      ]);
+  const handleRestore = async () => {
+    if (!restoreTarget || confirmText !== "CONFIRM") return;
+    setRestoring(true);
+    try {
+      await restoreMutation.mutateAsync(restoreTarget.id);
+      showToast(`Restored from "${restoreTarget.label}" snapshot.`);
+      queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
+      setRestoreTarget(null);
+      setConfirmText("");
+      setSelectedId(null);
+    } catch {
+      showToast("Restore failed. Check the server logs.", "error");
+    } finally {
+      setRestoring(false);
     }
-  }, []);
+  };
 
-  const doDelete = useCallback((id: string) => {
-    setDeletingId(id);
-    deleteSnap.mutate(
-      { id },
-      {
-        onSuccess: () => {
-          invalidate();
-          if (selectedId === id) setSelectedId(null);
+  const handleDelete = (snap: SnapshotMeta) => {
+    if (PROTECTED_LABELS.includes(snap.label)) {
+      showToast("This snapshot is protected and cannot be deleted.", "error");
+      return;
+    }
+    const doDelete = () => {
+      setDeletingId(snap.id);
+      deleteMutation.mutate(
+        { id: snap.id },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
+            showToast("Snapshot deleted.");
+            if (selectedId === snap.id) setSelectedId(null);
+          },
+          onError: () => showToast("Failed to delete snapshot.", "error"),
+          onSettled: () => setDeletingId(null),
         },
-        onError: () => Alert.alert("Error", "Failed to delete snapshot."),
-        onSettled: () => setDeletingId(null),
-      }
-    );
-  }, [deleteSnap, invalidate, selectedId]);
+      );
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(`Delete snapshot "${snap.label}"? This cannot be undone.`)) doDelete();
+    } else {
+      doDelete();
+    }
+  };
 
   const handleToggleCompare = useCallback(() => {
     if (compareMode) {
@@ -778,13 +250,41 @@ export default function SnapshotsScreen() {
               {compareMode ? "Exit Compare" : "Compare"}
             </Text>
           </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Save panel */}
+      <View style={[styles.savePanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.savePanelHeader}>
+          <Feather name="save" size={16} color={colors.primary} />
+          <Text style={[styles.savePanelTitle, { color: colors.foreground }]}>Save New Snapshot</Text>
+        </View>
+        <Text style={[styles.savePanelSubtext, { color: colors.mutedForeground }]}>
+          Captures all budget lines, monthly plans, and actuals at this moment.
+        </Text>
+        <View style={styles.saveRow}>
+          <TextInput
+            style={[styles.labelInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+            placeholder="Label (optional, e.g. before-q2-update)"
+            placeholderTextColor={colors.mutedForeground}
+            value={saveLabel}
+            onChangeText={setSaveLabel}
+            maxLength={40}
+          />
           <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: colors.primary }]}
-            onPress={() => { setLabelInput(""); setShowSaveModal(true); }}
+            onPress={handleSave}
+            disabled={!!savingId || createMutation.isPending}
+            style={[styles.saveButton, { backgroundColor: colors.primary, opacity: savingId || createMutation.isPending ? 0.6 : 1 }]}
             activeOpacity={0.8}
           >
-            <Feather name="camera" size={13} color="#fff" />
-            <Text style={styles.saveBtnText}>Save Snapshot</Text>
+            {savingId || createMutation.isPending ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Feather name="camera" size={14} color="#fff" />
+                <Text style={styles.saveButtonText}>Save Snapshot</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -839,12 +339,12 @@ export default function SnapshotsScreen() {
   const detailContent = selectedSnap ? (
     <DetailPanel
       snap={selectedSnap}
-      onRestore={handleRestore}
-      onDelete={handleDelete}
+      onRestore={() => openRestoreModal(selectedSnap)}
+      onDelete={() => handleDelete(selectedSnap)}
       onDownload={handleDownload}
       onPin={handlePin}
       onClose={() => setSelectedId(null)}
-      restoring={restoringId === selectedSnap.id}
+      restoring={restoring && restoreTarget?.id === selectedSnap.id}
       deleting={deletingId === selectedSnap.id}
       downloading={downloadingId === selectedSnap.id}
       pinning={pinningId === selectedSnap.id}
@@ -861,82 +361,91 @@ export default function SnapshotsScreen() {
       />
     ) : null;
 
-  const saveModal = (
-    <Modal
-      visible={showSaveModal}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setShowSaveModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.modalHeader}>
-            <Feather name="camera" size={18} color={colors.primary} />
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Save Snapshot</Text>
-          </View>
-          <Text style={[styles.modalSubtitle, { color: colors.mutedForeground }]}>
-            Enter an optional label (e.g. "before Q2 reforecast")
-          </Text>
-          <TextInput
-            style={[styles.modalInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
-            placeholder="manual"
-            placeholderTextColor={colors.mutedForeground}
-            value={labelInput}
-            onChangeText={setLabelInput}
-            autoFocus
-            maxLength={40}
-            onSubmitEditing={handleSave}
-            returnKeyType="done"
-          />
-          <View style={styles.modalActions}>
-            <TouchableOpacity
-              style={[styles.modalBtn, { backgroundColor: colors.muted }]}
-              onPress={() => setShowSaveModal(false)}
-            >
-              <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalBtn, { backgroundColor: colors.primary }]}
-              onPress={handleSave}
-              disabled={savingId !== null}
-            >
-              {savingId ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={[styles.modalBtnText, { color: "#fff" }]}>Save</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-
   if (isDesktop) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <DesktopSidebar />
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.desktopScroll}
-          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
-        >
-          <AdminSubnav active="snapshots" />
-          <View style={styles.desktopSplit}>
-            {listContent}
-            {!compareMode && detailContent && (
-              <View style={styles.detailPaneDesktop}>
-                {detailContent}
+        <View style={styles.desktopContent}>
+          <View style={styles.desktopMain}>
+            <View style={styles.splitView}>
+              {listContent}
+              <View style={[styles.detailPane, { borderLeftColor: colors.border }]}>
+                {compareMode ? compareContent : detailContent || (
+                  <View style={styles.noSelection}>
+                    <Feather name="mouse-pointer" size={24} color={colors.mutedForeground} />
+                    <Text style={[styles.noSelectionText, { color: colors.mutedForeground }]}>
+                      Select a snapshot to see details
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          {compareContent && (
-            <View style={{ marginTop: 16 }}>
-              {compareContent}
             </View>
-          )}
-        </ScrollView>
-        {saveModal}
+          </View>
+        </View>
+
+        {/* Restore confirm modal (Desktop) */}
+        <Modal
+          visible={!!restoreTarget}
+          transparent
+          animationType="fade"
+          onRequestClose={() => { setRestoreTarget(null); setConfirmText(""); }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalBox, { backgroundColor: colors.card, borderColor: "#f59e0b" }]}>
+              <View style={styles.modalWarningStrip}>
+                <Feather name="alert-triangle" size={18} color="#f59e0b" />
+                <Text style={styles.modalWarningText}>Warning — Destructive Action</Text>
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Restore Snapshot</Text>
+              {restoreTarget && (
+                <>
+                  <Text style={[styles.modalBody, { color: colors.mutedForeground }]}>
+                    This will <Text style={{ color: "#dc2626", fontFamily: "Inter_600SemiBold" }}>replace all current budget data</Text> with the state from:
+                  </Text>
+                  <View style={[styles.snapPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    <LabelBadge label={restoreTarget.label} />
+                    <Text style={[styles.snapPreviewDate, { color: colors.foreground }]}>
+                      {formatDate(restoreTarget.createdAt)}
+                    </Text>
+                  </View>
+                  <Text style={[styles.confirmInstruction, { color: colors.foreground }]}>
+                    To proceed, type <Text style={{ fontFamily: "Inter_700Bold" }}>CONFIRM</Text> below:
+                  </Text>
+                  <TextInput
+                    style={[styles.confirmInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                    value={confirmText}
+                    onChangeText={setConfirmText}
+                    autoCapitalize="characters"
+                    placeholder="Type CONFIRM"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      onPress={() => { setRestoreTarget(null); setConfirmText(""); }}
+                      style={[styles.modalButton, { backgroundColor: colors.muted }]}
+                    >
+                      <Text style={[styles.modalButtonText, { color: colors.foreground }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleRestore}
+                      disabled={confirmText !== "CONFIRM" || restoring}
+                      style={[
+                        styles.modalButton,
+                        { backgroundColor: "#f59e0b", opacity: confirmText !== "CONFIRM" || restoring ? 0.5 : 1 }
+                      ]}
+                    >
+                      {restoring ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.modalButtonText}>Restore Now</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -944,53 +453,352 @@ export default function SnapshotsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={styles.mobileScroll}
-        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+        style={styles.scroll}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
       >
         <AdminSubnav active="snapshots" />
         {listContent}
-        {!compareMode && selectedSnap && (
-          <View style={styles.detailPaneMobile}>
-            {detailContent}
-          </View>
-        )}
-        {compareContent && (
-          <View style={{ marginTop: 8 }}>
-            {compareContent}
-          </View>
-        )}
       </ScrollView>
-      {saveModal}
+
+      {/* Mobile Details Modal */}
+      <Modal
+        visible={!!selectedId && !compareMode}
+        animationType="slide"
+        onRequestClose={() => setSelectedId(null)}
+      >
+        <View style={[styles.mobileModal, { backgroundColor: colors.background }]}>
+          <View style={[styles.mobileModalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.mobileModalTitle, { color: colors.foreground }]}>Snapshot Details</Text>
+            <TouchableOpacity onPress={() => setSelectedId(null)}>
+              <Feather name="x" size={24} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+          {detailContent}
+        </View>
+      </Modal>
+
+      {/* Mobile Compare Modal */}
+      <Modal
+        visible={showCompare && compareMode}
+        animationType="slide"
+        onRequestClose={() => setShowCompare(false)}
+      >
+        <View style={[styles.mobileModal, { backgroundColor: colors.background }]}>
+          <View style={[styles.mobileModalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.mobileModalTitle, { color: colors.foreground }]}>Comparison Diff</Text>
+            <TouchableOpacity onPress={() => setShowCompare(false)}>
+              <Feather name="x" size={24} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+          {compareContent}
+        </View>
+      </Modal>
+
+      {/* Restore confirm modal (Mobile) */}
+      <Modal
+        visible={!!restoreTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setRestoreTarget(null); setConfirmText(""); }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card, borderColor: "#f59e0b" }]}>
+            <View style={styles.modalWarningStrip}>
+              <Feather name="alert-triangle" size={18} color="#f59e0b" />
+              <Text style={styles.modalWarningText}>Warning — Destructive Action</Text>
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Restore Snapshot</Text>
+            {restoreTarget && (
+              <>
+                <Text style={[styles.modalBody, { color: colors.mutedForeground }]}>
+                  This will <Text style={{ color: "#dc2626", fontFamily: "Inter_600SemiBold" }}>replace all current budget data</Text> with the state from:
+                </Text>
+                <View style={[styles.snapPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <LabelBadge label={restoreTarget.label} />
+                  <Text style={[styles.snapPreviewDate, { color: colors.foreground }]}>
+                    {formatDate(restoreTarget.createdAt)}
+                  </Text>
+                </View>
+                <Text style={[styles.confirmInstruction, { color: colors.foreground }]}>
+                  To proceed, type <Text style={{ fontFamily: "Inter_700Bold" }}>CONFIRM</Text> below:
+                </Text>
+                <TextInput
+                  style={[styles.confirmInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                  value={confirmText}
+                  onChangeText={setConfirmText}
+                  autoCapitalize="characters"
+                  placeholder="Type CONFIRM"
+                  placeholderTextColor={colors.mutedForeground}
+                />
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    onPress={() => { setRestoreTarget(null); setConfirmText(""); }}
+                    style={[styles.modalButton, { backgroundColor: colors.muted }]}
+                  >
+                    <Text style={[styles.modalButtonText, { color: colors.foreground }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleRestore}
+                    disabled={confirmText !== "CONFIRM" || restoring}
+                    style={[
+                      styles.modalButton,
+                      { backgroundColor: "#f59e0b", opacity: confirmText !== "CONFIRM" || restoring ? 0.5 : 1 }
+                    ]}
+                  >
+                    {restoring ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.modalButtonText}>Restore Now</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, flexDirection: "row" },
-  desktopScroll: { padding: 24, gap: 12 },
-  mobileScroll: { padding: 16, paddingBottom: 120, gap: 12 },
-  desktopSplit: { flexDirection: "row", gap: 20, alignItems: "flex-start" },
-  listPane: { flex: 1, gap: 12 },
-  detailPaneDesktop: { width: 320 },
-  detailPaneMobile: { marginTop: 4 },
-  topBar: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
-  topBarActions: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
-  saveBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  saveBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  compareBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
-  compareBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  compareHint: { borderRadius: 8, borderWidth: 1, padding: 10, flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  compareHintText: { flex: 1, fontSize: 13, lineHeight: 18 },
-  explainer: { fontSize: 13, lineHeight: 18 },
-  rowList: { gap: 6 },
-  row: {
+  container: {
+    flex: 1,
+    flexDirection: Platform.OS === "web" ? "row" : "column",
+  },
+  scroll: {
+    flex: 1,
+  },
+  desktopContent: {
+    flex: 1,
+    height: "100%",
+  },
+  desktopMain: {
+    flex: 1,
+  },
+  splitView: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  listPane: {
+    flex: 1.2,
+    padding: 24,
+  },
+  detailPane: {
+    flex: 1,
+    borderLeftWidth: 1,
+  },
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  topBarActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  compareBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
     borderWidth: 1,
+    gap: 6,
+  },
+  compareBtnText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+  savePanel: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  savePanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  savePanelTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+  savePanelSubtext: {
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  saveRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  labelInput: {
+    flex: 1,
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 13,
+  },
+  saveButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    height: 38,
+    borderRadius: 8,
+    gap: 8,
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+  explainer: {
+    fontSize: 13,
+    marginBottom: 16,
+  },
+  compareHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 8,
+  },
+  compareHintText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    flex: 1,
+  },
+  rowList: {
+    gap: 1,
+  },
+  noSelection: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  noSelectionText: {
+    marginTop: 12,
+    fontSize: 14,
+    textAlign: "center",
+  },
+  empty: {
+    padding: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  emptyText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
+  mobileModal: {
+    flex: 1,
+  },
+  mobileModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  mobileModalTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_600SemiBold",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalBox: {
+    width: "100%",
+    maxWidth: 400,
+    borderRadius: 16,
+    borderWidth: 2,
+    overflow: "hidden",
+    padding: 20,
+  },
+  modalWarningStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#f59e0b15",
+    padding: 10,
+    marginHorizontal: -20,
+    marginTop: -20,
+    marginBottom: 20,
+  },
+  modalWarningText: {
+    color: "#f59e0b",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 8,
+  },
+  modalBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  snapPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
+    marginBottom: 20,
+  },
+  snapPreviewDate: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+  confirmInstruction: {
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  confirmInput: {
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
   },
   rowLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
   rowDownloadBtn: { padding: 2 },
