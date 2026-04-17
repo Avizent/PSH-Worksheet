@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { View, ScrollView, StyleSheet, Platform, ActivityIndicator, RefreshControl, useWindowDimensions, Text, TouchableOpacity, FlatList } from "react-native";
+import { View, ScrollView, StyleSheet, Platform, ActivityIndicator, RefreshControl, useWindowDimensions, Text, TouchableOpacity, FlatList, Modal, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -124,6 +124,8 @@ function DashboardContent() {
   const resolveMutation = useResolveAlert();
   const createSnapshot = useCreateSnapshot();
   const [snapSaving, setSnapSaving] = useState(false);
+  const [showSnapModal, setShowSnapModal] = useState(false);
+  const [snapLabel, setSnapLabel] = useState("");
 
   const fireAutoOpen = useCallback(() => {
     if (Platform.OS === "web") {
@@ -160,13 +162,23 @@ function DashboardContent() {
   }, []);
 
   const handleSaveSnapshot = useCallback(() => {
+    setSnapLabel("");
+    setShowSnapModal(true);
+  }, []);
+
+  const handleConfirmSnapSave = useCallback(() => {
+    const label = snapLabel.trim() || "manual";
     setSnapSaving(true);
-    createSnapshot.mutate({ data: { label: "manual" } }, {
-      onSuccess: () => showToast("Snapshot saved"),
+    createSnapshot.mutate({ data: { label } }, {
+      onSuccess: () => {
+        setShowSnapModal(false);
+        setSnapLabel("");
+        showToast("Snapshot saved");
+      },
       onError: () => showToast("Failed to save snapshot"),
       onSettled: () => setSnapSaving(false),
     });
-  }, [createSnapshot, showToast]);
+  }, [snapLabel, createSnapshot, showToast]);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -619,16 +631,73 @@ function DashboardContent() {
     </View>
   );
 
+  const snapModal = (
+    <Modal
+      visible={showSnapModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowSnapModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.modalHeader}>
+            <Feather name="camera" size={18} color={colors.primary} />
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Save Snapshot</Text>
+          </View>
+          <Text style={[styles.modalSubtitle, { color: colors.mutedForeground }]}>
+            Enter an optional label (e.g. "before Q2 reforecast")
+          </Text>
+          <TextInput
+            style={[styles.modalInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+            placeholder="manual"
+            placeholderTextColor={colors.mutedForeground}
+            value={snapLabel}
+            onChangeText={setSnapLabel}
+            autoFocus
+            maxLength={40}
+            onSubmitEditing={handleConfirmSnapSave}
+            returnKeyType="done"
+          />
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: colors.muted }]}
+              onPress={() => setShowSnapModal(false)}
+            >
+              <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: colors.primary }]}
+              onPress={handleConfirmSnapSave}
+              disabled={snapSaving}
+            >
+              {snapSaving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={[styles.modalBtnText, { color: "#fff" }]}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   if (isDesktop) {
     return (
       <View style={[styles.desktopContainer, { backgroundColor: colors.background }]}>
         <DesktopSidebar alertCount={activeAlerts.length} />
         <View style={styles.desktopContent}>{content}</View>
+        {snapModal}
       </View>
     );
   }
 
-  return content;
+  return (
+    <View style={{ flex: 1 }}>
+      {content}
+      {snapModal}
+    </View>
+  );
 }
 
 export default function TabOneScreen() {
@@ -639,6 +708,15 @@ const styles = StyleSheet.create({
   overviewHeaderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   snapBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
   snapBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
+  modalBox: { width: "100%", maxWidth: 440, borderRadius: 16, borderWidth: 1, padding: 24, gap: 14 },
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  modalSubtitle: { fontSize: 13, lineHeight: 18 },
+  modalInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular" },
+  modalActions: { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
+  modalBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8, minWidth: 80, alignItems: "center" },
+  modalBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   loadingContainer: {
     flex: 1,
     alignItems: "center",

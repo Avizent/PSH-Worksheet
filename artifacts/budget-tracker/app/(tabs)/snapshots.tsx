@@ -28,8 +28,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-const fmt = (n: number) =>
-  "£" + Math.round(n).toLocaleString("en-GB");
+const fmt = (n: number) => "£" + Math.round(n).toLocaleString("en-GB");
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
@@ -61,49 +60,98 @@ function LabelBadge({ label }: { label: string }) {
   );
 }
 
-interface SnapshotCardProps {
+interface SnapshotRowProps {
+  snap: SnapshotMeta;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+}
+
+function SnapshotRow({ snap, isSelected, onSelect }: SnapshotRowProps) {
+  const colors = useColors();
+  return (
+    <TouchableOpacity
+      onPress={() => onSelect(snap.id)}
+      activeOpacity={0.7}
+      style={[
+        styles.row,
+        {
+          backgroundColor: isSelected ? colors.primary + "10" : colors.card,
+          borderColor: isSelected ? colors.primary : colors.border,
+        },
+      ]}
+    >
+      <View style={styles.rowLeft}>
+        <Feather name="camera" size={14} color={isSelected ? colors.primary : colors.mutedForeground} />
+        <View style={styles.rowMeta}>
+          <Text style={[styles.rowDate, { color: colors.foreground }]}>{fmtDate(snap.timestamp)}</Text>
+          <LabelBadge label={snap.label} />
+        </View>
+      </View>
+      <View style={styles.rowRight}>
+        <Text style={[styles.rowBudget, { color: colors.foreground }]}>{fmt(snap.totalBudget)}</Text>
+        <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>{snap.lineCount} lines</Text>
+      </View>
+      <Feather name="chevron-right" size={14} color={isSelected ? colors.primary : colors.mutedForeground} />
+    </TouchableOpacity>
+  );
+}
+
+interface DetailPanelProps {
   snap: SnapshotMeta;
   onRestore: (id: string) => void;
   onDelete: (id: string) => void;
+  onClose: () => void;
   restoring: boolean;
   deleting: boolean;
 }
 
-function SnapshotCard({ snap, onRestore, onDelete, restoring, deleting }: SnapshotCardProps) {
+function DetailPanel({ snap, onRestore, onDelete, onClose, restoring, deleting }: DetailPanelProps) {
   const colors = useColors();
-  const isProtected = snap.label === "pre-restore" || snap.label === "pre-import" || (!snap.label.startsWith("auto-") && snap.label !== "manual");
-  const canDelete = !isProtected || snap.label === "manual";
+  const spent = snap.totalBudget > 0 ? (snap.totalSpent / snap.totalBudget) * 100 : 0;
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardTitleRow}>
-          <Feather name="camera" size={14} color={colors.mutedForeground} />
-          <Text style={[styles.cardDate, { color: colors.foreground }]} numberOfLines={1}>
-            {fmtDate(snap.timestamp)}
-          </Text>
-        </View>
+    <View style={[styles.detail, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.detailHeader}>
+        <Text style={[styles.detailTitle, { color: colors.foreground }]}>Snapshot Detail</Text>
+        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Feather name="x" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.detailSection, { borderColor: colors.border }]}>
+        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Saved</Text>
+        <Text style={[styles.detailValue, { color: colors.foreground }]}>{fmtDate(snap.timestamp)}</Text>
+      </View>
+      <View style={[styles.detailSection, { borderColor: colors.border }]}>
+        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Label</Text>
         <LabelBadge label={snap.label} />
       </View>
-
-      <View style={styles.cardStats}>
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Budget</Text>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>{fmt(snap.totalBudget)}</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Spent</Text>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>{fmt(snap.totalSpent)}</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Lines</Text>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>{snap.lineCount}</Text>
-        </View>
+      <View style={[styles.detailSection, { borderColor: colors.border }]}>
+        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Budget Lines</Text>
+        <Text style={[styles.detailValue, { color: colors.foreground }]}>{snap.lineCount}</Text>
+      </View>
+      <View style={[styles.detailSection, { borderColor: colors.border }]}>
+        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Total Budget</Text>
+        <Text style={[styles.detailValue, { color: colors.foreground }]}>{fmt(snap.totalBudget)}</Text>
+      </View>
+      <View style={[styles.detailSection, { borderColor: colors.border }]}>
+        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Total Spent</Text>
+        <Text style={[styles.detailValue, { color: colors.foreground }]}>{fmt(snap.totalSpent)}</Text>
+      </View>
+      <View style={[styles.detailSection, { borderColor: colors.border }]}>
+        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Utilisation</Text>
+        <Text style={[styles.detailValue, { color: spent > 90 ? (colors.destructive ?? "#ef4444") : colors.foreground }]}>
+          {spent.toFixed(1)}%
+        </Text>
+      </View>
+      <View style={[styles.detailSection, { borderColor: colors.border }]}>
+        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Snapshot ID</Text>
+        <Text style={[styles.detailId, { color: colors.mutedForeground }]} numberOfLines={2}>{snap.id}</Text>
       </View>
 
-      <View style={styles.cardActions}>
+      <View style={styles.detailActions}>
         <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+          style={[styles.detailBtn, { backgroundColor: colors.primary }]}
           onPress={() => onRestore(snap.id)}
           disabled={restoring || deleting}
           activeOpacity={0.8}
@@ -112,14 +160,14 @@ function SnapshotCard({ snap, onRestore, onDelete, restoring, deleting }: Snapsh
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
-              <Feather name="rotate-ccw" size={12} color="#fff" />
-              <Text style={styles.actionBtnText}>Restore</Text>
+              <Feather name="rotate-ccw" size={13} color="#fff" />
+              <Text style={styles.detailBtnText}>Restore This Snapshot</Text>
             </>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: colors.destructive ?? "#ef4444" }]}
+          style={[styles.detailBtn, { backgroundColor: colors.destructive ?? "#ef4444" }]}
           onPress={() => onDelete(snap.id)}
           disabled={restoring || deleting}
           activeOpacity={0.8}
@@ -128,15 +176,15 @@ function SnapshotCard({ snap, onRestore, onDelete, restoring, deleting }: Snapsh
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
-              <Feather name="trash-2" size={12} color="#fff" />
-              <Text style={styles.actionBtnText}>Delete</Text>
+              <Feather name="trash-2" size={13} color="#fff" />
+              <Text style={styles.detailBtnText}>Delete</Text>
             </>
           )}
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.snapId, { color: colors.mutedForeground }]} numberOfLines={1}>
-        ID: {snap.id}
+      <Text style={[styles.detailWarning, { color: colors.mutedForeground }]}>
+        Restoring will overwrite all current data. A pre-restore backup will be saved automatically.
       </Text>
     </View>
   );
@@ -148,6 +196,7 @@ export default function SnapshotsScreen() {
   const isDesktop = mode === "desktop";
   const qc = useQueryClient();
 
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
@@ -175,21 +224,19 @@ export default function SnapshotsScreen() {
           setLabelInput("");
           invalidate();
         },
-        onError: () => {
-          Alert.alert("Error", "Failed to save snapshot.");
-        },
+        onError: () => Alert.alert("Error", "Failed to save snapshot."),
         onSettled: () => setSavingId(null),
       }
     );
   }, [labelInput, createSnap, invalidate]);
 
   const handleRestore = useCallback((id: string) => {
-    const confirmMsg = `Restore this snapshot? Current data will be overwritten. A pre-restore backup will be saved automatically.`;
+    const msg = "Restore this snapshot? Current data will be overwritten. A pre-restore backup will be saved automatically.";
     if (Platform.OS === "web") {
-      if (!window.confirm(confirmMsg)) return;
+      if (!window.confirm(msg)) return;
       doRestore(id);
     } else {
-      Alert.alert("Restore Snapshot", confirmMsg, [
+      Alert.alert("Restore Snapshot", msg, [
         { text: "Cancel", style: "cancel" },
         { text: "Restore", style: "destructive", onPress: () => doRestore(id) },
       ]);
@@ -203,23 +250,22 @@ export default function SnapshotsScreen() {
       {
         onSuccess: () => {
           invalidate();
-          Alert.alert("Restored", "Snapshot restored successfully. A pre-restore backup was saved.");
+          setSelectedId(null);
+          Alert.alert("Restored", "Snapshot restored. A pre-restore backup was saved automatically.");
         },
-        onError: () => {
-          Alert.alert("Error", "Failed to restore snapshot.");
-        },
+        onError: () => Alert.alert("Error", "Failed to restore snapshot."),
         onSettled: () => setRestoringId(null),
       }
     );
   }, [restoreSnap, invalidate]);
 
   const handleDelete = useCallback((id: string) => {
-    const confirmMsg = "Delete this snapshot? This cannot be undone.";
+    const msg = "Delete this snapshot? This cannot be undone.";
     if (Platform.OS === "web") {
-      if (!window.confirm(confirmMsg)) return;
+      if (!window.confirm(msg)) return;
       doDelete(id);
     } else {
-      Alert.alert("Delete Snapshot", confirmMsg, [
+      Alert.alert("Delete Snapshot", msg, [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: () => doDelete(id) },
       ]);
@@ -231,70 +277,74 @@ export default function SnapshotsScreen() {
     deleteSnap.mutate(
       { id },
       {
-        onSuccess: () => invalidate(),
+        onSuccess: () => {
+          invalidate();
+          if (selectedId === id) setSelectedId(null);
+        },
         onError: () => Alert.alert("Error", "Failed to delete snapshot."),
         onSettled: () => setDeletingId(null),
       }
     );
-  }, [deleteSnap, invalidate]);
+  }, [deleteSnap, invalidate, selectedId]);
 
-  const content = (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={[styles.scroll, isDesktop && styles.scrollDesktop]}
-      refreshControl={
-        <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />
-      }
-    >
-      <View style={[styles.inner, isDesktop && styles.innerDesktop]}>
-        {isDesktop && <AdminSubnav active="snapshots" />}
+  const selectedSnap = selectedId ? (snapshots as SnapshotMeta[]).find((s) => s.id === selectedId) ?? null : null;
 
+  const listContent = (
+    <View style={styles.listPane}>
+      <View style={styles.topBar}>
         <SectionHeader
           icon="camera"
           title="Snapshots"
           subtitle={`${snapshots.length} snapshot${snapshots.length !== 1 ? "s" : ""} saved`}
         />
-
-        <View style={styles.topBar}>
-          <Text style={[styles.explainer, { color: colors.mutedForeground }]}>
-            Snapshots capture the full budget state. Restore any snapshot to roll back all data.
-          </Text>
-          <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: colors.primary }]}
-            onPress={() => { setLabelInput(""); setShowSaveModal(true); }}
-            activeOpacity={0.8}
-          >
-            <Feather name="camera" size={14} color="#fff" />
-            <Text style={styles.saveBtnText}>Save Snapshot</Text>
-          </TouchableOpacity>
-        </View>
-
-        {isLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-        ) : snapshots.length === 0 ? (
-          <View style={[styles.empty, { borderColor: colors.border }]}>
-            <Feather name="camera" size={32} color={colors.mutedForeground} />
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              No snapshots yet. Save one to get started.
-            </Text>
-          </View>
-        ) : (
-          <View style={[styles.grid, isDesktop && styles.gridDesktop]}>
-            {(snapshots as SnapshotMeta[]).map((snap) => (
-              <SnapshotCard
-                key={snap.id}
-                snap={snap}
-                onRestore={handleRestore}
-                onDelete={handleDelete}
-                restoring={restoringId === snap.id}
-                deleting={deletingId === snap.id}
-              />
-            ))}
-          </View>
-        )}
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+          onPress={() => { setLabelInput(""); setShowSaveModal(true); }}
+          activeOpacity={0.8}
+        >
+          <Feather name="camera" size={13} color="#fff" />
+          <Text style={styles.saveBtnText}>Save Snapshot</Text>
+        </TouchableOpacity>
       </View>
-    </ScrollView>
+
+      <Text style={[styles.explainer, { color: colors.mutedForeground }]}>
+        Snapshots capture the full budget state. Tap a row to preview and restore.
+      </Text>
+
+      {isLoading ? (
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+      ) : (snapshots as SnapshotMeta[]).length === 0 ? (
+        <View style={[styles.empty, { borderColor: colors.border }]}>
+          <Feather name="camera" size={32} color={colors.mutedForeground} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            No snapshots yet. Save one to get started.
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.rowList}>
+          {(snapshots as SnapshotMeta[]).map((snap) => (
+            <SnapshotRow
+              key={snap.id}
+              snap={snap}
+              isSelected={selectedId === snap.id}
+              onSelect={setSelectedId}
+            />
+          ))}
+        </View>
+      )}
+    </View>
   );
+
+  const detailContent = selectedSnap ? (
+    <DetailPanel
+      snap={selectedSnap}
+      onRestore={handleRestore}
+      onDelete={handleDelete}
+      onClose={() => setSelectedId(null)}
+      restoring={restoringId === selectedSnap.id}
+      deleting={deletingId === selectedSnap.id}
+    />
+  ) : null;
 
   const saveModal = (
     <Modal
@@ -351,17 +401,41 @@ export default function SnapshotsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <DesktopSidebar />
-        <View style={{ flex: 1 }}>
-          {content}
-          {saveModal}
-        </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.desktopScroll}
+          refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+        >
+          <AdminSubnav active="snapshots" />
+          <View style={styles.desktopSplit}>
+            {listContent}
+            {detailContent && (
+              <View style={styles.detailPaneDesktop}>
+                {detailContent}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+        {saveModal}
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {content}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.mobileScroll}
+        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
+      >
+        <AdminSubnav active="snapshots" />
+        {listContent}
+        {selectedSnap && (
+          <View style={styles.detailPaneMobile}>
+            {detailContent}
+          </View>
+        )}
+      </ScrollView>
       {saveModal}
     </View>
   );
@@ -369,36 +443,46 @@ export default function SnapshotsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, flexDirection: "row" },
-  scroll: { flexGrow: 1 },
-  scrollDesktop: {},
-  inner: { padding: 16, gap: 12 },
-  innerDesktop: { padding: 24 },
+  desktopScroll: { padding: 24, gap: 12 },
+  mobileScroll: { padding: 16, paddingBottom: 120, gap: 12 },
+  desktopSplit: { flexDirection: "row", gap: 20, alignItems: "flex-start" },
+  listPane: { flex: 1, gap: 12 },
+  detailPaneDesktop: { width: 320 },
+  detailPaneMobile: { marginTop: 4 },
   topBar: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
-  explainer: { flex: 1, fontSize: 13, lineHeight: 18, minWidth: 200 },
-  saveBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  saveBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   saveBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  grid: { gap: 12 },
-  gridDesktop: { flexDirection: "row", flexWrap: "wrap" },
-  card: {
-    borderWidth: 1, borderRadius: 12, padding: 14, gap: 10,
-    minWidth: 280, flex: 1,
-    ...(Platform.OS === "web" ? { maxWidth: 380 } : {}),
+  explainer: { fontSize: 13, lineHeight: 18 },
+  rowList: { gap: 6 },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
   },
-  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
-  cardDate: { fontSize: 13, fontFamily: "Inter_500Medium", flexShrink: 1 },
-  badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
-  badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5 },
-  cardStats: { flexDirection: "row", gap: 16 },
-  statItem: { gap: 2 },
-  statLabel: { fontSize: 10, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5 },
-  statValue: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  cardActions: { flexDirection: "row", gap: 8 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, flex: 1, justifyContent: "center" },
-  actionBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  snapId: { fontSize: 9, fontFamily: "Inter_400Regular" },
-  empty: { borderWidth: 1, borderStyle: "dashed", borderRadius: 12, padding: 40, alignItems: "center", gap: 12, marginTop: 20 },
+  rowLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  rowMeta: { gap: 4 },
+  rowDate: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  rowRight: { alignItems: "flex-end", gap: 2, marginRight: 4 },
+  rowBudget: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  rowLines: { fontSize: 11 },
+  badge: { alignSelf: "flex-start", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
+  badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
+  empty: { borderWidth: 1, borderStyle: "dashed", borderRadius: 12, padding: 40, alignItems: "center", gap: 12 },
   emptyText: { fontSize: 14, textAlign: "center" },
+  detail: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 10 },
+  detailHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  detailTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  detailSection: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1 },
+  detailLabel: { fontSize: 12, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.4 },
+  detailValue: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  detailId: { fontSize: 10, fontFamily: "Inter_400Regular", maxWidth: 180, textAlign: "right" },
+  detailActions: { gap: 8, marginTop: 4 },
+  detailBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8 },
+  detailBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  detailWarning: { fontSize: 11, lineHeight: 15, textAlign: "center" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
   modalBox: { width: "100%", maxWidth: 440, borderRadius: 16, borderWidth: 1, padding: 24, gap: 14 },
   modalHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
