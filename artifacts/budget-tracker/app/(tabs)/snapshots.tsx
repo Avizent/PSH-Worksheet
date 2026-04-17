@@ -315,24 +315,47 @@ const formatDate = (dateStr: string) => {
             No snapshots yet. Save one to get started.
           </Text>
         </View>
-      ) : (
-        <View style={styles.rowList}>
-          {(snapshots as SnapshotMeta[]).map((snap) => (
-            <SnapshotRow
-              key={snap.id}
-              snap={snap}
-              isSelected={!compareMode && selectedId === snap.id}
-              isDownloading={downloadingId === snap.id}
-              onSelect={handleRowSelect}
-              onDownload={handleDownload}
-              compareSlot={compareA === snap.id ? "A" : compareB === snap.id ? "B" : null}
-              compareMode={compareMode}
-              onPin={handlePin}
-              pinning={pinningId === snap.id}
-            />
-          ))}
-        </View>
-      )}
+      ) : (() => {
+        const allSnaps = snapshots as SnapshotMeta[];
+        const pinned = allSnaps.filter((s) => s.pinned);
+        const recent = allSnaps.filter((s) => !s.pinned);
+        const renderRow = (snap: SnapshotMeta) => (
+          <SnapshotRow
+            key={snap.id}
+            snap={snap}
+            isSelected={!compareMode && selectedId === snap.id}
+            isDownloading={downloadingId === snap.id}
+            onSelect={handleRowSelect}
+            onDownload={handleDownload}
+            compareSlot={compareA === snap.id ? "A" : compareB === snap.id ? "B" : null}
+            compareMode={compareMode}
+            onPin={handlePin}
+            pinning={pinningId === snap.id}
+          />
+        );
+        return (
+          <View style={styles.rowList}>
+            {pinned.length > 0 && (
+              <>
+                <View style={[styles.groupHeader, { borderBottomColor: colors.border }]}>
+                  <Feather name="bookmark" size={12} color={colors.primary} />
+                  <Text style={[styles.groupHeaderText, { color: colors.primary }]}>Pinned</Text>
+                </View>
+                {pinned.map(renderRow)}
+              </>
+            )}
+            {recent.length > 0 && (
+              <>
+                <View style={[styles.groupHeader, { borderBottomColor: colors.border, marginTop: pinned.length > 0 ? 16 : 0 }]}>
+                  <Feather name="clock" size={12} color={colors.mutedForeground} />
+                  <Text style={[styles.groupHeaderText, { color: colors.mutedForeground }]}>Recent</Text>
+                </View>
+                {recent.map(renderRow)}
+              </>
+            )}
+          </View>
+        );
+      })()}
     </View>
   );
 
@@ -678,6 +701,20 @@ const styles = StyleSheet.create({
   },
   rowList: {
     gap: 1,
+  },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    marginBottom: 4,
+  },
+  groupHeaderText: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
   },
   noSelection: {
     flex: 1,
