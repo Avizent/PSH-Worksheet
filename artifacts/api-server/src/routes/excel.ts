@@ -34,12 +34,14 @@ const EXPECTED_HEADERS = [
   ...MONTH_LABELS.map((m) => `${m} Actual`),
 ];
 
-// ─── Export ───────────────────────────────────────────────────────────────────
+function formatCurrency(val: number): string {
+  return val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
+}
 
 router.get("/excel/export", asyncHandler(async (_req, res): Promise<void> => {
   const ExcelJS = (await import("exceljs")).default;
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Budget Lines");
+  const sheet = workbook.addWorksheet("FY2026 Budget Tracker");
 
   const budgetLines = await db
     .select()
@@ -47,50 +49,61 @@ router.get("/excel/export", asyncHandler(async (_req, res): Promise<void> => {
     .orderBy(budgetLinesTable.category, budgetLinesTable.lineItem);
   const plans = await db.select().from(monthlyPlansTable).where(eq(monthlyPlansTable.year, 2026));
   const actuals = await db.select().from(monthlyActualsTable).where(eq(monthlyActualsTable.year, 2026));
+  const currentMonth = new Date().getMonth() + 1;
 
-  sheet.addRow(EXPECTED_HEADERS);
+  const headerRow = ["Category", "Line Item", "Owner", "Cost Status", "Projection %"];
+  for (const ml of MONTH_LABELS) headerRow.push(`${ml} Plan`, `${ml} Actual`, `${ml} Projected`);
+  headerRow.push("Total Plan", "Total Actual", "Total Projected", "Variance (Actual)", "Variance (Projected)");
+
+  sheet.addRow(headerRow);
   const hRow = sheet.getRow(1);
-  hRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  hRow.font = { bold: true, size: 10, color: { argb: "FFFFFFFF" } };
   hRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1e3a5f" } };
   hRow.alignment = { vertical: "middle" };
   sheet.views = [{ state: "frozen", ySplit: 1 }];
 
   for (const bl of budgetLines) {
-    const planMap = new Map(
-      plans.filter((p) => p.budgetLineId === bl.id).map((p) => [p.month, Number(p.plannedAmount)])
-    );
-    const actualMap = new Map(
-      actuals.filter((a) => a.budgetLineId === bl.id).map((a) => [a.month, Number(a.actualAmount)])
-    );
+    const blPlans = plans.filter((p) => p.budgetLineId === bl.id);
+    const blActuals = actuals.filter((a) => a.budgetLineId === bl.id);
+    const planMap = new Map(blPlans.map((p) => [p.month, Number(p.plannedAmount)]));
+    const actualMap = new Map(blActuals.map((a) => [a.month, Number(a.actualAmount)]));
 
-    const row: (string | number | null)[] = [
-      bl.category,
-      bl.subcategory ?? "",
-      bl.lineItem,
-      bl.owner ?? "",
-      bl.region ?? "",
-      bl.channel ?? "",
-      bl.costStatus,
-      bl.projectionPct ?? 0,
-      bl.boardApprovedAmount ?? null,
-    ];
+    let lastActual: number | null = null;
+    for (let m = 1; m <= 12; m++) {
+      if (actualMap.has(m)) lastActual = actualMap.get(m)!;
+    }
 
-    for (let m = 1; m <= 12; m++) row.push(planMap.get(m) ?? 0);
-    for (let m = 1; m <= 12; m++) row.push(actualMap.get(m) ?? 0);
+    const row: (string | number)[] = [bl.category, bl.lineItem, bl.owner || "", bl.costStatus, bl.projectionPct || 0];
+    let totalPlan = 0;
+    let totalActual = 0;
+    let totalProjected = 0;
 
+    for (let m = 1; m <= 12; m++) {
+      const pv = planMap.get(m) || 0;
+      const av = actualMap.get(m) || 0;
+      let proj = 0;
+      if (bl.costStatus === "Fixed Cost" && m > currentMonth && lastActual !== null) {
+        proj = lastActual * (1 + (bl.projectionPct || 0) / 100);
+      } else if (actualMap.has(m)) {
+        proj = av;
+      }
+      totalPlan += pv;
+      totalActual += av;
+      totalProjected += proj;
+      row.push(pv, av, proj);
+    }
+
+    row.push(totalPlan, totalActual, totalProjected, totalActual - totalPlan, totalProjected - totalPlan);
     sheet.addRow(row);
   }
 
   sheet.columns.forEach((col, i) => {
     const colNum = i + 1;
-    if (colNum <= 7) {
+    if (colNum <= 4) {
       col.width = 18;
-    } else if (colNum === 8) {
+    } else if (colNum === 5) {
       col.width = 12;
       col.numFmt = "0.0";
-    } else if (colNum === 9) {
-      col.width = 18;
-      col.numFmt = "£#,##0";
     } else {
       col.width = 11;
       col.numFmt = "£#,##0";
@@ -345,8 +358,6 @@ router.post(
       ? req.body.sheetName.trim()
       : undefined;
 
-    // If no sheet was specified, first do a quick inspection to check for
-    // multi-sheet workbooks that need user selection.
     if (!requestedSheet) {
       const inspection = await inspectWorkbook(req.file.buffer);
       if (!inspection.ok) {
@@ -356,8 +367,6 @@ router.post(
       const { sheetNames } = inspection;
 
       if (sheetNames.length > 1) {
-        // Multiple sheets present — always ask the user to pick one so they
-        // don't accidentally import the wrong sheet.
         res.json({ needsSheetSelection: true, sheetNames });
         return;
       }
