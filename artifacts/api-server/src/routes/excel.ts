@@ -323,7 +323,16 @@ router.post(
       res.status(422).json(result);
       return;
     }
-    res.json({ valid: true, rowCount: result.parsed.length });
+
+    const existingLines = await db.select().from(budgetLinesTable);
+    const existingKeys = new Set(existingLines.map((l) => `${l.category}||${l.lineItem}`));
+    const incomingKeys = new Set(result.parsed.map((p) => `${p.category}||${p.lineItem}`));
+
+    const toAdd = result.parsed.filter((p) => !existingKeys.has(`${p.category}||${p.lineItem}`)).length;
+    const toUpdate = result.parsed.filter((p) => existingKeys.has(`${p.category}||${p.lineItem}`)).length;
+    const toDelete = existingLines.filter((l) => !incomingKeys.has(`${l.category}||${l.lineItem}`)).length;
+
+    res.json({ valid: true, rowCount: result.parsed.length, diff: { toAdd, toUpdate, toDelete } });
   })
 );
 

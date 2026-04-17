@@ -2586,9 +2586,23 @@ components:
           type: boolean
         rowCount:
           type: integer
+        diff:
+          type: object
+          properties:
+            toAdd:
+              type: integer
+            toUpdate:
+              type: integer
+            toDelete:
+              type: integer
+          required:
+            - toAdd
+            - toUpdate
+            - toDelete
       required:
         - valid
         - rowCount
+        - diff
 
     ExcelImportResult:
       type: object

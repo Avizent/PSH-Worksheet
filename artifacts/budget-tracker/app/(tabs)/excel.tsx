@@ -44,11 +44,17 @@ interface ImportResult {
   };
 }
 
+interface ImportDiff {
+  toAdd: number;
+  toUpdate: number;
+  toDelete: number;
+}
+
 type ImportState =
   | { phase: "idle" }
   | { phase: "validating" }
   | { phase: "errors"; errors: ValidationError[] }
-  | { phase: "confirm"; file: File; rowCount: number }
+  | { phase: "confirm"; file: File; rowCount: number; diff: ImportDiff }
   | { phase: "importing" }
   | { phase: "done"; result: ImportResult };
 
@@ -165,7 +171,12 @@ export default function ExcelScreen() {
       }
 
       // Validation passed — move to confirm stage (no DB writes yet)
-      setImportState({ phase: "confirm", file, rowCount: json.rowCount });
+      setImportState({
+        phase: "confirm",
+        file,
+        rowCount: json.rowCount,
+        diff: json.diff ?? { toAdd: 0, toUpdate: json.rowCount, toDelete: 0 },
+      });
     } catch (e: unknown) {
       showToast("Validation error: " + (e instanceof Error ? e.message : String(e)), "error");
       setImportState({ phase: "idle" });
@@ -366,11 +377,48 @@ export default function ExcelScreen() {
               </Text>
             </View>
 
-            {/* Warning box */}
-            <View style={[styles.warningBox, { marginTop: 12 }]}>
+            {/* Diff summary row */}
+            <View style={styles.diffRow}>
+              <View style={styles.diffItem}>
+                <Text style={[styles.diffCount, { color: "#16a34a" }]}>{importState.diff.toAdd}</Text>
+                <Text style={styles.diffLabel}>added</Text>
+              </View>
+              <View style={styles.diffDivider} />
+              <View style={styles.diffItem}>
+                <Text style={[styles.diffCount, { color: "#2563eb" }]}>{importState.diff.toUpdate}</Text>
+                <Text style={styles.diffLabel}>updated</Text>
+              </View>
+              <View style={styles.diffDivider} />
+              <View style={styles.diffItem}>
+                <Text style={[styles.diffCount, { color: importState.diff.toDelete > 0 ? "#dc2626" : "#6b7280" }]}>
+                  {importState.diff.toDelete}
+                </Text>
+                <Text style={[styles.diffLabel, importState.diff.toDelete > 0 && { color: "#dc2626", fontFamily: "Inter_600SemiBold" }]}>
+                  removed
+                </Text>
+              </View>
+            </View>
+
+            {/* Warning box — escalated if any lines will be deleted */}
+            <View style={[
+              styles.warningBox,
+              { marginTop: 12 },
+              importState.diff.toDelete > 0 && styles.warningBoxDanger,
+            ]}>
               <View style={styles.warningHeader}>
-                <Feather name="alert-triangle" size={18} color="#92400e" />
-                <Text style={styles.warningTitle}>This will overwrite all current budget data</Text>
+                <Feather
+                  name="alert-triangle"
+                  size={18}
+                  color={importState.diff.toDelete > 0 ? "#b91c1c" : "#92400e"}
+                />
+                <Text style={[
+                  styles.warningTitle,
+                  importState.diff.toDelete > 0 && { color: "#b91c1c" },
+                ]}>
+                  {importState.diff.toDelete > 0
+                    ? `${importState.diff.toDelete} line${importState.diff.toDelete !== 1 ? "s" : ""} will be permanently removed`
+                    : "This will overwrite all current budget data"}
+                </Text>
               </View>
               <Text style={styles.warningBody}>
                 Importing this file will{" "}
@@ -594,6 +642,25 @@ const styles = StyleSheet.create({
   warningHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   warningTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#92400e" },
   warningBody: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#78350f", lineHeight: 19 },
+  warningBoxDanger: {
+    backgroundColor: "#fff1f2",
+    borderColor: "#f87171",
+  },
+
+  diffRow: {
+    flexDirection: "row" as const,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 8,
+    backgroundColor: "#f9fafb",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  diffItem: { flex: 1, alignItems: "center", gap: 2 },
+  diffCount: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  diffLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6b7280", textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  diffDivider: { width: 1, height: 32, backgroundColor: "#e5e7eb" },
 
   confirmGate: { marginTop: 8, borderWidth: 1, borderRadius: 8, padding: 14, gap: 8 },
   confirmLabel: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
