@@ -200,6 +200,11 @@ export default function ExcelScreen() {
       setImportState({ phase: "done", result });
       queryClient.invalidateQueries({ queryKey: getListBudgetLinesWithMonthlyQueryKey({ year: 2026 }) });
       queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey({ year: 2026 }) });
+      showToast(
+        result.snapshotSaved
+          ? "Budget imported. A pre-import snapshot has been saved to the Snapshot Manager."
+          : "Budget imported successfully."
+      );
     } catch (e: unknown) {
       showToast("Import error: " + (e instanceof Error ? e.message : String(e)), "error");
       setImportState({ phase: "idle" });

@@ -81,12 +81,19 @@ router.get("/excel/export", asyncHandler(async (_req, res): Promise<void> => {
 
   sheet.columns.forEach((col, i) => {
     const colNum = i + 1;
-    if (colNum <= 7 || colNum === 9) {
+    if (colNum <= 7) {
+      // Metadata text columns (1-7): Category through Cost Status
       col.width = 18;
     } else if (colNum === 8) {
+      // Projection % — raw 0-100 integer, formatted as "0.0" (not %)
       col.width = 12;
       col.numFmt = "0.0";
+    } else if (colNum === 9) {
+      // Board Approved Amount — currency format
+      col.width = 18;
+      col.numFmt = "£#,##0";
     } else {
+      // Monthly plan and actual columns (10-33) — currency format
       col.width = 11;
       col.numFmt = "£#,##0";
     }
@@ -130,6 +137,8 @@ function cellToString(val: unknown): string {
 
 function cellToNumber(val: unknown): number | null {
   if (val === null || val === undefined || val === "") return null;
+  // Reject string cells — cells must be numeric type, not text-formatted numbers
+  if (typeof val === "string") return null;
   const n = Number(val);
   if (!isFinite(n)) return null;
   return n;
@@ -227,12 +236,11 @@ async function validateBuffer(buf: Buffer): Promise<
 
     if (!category) errors.push({ column: "Category", row: rowNum, message: "Category must not be empty" });
     if (!lineItem) errors.push({ column: "Line Item", row: rowNum, message: "Line Item must not be empty" });
-    const validCostStatuses = ["Variable", "Fixed Cost", "Booked", "Planned"];
-    if (!validCostStatuses.includes(costStatus)) {
+    if (costStatus !== "Variable" && costStatus !== "Fixed Cost") {
       errors.push({
         column: "Cost Status",
         row: rowNum,
-        message: `Cost Status must be one of: ${validCostStatuses.map((s) => `"${s}"`).join(", ")}. Got "${costStatus}"`,
+        message: `Cost Status must be exactly "Variable" or "Fixed Cost", got "${costStatus}"`,
       });
     }
 
@@ -338,7 +346,9 @@ router.post(
 
     const { parsed } = validation;
 
-    // Attempt pre-import snapshot (non-fatal if Task #62 not yet deployed)
+    // Attempt pre-import snapshot before any DB writes.
+    // TODO(Task #62): POST /api/snapshots will be implemented by the Snapshots feature.
+    // Until then, this call is expected to fail (non-fatal); snapshotSaved will be false.
     let snapshotSaved = false;
     try {
       const snapshotUrl = `http://localhost:${process.env["PORT"]}/api/snapshots`;
@@ -349,7 +359,7 @@ router.post(
       });
       snapshotSaved = snapRes.ok;
     } catch (e) {
-      logger.warn({ err: e }, "Pre-import snapshot failed (non-fatal) — snapshot API not yet available");
+      logger.warn({ err: e }, "Pre-import snapshot failed (non-fatal — Task #62 snapshot API not yet deployed)");
     }
 
     const existingLines = await db.select().from(budgetLinesTable);
