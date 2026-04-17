@@ -7,10 +7,10 @@ export interface SnapshotMeta {
   filename: string;
   label: string;
   createdAt: string;
-  totalBudget?: number;
-  totalSpent?: number;
-  lineCount?: number;
-  pinned?: boolean;
+  totalBudget: number;
+  totalSpent: number;
+  lineCount: number;
+  pinned: boolean;
 }
 
 export interface CreateSnapshotBody {
@@ -120,7 +120,9 @@ export function useImportSnapshot(options?: {
   });
 }
 
-export function useDeleteSnapshot(): UseMutationResult<void, Error, { id: string }> {
+export function useDeleteSnapshot(options?: {
+  mutation?: Partial<Parameters<typeof useMutation>[0]>;
+}): UseMutationResult<void, Error, { id: string }> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, { id: string }>({
     mutationFn: ({ id }) =>
@@ -130,10 +132,13 @@ export function useDeleteSnapshot(): UseMutationResult<void, Error, { id: string
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
     },
+    ...options?.mutation,
   });
 }
 
-export function usePinSnapshot(): UseMutationResult<SnapshotMeta, Error, { id: string; data: { pinned: boolean } }> {
+export function usePinSnapshot(options?: {
+  mutation?: Partial<Parameters<typeof useMutation>[0]>;
+}): UseMutationResult<SnapshotMeta, Error, { id: string; data: { pinned: boolean } }> {
   const queryClient = useQueryClient();
   return useMutation<SnapshotMeta, Error, { id: string; data: { pinned: boolean } }>({
     mutationFn: ({ id, data }) =>
@@ -144,12 +149,15 @@ export function usePinSnapshot(): UseMutationResult<SnapshotMeta, Error, { id: s
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
     },
+    ...options?.mutation,
   });
 }
 
 export function useCompareSnapshots(
   params: { a: string; b: string } | null,
-  options?: { query?: Partial<Parameters<typeof useQuery>[0]> }
+  options?: {
+    query?: Partial<Parameters<typeof useQuery>[0]>;
+  }
 ): UseQueryResult<SnapshotDiff> {
   return useQuery<SnapshotDiff>({
     queryKey: params

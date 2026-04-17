@@ -84,6 +84,13 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `GET /audit-logs` — List audit log entries (filters: entityType, startDate, endDate, limit, offset)
 - `POST /admin/rollover` — Annual budget rollover (sourceYear → targetYear, idempotent)
 - `POST /seed` — Seed sample data (clears existing first)
+- `GET /snapshots` — List all saved snapshots (sorted newest-first, with totalBudget/totalSpent/lineCount/pinned)
+- `POST /snapshots` — Save a new snapshot (label optional, enforces 50-file limit)
+- `GET /snapshots/:id` — Get full snapshot body
+- `GET /snapshots/compare?a=:id&b=:id` — Diff two snapshots line-by-line
+- `POST /snapshots/:id/restore` — Restore snapshot (creates pre-restore backup first)
+- `DELETE /snapshots/:id` — Permanently delete a snapshot (returns 204)
+- `PATCH /snapshots/:id/pin` — Toggle snapshot pinned flag (body: { pinned: boolean })
 
 ### CSV Import Flow
 1. Upload CSV with columns: Category, Line Item, Month, Year, Amount, Invoice Ref

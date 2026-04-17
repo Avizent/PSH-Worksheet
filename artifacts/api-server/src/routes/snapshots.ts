@@ -841,6 +841,11 @@ router.delete(
       res.status(404).json({ error: "Snapshot not found" });
       return;
     }
+    const body = readSnapshotFile(filename);
+    if (body && PROTECTED_LABELS.includes(body.label)) {
+      res.status(403).json({ error: `Snapshot with label "${body.label}" is protected and cannot be deleted` });
+      return;
+    }
     fs.unlinkSync(filepath);
     logger.info({ id }, "Snapshot deleted");
     res.status(204).send();
