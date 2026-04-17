@@ -581,9 +581,21 @@ export interface ExcelImportCounts {
   actualsWritten: number;
 }
 
+export interface ExcelDiffLine {
+  category: string;
+  lineItem: string;
+}
+
+export type ExcelValidateResultDiff = {
+  toAdd: ExcelDiffLine[];
+  toUpdate: ExcelDiffLine[];
+  toDelete: ExcelDiffLine[];
+};
+
 export interface ExcelValidateResult {
   valid: boolean;
   rowCount: number;
+  diff: ExcelValidateResultDiff;
 }
 
 export interface ExcelImportResult {
@@ -792,4 +804,8 @@ export type CompareSnapshotsParams = {
    * ID of the "after" snapshot
    */
   b: string;
+};
+
+export type PinSnapshotBody = {
+  pinned: boolean;
 };

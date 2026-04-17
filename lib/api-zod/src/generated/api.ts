@@ -1265,6 +1265,26 @@ export const ValidateBudgetExcelBody = zod.object({
 export const ValidateBudgetExcelResponse = zod.object({
   valid: zod.boolean(),
   rowCount: zod.number(),
+  diff: zod.object({
+    toAdd: zod.array(
+      zod.object({
+        category: zod.string(),
+        lineItem: zod.string(),
+      }),
+    ),
+    toUpdate: zod.array(
+      zod.object({
+        category: zod.string(),
+        lineItem: zod.string(),
+      }),
+    ),
+    toDelete: zod.array(
+      zod.object({
+        category: zod.string(),
+        lineItem: zod.string(),
+      }),
+    ),
+  }),
 });
 
 /**
@@ -1309,6 +1329,7 @@ export const ListSnapshotsResponseItem = zod.object({
   totalBudget: zod.number(),
   totalSpent: zod.number(),
   lineCount: zod.number(),
+  pinned: zod.boolean(),
 });
 export const ListSnapshotsResponse = zod.array(ListSnapshotsResponseItem);
 
@@ -1328,6 +1349,7 @@ export const GetSnapshotResponse = zod
     totalBudget: zod.number(),
     totalSpent: zod.number(),
     lineCount: zod.number(),
+    pinned: zod.boolean(),
   })
   .and(
     zod.object({
@@ -1404,6 +1426,7 @@ export const CompareSnapshotsResponse = zod.object({
     totalBudget: zod.number(),
     totalSpent: zod.number(),
     lineCount: zod.number(),
+    pinned: zod.boolean(),
   }),
   snapshotB: zod.object({
     id: zod.string(),
@@ -1412,6 +1435,7 @@ export const CompareSnapshotsResponse = zod.object({
     totalBudget: zod.number(),
     totalSpent: zod.number(),
     lineCount: zod.number(),
+    pinned: zod.boolean(),
   }),
   lines: zod.array(
     zod.object({
@@ -1439,6 +1463,28 @@ export const CompareSnapshotsResponse = zod.object({
 });
 
 /**
+ * Sets the pinned flag on a snapshot. Pinned snapshots are never removed during housekeeping.
+ * @summary Pin or unpin a snapshot
+ */
+export const PinSnapshotParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const PinSnapshotBody = zod.object({
+  pinned: zod.boolean(),
+});
+
+export const PinSnapshotResponse = zod.object({
+  id: zod.string(),
+  timestamp: zod.coerce.date(),
+  label: zod.string(),
+  totalBudget: zod.number(),
+  totalSpent: zod.number(),
+  lineCount: zod.number(),
+  pinned: zod.boolean(),
+});
+
+/**
  * Saves a pre-restore snapshot, then overwrites the database with the snapshot data
  * @summary Restore a snapshot
  */
@@ -1454,6 +1500,7 @@ export const RestoreSnapshotResponse = zod.object({
     totalBudget: zod.number(),
     totalSpent: zod.number(),
     lineCount: zod.number(),
+    pinned: zod.boolean(),
   }),
   preRestore: zod
     .object({
@@ -1463,6 +1510,7 @@ export const RestoreSnapshotResponse = zod.object({
       totalBudget: zod.number(),
       totalSpent: zod.number(),
       lineCount: zod.number(),
+      pinned: zod.boolean(),
     })
     .nullable(),
 });

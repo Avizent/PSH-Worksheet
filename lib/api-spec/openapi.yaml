@@ -2612,6 +2612,17 @@ components:
         - plansWritten
         - actualsWritten
 
+    ExcelDiffLine:
+      type: object
+      properties:
+        category:
+          type: string
+        lineItem:
+          type: string
+      required:
+        - category
+        - lineItem
+
     ExcelValidateResult:
       type: object
       properties:
@@ -2623,11 +2634,17 @@ components:
           type: object
           properties:
             toAdd:
-              type: integer
+              type: array
+              items:
+                $ref: "#/components/schemas/ExcelDiffLine"
             toUpdate:
-              type: integer
+              type: array
+              items:
+                $ref: "#/components/schemas/ExcelDiffLine"
             toDelete:
-              type: integer
+              type: array
+              items:
+                $ref: "#/components/schemas/ExcelDiffLine"
           required:
             - toAdd
             - toUpdate

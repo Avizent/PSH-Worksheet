@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   ScrollView,
@@ -44,10 +44,15 @@ interface ImportResult {
   };
 }
 
+interface DiffLine {
+  category: string;
+  lineItem: string;
+}
+
 interface ImportDiff {
-  toAdd: number;
-  toUpdate: number;
-  toDelete: number;
+  toAdd: DiffLine[];
+  toUpdate: DiffLine[];
+  toDelete: DiffLine[];
 }
 
 type ImportState =
@@ -71,6 +76,11 @@ export default function ExcelScreen() {
   const [exportLoading, setExportLoading] = useState(false);
   const [importState, setImportState] = useState<ImportState>({ phase: "idle" });
   const [confirmText, setConfirmText] = useState("");
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+
+  const toggleSection = useCallback((key: string) => {
+    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -175,7 +185,7 @@ export default function ExcelScreen() {
         phase: "confirm",
         file,
         rowCount: json.rowCount,
-        diff: json.diff ?? { toAdd: 0, toUpdate: json.rowCount, toDelete: 0 },
+        diff: json.diff ?? { toAdd: [], toUpdate: [], toDelete: [] },
       });
     } catch (e: unknown) {
       showToast("Validation error: " + (e instanceof Error ? e.message : String(e)), "error");
@@ -225,6 +235,7 @@ export default function ExcelScreen() {
   const reset = () => {
     setImportState({ phase: "idle" });
     setConfirmText("");
+    setExpandedSections({});
   };
 
   const confirmEnabled = confirmText === "CONFIRM" && importState.phase === "confirm";
@@ -379,44 +390,100 @@ export default function ExcelScreen() {
 
             {/* Diff summary row */}
             <View style={styles.diffRow}>
-              <View style={styles.diffItem}>
-                <Text style={[styles.diffCount, { color: "#16a34a" }]}>{importState.diff.toAdd}</Text>
-                <Text style={styles.diffLabel}>added</Text>
-              </View>
-              <View style={styles.diffDivider} />
-              <View style={styles.diffItem}>
-                <Text style={[styles.diffCount, { color: "#2563eb" }]}>{importState.diff.toUpdate}</Text>
-                <Text style={styles.diffLabel}>updated</Text>
-              </View>
-              <View style={styles.diffDivider} />
-              <View style={styles.diffItem}>
-                <Text style={[styles.diffCount, { color: importState.diff.toDelete > 0 ? "#dc2626" : "#6b7280" }]}>
-                  {importState.diff.toDelete}
+              <TouchableOpacity
+                style={styles.diffItem}
+                onPress={() => importState.diff.toAdd.length > 0 && toggleSection("add")}
+                activeOpacity={importState.diff.toAdd.length > 0 ? 0.7 : 1}
+              >
+                <Text style={[styles.diffCount, { color: "#16a34a" }]}>{importState.diff.toAdd.length}</Text>
+                <Text style={styles.diffLabel}>
+                  added{importState.diff.toAdd.length > 0 ? (expandedSections.add ? " ▲" : " ▼") : ""}
                 </Text>
-                <Text style={[styles.diffLabel, importState.diff.toDelete > 0 && { color: "#dc2626", fontFamily: "Inter_600SemiBold" }]}>
-                  removed
+              </TouchableOpacity>
+              <View style={styles.diffDivider} />
+              <TouchableOpacity
+                style={styles.diffItem}
+                onPress={() => importState.diff.toUpdate.length > 0 && toggleSection("update")}
+                activeOpacity={importState.diff.toUpdate.length > 0 ? 0.7 : 1}
+              >
+                <Text style={[styles.diffCount, { color: "#2563eb" }]}>{importState.diff.toUpdate.length}</Text>
+                <Text style={styles.diffLabel}>
+                  updated{importState.diff.toUpdate.length > 0 ? (expandedSections.update ? " ▲" : " ▼") : ""}
                 </Text>
-              </View>
+              </TouchableOpacity>
+              <View style={styles.diffDivider} />
+              <TouchableOpacity
+                style={styles.diffItem}
+                onPress={() => importState.diff.toDelete.length > 0 && toggleSection("delete")}
+                activeOpacity={importState.diff.toDelete.length > 0 ? 0.7 : 1}
+              >
+                <Text style={[styles.diffCount, { color: importState.diff.toDelete.length > 0 ? "#dc2626" : "#6b7280" }]}>
+                  {importState.diff.toDelete.length}
+                </Text>
+                <Text style={[styles.diffLabel, importState.diff.toDelete.length > 0 && { color: "#dc2626", fontFamily: "Inter_600SemiBold" }]}>
+                  removed{importState.diff.toDelete.length > 0 ? (expandedSections.delete ? " ▲" : " ▼") : ""}
+                </Text>
+              </TouchableOpacity>
             </View>
+
+            {/* Expandable line-by-line breakdown */}
+            {expandedSections.add && importState.diff.toAdd.length > 0 && (
+              <View style={[styles.breakdownBox, { borderColor: "#86efac", backgroundColor: "#f0fdf4" }]}>
+                <Text style={[styles.breakdownTitle, { color: "#166534" }]}>Lines to be added</Text>
+                {importState.diff.toAdd.map((line, i) => (
+                  <View key={i} style={styles.breakdownRow}>
+                    <Feather name="plus-circle" size={13} color="#16a34a" />
+                    <Text style={[styles.breakdownCategory, { color: "#15803d" }]}>{line.category}</Text>
+                    <Text style={[styles.breakdownLine, { color: "#166534" }]}>{line.lineItem}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {expandedSections.update && importState.diff.toUpdate.length > 0 && (
+              <View style={[styles.breakdownBox, { borderColor: "#93c5fd", backgroundColor: "#eff6ff" }]}>
+                <Text style={[styles.breakdownTitle, { color: "#1e40af" }]}>Lines to be updated</Text>
+                {importState.diff.toUpdate.map((line, i) => (
+                  <View key={i} style={styles.breakdownRow}>
+                    <Feather name="edit-2" size={13} color="#2563eb" />
+                    <Text style={[styles.breakdownCategory, { color: "#1d4ed8" }]}>{line.category}</Text>
+                    <Text style={[styles.breakdownLine, { color: "#1e40af" }]}>{line.lineItem}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {expandedSections.delete && importState.diff.toDelete.length > 0 && (
+              <View style={[styles.breakdownBox, { borderColor: "#fca5a5", backgroundColor: "#fff1f2" }]}>
+                <Text style={[styles.breakdownTitle, { color: "#991b1b" }]}>Lines to be permanently removed</Text>
+                {importState.diff.toDelete.map((line, i) => (
+                  <View key={i} style={styles.breakdownRow}>
+                    <Feather name="alert-triangle" size={13} color="#dc2626" />
+                    <Text style={[styles.breakdownCategory, { color: "#dc2626" }]}>{line.category}</Text>
+                    <Text style={[styles.breakdownLineDeleted]}>{line.lineItem}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* Warning box — escalated if any lines will be deleted */}
             <View style={[
               styles.warningBox,
               { marginTop: 12 },
-              importState.diff.toDelete > 0 && styles.warningBoxDanger,
+              importState.diff.toDelete.length > 0 && styles.warningBoxDanger,
             ]}>
               <View style={styles.warningHeader}>
                 <Feather
                   name="alert-triangle"
                   size={18}
-                  color={importState.diff.toDelete > 0 ? "#b91c1c" : "#92400e"}
+                  color={importState.diff.toDelete.length > 0 ? "#b91c1c" : "#92400e"}
                 />
                 <Text style={[
                   styles.warningTitle,
-                  importState.diff.toDelete > 0 && { color: "#b91c1c" },
+                  importState.diff.toDelete.length > 0 && { color: "#b91c1c" },
                 ]}>
-                  {importState.diff.toDelete > 0
-                    ? `${importState.diff.toDelete} line${importState.diff.toDelete !== 1 ? "s" : ""} will be permanently removed`
+                  {importState.diff.toDelete.length > 0
+                    ? `${importState.diff.toDelete.length} line${importState.diff.toDelete.length !== 1 ? "s" : ""} will be permanently removed`
                     : "This will overwrite all current budget data"}
                 </Text>
               </View>
@@ -699,4 +766,16 @@ const styles = StyleSheet.create({
   countNum: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#166534" },
   countLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#166534", textAlign: "center" as const },
   snapshotNote: { fontSize: 12, fontFamily: "Inter_500Medium", fontStyle: "italic" as const },
+
+  breakdownBox: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    gap: 6,
+  },
+  breakdownTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  breakdownRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
+  breakdownCategory: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  breakdownLine: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  breakdownLineDeleted: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#dc2626", flex: 1, textDecorationLine: "line-through" as const },
 });

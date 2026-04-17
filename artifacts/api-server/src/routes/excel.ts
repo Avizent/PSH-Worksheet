@@ -329,9 +329,15 @@ router.post(
     const existingKeys = new Set(existingLines.map((l) => `${l.category}||${l.lineItem}`));
     const incomingKeys = new Set(result.parsed.map((p) => `${p.category}||${p.lineItem}`));
 
-    const toAdd = result.parsed.filter((p) => !existingKeys.has(`${p.category}||${p.lineItem}`)).length;
-    const toUpdate = result.parsed.filter((p) => existingKeys.has(`${p.category}||${p.lineItem}`)).length;
-    const toDelete = existingLines.filter((l) => !incomingKeys.has(`${l.category}||${l.lineItem}`)).length;
+    const toAdd = result.parsed
+      .filter((p) => !existingKeys.has(`${p.category}||${p.lineItem}`))
+      .map((p) => ({ category: p.category, lineItem: p.lineItem }));
+    const toUpdate = result.parsed
+      .filter((p) => existingKeys.has(`${p.category}||${p.lineItem}`))
+      .map((p) => ({ category: p.category, lineItem: p.lineItem }));
+    const toDelete = existingLines
+      .filter((l) => !incomingKeys.has(`${l.category}||${l.lineItem}`))
+      .map((l) => ({ category: l.category, lineItem: l.lineItem }));
 
     res.json({ valid: true, rowCount: result.parsed.length, diff: { toAdd, toUpdate, toDelete } });
   })
