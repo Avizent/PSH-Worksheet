@@ -21,7 +21,6 @@ import { useLayout } from "@/hooks/useLayout";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { AdminSubnav } from "@/components/AdminSubnav";
 import { SectionHeader } from "@/components/SectionHeader";
-import { useTheme } from "@/contexts/ThemeContext";
 import { useToast } from "@/contexts/ToastContext";
 import {
   useListSnapshots,
@@ -31,8 +30,12 @@ import {
   useCompareSnapshots,
   usePinSnapshot,
   useImportSnapshot,
+  useRenameSnapshot,
   getListSnapshotsQueryKey,
-} from "@workspace/api-client-react/snapshots";
+  type SnapshotMeta,
+  type SnapshotDiff,
+  type SnapshotDiffLine,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getApiUrl } from "@/utils/getApiUrl";
 
@@ -48,8 +51,27 @@ const formatDate = (dateStr: string) => {
   });
 };
 
-  const fmt = (v: number) => "£" + Math.round(v).toLocaleString("en-GB");
-  const fmtDate = (d: string) => formatDate(d);
+export default function SnapshotsScreen() {
+  const colors = useColors();
+  const { isDesktop } = useLayout();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [saveLabel, setSaveLabel] = useState("");
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<SnapshotMeta | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [restoring, setRestoring] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareA, setCompareA] = useState<string | null>(null);
+  const [compareB, setCompareB] = useState<string | null>(null);
+  const [showCompare, setShowCompare] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [pinningId, setPinningId] = useState<string | null>(null);
+
+  const renameMutation = useRenameSnapshot();
 
   const { data: snapshots = [], isLoading, refetch, isFetching } = useListSnapshots();
 
@@ -449,10 +471,21 @@ const formatDate = (dateStr: string) => {
       onDownload={handleDownload}
       onPin={handlePin}
       onClose={() => setSelectedId(null)}
+      onRename={async (newLabel: string) => {
+        try {
+          await renameMutation.mutateAsync({ id: selectedSnap.id, label: newLabel });
+          queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
+          showToast(`Renamed to "${newLabel}".`);
+        } catch {
+          showToast("Failed to rename snapshot.", "error");
+          throw new Error("rename failed");
+        }
+      }}
       restoring={restoring && restoreTarget?.id === selectedSnap.id}
       deleting={deletingId === selectedSnap.id}
       downloading={downloadingId === selectedSnap.id}
       pinning={pinningId === selectedSnap.id}
+      renaming={renameMutation.isPending}
     />
   ) : null;
 
@@ -664,6 +697,560 @@ const formatDate = (dateStr: string) => {
         </View>
       </Modal>
     </View>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const LABEL_COLORS: Record<string, { bg: string; text: string }> = {
+  "pre-import": { bg: "#f59e0b20", text: "#b45309" },
+  "pre-restore": { bg: "#f59e0b20", text: "#b45309" },
+  "auto-open": { bg: "#3b82f620", text: "#1d4ed8" },
+  "auto-close": { bg: "#3b82f620", text: "#1d4ed8" },
+  manual: { bg: "#6b728020", text: "#374151" },
+};
+
+function LabelBadge({ label }: { label: string }) {
+  const c = LABEL_COLORS[label] ?? { bg: "#10b98120", text: "#065f46" };
+  return (
+    <View style={[styles.badge, { backgroundColor: c.bg }]}>
+      <Text style={[styles.badgeText, { color: c.text }]}>{label}</Text>
+    </View>
+  );
+}
+
+function SnapshotRow({
+  snap,
+  isSelected,
+  isDownloading,
+  onSelect,
+  onDownload,
+  compareSlot,
+  onPin,
+  pinning,
+}: {
+  snap: SnapshotMeta;
+  isSelected: boolean;
+  isDownloading: boolean;
+  onSelect: (id: string) => void;
+  onDownload: (id: string) => void;
+  compareSlot: "A" | "B" | null;
+  compareMode?: boolean;
+  onPin: (id: string, pinned: boolean) => void;
+  pinning: boolean;
+}) {
+  const colors = useColors();
+  const fmt = (v: number) => "£" + Math.round(v).toLocaleString("en-GB");
+  const bg = isSelected
+    ? colors.primary + "15"
+    : compareSlot === "A"
+    ? "#3b82f615"
+    : compareSlot === "B"
+    ? "#10b98115"
+    : colors.card;
+
+  return (
+    <TouchableOpacity
+      onPress={() => onSelect(snap.id)}
+      activeOpacity={0.8}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        padding: 12,
+        backgroundColor: bg,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+        gap: 8,
+      }}
+    >
+      <TouchableOpacity
+        style={styles.pinBtn}
+        onPress={() => onPin(snap.id, !snap.pinned)}
+        disabled={pinning}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Feather
+          name="bookmark"
+          size={14}
+          color={snap.pinned ? colors.primary : colors.mutedForeground}
+        />
+      </TouchableOpacity>
+
+      <View style={styles.rowLeft}>
+        <View style={styles.rowMeta}>
+          <View style={styles.rowBadgeRow}>
+            <LabelBadge label={snap.label} />
+            {snap.pinned && (
+              <View style={[styles.badge, { backgroundColor: colors.primary + "20" }]}>
+                <Text style={[styles.badgeText, { color: colors.primary }]}>pinned</Text>
+              </View>
+            )}
+            {compareSlot && (
+              <View
+                style={[
+                  styles.slotBadge,
+                  { backgroundColor: compareSlot === "A" ? "#3b82f6" : "#10b981" },
+                ]}
+              >
+                <Text style={styles.slotBadgeText}>{compareSlot}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.rowDate, { color: colors.mutedForeground }]}>
+            {formatDate(snap.createdAt)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.rowRight}>
+        {snap.totalBudget !== undefined && (
+          <Text style={[styles.rowBudget, { color: colors.foreground }]}>
+            {fmt(snap.totalBudget)}
+          </Text>
+        )}
+        {snap.lineCount !== undefined && (
+          <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>
+            {snap.lineCount} line{snap.lineCount !== 1 ? "s" : ""}
+          </Text>
+        )}
+      </View>
+
+      <TouchableOpacity
+        style={styles.rowDownloadBtn}
+        onPress={() => onDownload(snap.id)}
+        disabled={isDownloading}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        {isDownloading ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Feather name="download" size={14} color={colors.mutedForeground} />
+        )}
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+
+function DetailPanel({
+  snap,
+  onRestore,
+  onDelete,
+  onDownload,
+  onPin,
+  onClose,
+  onRename,
+  restoring,
+  deleting,
+  downloading,
+  pinning,
+  renaming,
+}: {
+  snap: SnapshotMeta;
+  onRestore: () => void;
+  onDelete: () => void;
+  onDownload: (id: string) => void;
+  onPin: (id: string, pinned: boolean) => void;
+  onClose: () => void;
+  onRename: (newLabel: string) => Promise<void>;
+  restoring: boolean;
+  deleting: boolean;
+  downloading: boolean;
+  pinning: boolean;
+  renaming: boolean;
+}) {
+  const colors = useColors();
+  const [editMode, setEditMode] = useState(false);
+  const [editLabel, setEditLabel] = useState(snap.label);
+  const fmt = (v: number) => "£" + Math.round(v).toLocaleString("en-GB");
+  const isProtected = ["pre-import", "pre-restore"].includes(snap.label);
+
+  const handleSaveRename = async () => {
+    const trimmed = editLabel.trim();
+    if (!trimmed || trimmed === snap.label) {
+      setEditMode(false);
+      return;
+    }
+    try {
+      await onRename(trimmed);
+      setEditMode(false);
+    } catch {
+      // Keep edit mode open so the user can retry or cancel
+    }
+  };
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+      <View style={[styles.detail, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.detailHeader}>
+          <Text style={[styles.detailTitle, { color: colors.foreground }]}>Snapshot Details</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="x" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.detailSection, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Label</Text>
+          {editMode ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, justifyContent: "flex-end" }}>
+              <TextInput
+                style={[
+                  styles.modalInput,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.primary,
+                    color: colors.foreground,
+                    flex: 1,
+                    maxWidth: 180,
+                    paddingVertical: 4,
+                  },
+                ]}
+                value={editLabel}
+                onChangeText={setEditLabel}
+                maxLength={40}
+                autoFocus
+                onSubmitEditing={handleSaveRename}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                onPress={handleSaveRename}
+                disabled={renaming || !editLabel.trim()}
+                style={[styles.modalBtn, { backgroundColor: colors.primary, opacity: renaming ? 0.6 : 1, paddingHorizontal: 10, paddingVertical: 6 }]}
+              >
+                {renaming ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={[styles.modalBtnText, { color: "#fff", fontSize: 12 }]}>Save</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { setEditMode(false); setEditLabel(snap.label); }}
+                style={[styles.modalBtn, { backgroundColor: colors.muted, paddingHorizontal: 10, paddingVertical: 6 }]}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.foreground, fontSize: 12 }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <LabelBadge label={snap.label} />
+              {!isProtected && (
+                <TouchableOpacity
+                  onPress={() => { setEditMode(true); setEditLabel(snap.label); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Feather name="edit-2" size={13} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={[styles.detailSection, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Created</Text>
+          <Text style={[styles.detailValue, { color: colors.foreground }]}>{formatDate(snap.createdAt)}</Text>
+        </View>
+
+        {snap.totalBudget !== undefined && (
+          <View style={[styles.detailSection, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Total Budget</Text>
+            <Text style={[styles.detailValue, { color: colors.foreground }]}>{fmt(snap.totalBudget)}</Text>
+          </View>
+        )}
+
+        {snap.totalSpent !== undefined && (
+          <View style={[styles.detailSection, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Total Spent</Text>
+            <Text style={[styles.detailValue, { color: colors.foreground }]}>{fmt(snap.totalSpent)}</Text>
+          </View>
+        )}
+
+        {snap.lineCount !== undefined && (
+          <View style={[styles.detailSection, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Budget Lines</Text>
+            <Text style={[styles.detailValue, { color: colors.foreground }]}>{snap.lineCount}</Text>
+          </View>
+        )}
+
+        <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>ID</Text>
+          <Text style={[styles.detailId, { color: colors.mutedForeground }]} numberOfLines={1}>{snap.id}</Text>
+        </View>
+
+        <View style={styles.detailActions}>
+          <TouchableOpacity
+            style={[styles.detailBtn, { backgroundColor: snap.pinned ? colors.muted : colors.primary + "20" }]}
+            onPress={() => onPin(snap.id, !snap.pinned)}
+            disabled={pinning}
+          >
+            {pinning ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <>
+                <Feather name="bookmark" size={14} color={snap.pinned ? colors.foreground : colors.primary} />
+                <Text style={[styles.detailBtnText, { color: snap.pinned ? colors.foreground : colors.primary }]}>
+                  {snap.pinned ? "Unpin" : "Pin"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.detailBtn, { backgroundColor: colors.muted }]}
+            onPress={() => onDownload(snap.id)}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color={colors.foreground} />
+            ) : (
+              <>
+                <Feather name="download" size={14} color={colors.foreground} />
+                <Text style={[styles.detailBtnText, { color: colors.foreground }]}>Download</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.detailBtn, { backgroundColor: "#f59e0b" }]}
+            onPress={onRestore}
+            disabled={restoring}
+          >
+            {restoring ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Feather name="rotate-ccw" size={14} color="#fff" />
+                <Text style={styles.detailBtnText}>Restore</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {!isProtected && (
+            <TouchableOpacity
+              style={[styles.detailBtn, { backgroundColor: "#ef444420" }]}
+              onPress={onDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color="#ef4444" />
+              ) : (
+                <>
+                  <Feather name="trash-2" size={14} color="#ef4444" />
+                  <Text style={[styles.detailBtnText, { color: "#ef4444" }]}>Delete</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          <Text style={[styles.detailWarning, { color: colors.mutedForeground }]}>
+            Restoring will overwrite all current budget data.
+          </Text>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+function ComparePanel({
+  aId,
+  bId,
+  snapshots,
+  onClose,
+}: {
+  aId: string;
+  bId: string;
+  snapshots: SnapshotMeta[];
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const [showUnchanged, setShowUnchanged] = useState(false);
+
+  const { data: diff, isLoading, error } = useCompareSnapshots(
+    aId && bId ? { a: aId, b: bId } : null
+  );
+
+  const fmt = (v: number | null) =>
+    v == null ? "—" : "£" + Math.round(v).toLocaleString("en-GB");
+
+  const snapA = snapshots.find((s) => s.id === aId);
+  const snapB = snapshots.find((s) => s.id === bId);
+
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+  const displayLines: SnapshotDiffLine[] = diff
+    ? showUnchanged
+      ? diff.lines
+      : diff.lines.filter((l) => l.status !== "unchanged")
+    : [];
+
+  const statusColor: Record<string, string> = {
+    added: "#10b981",
+    removed: "#ef4444",
+    changed: "#f59e0b",
+    unchanged: colors.mutedForeground,
+  };
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+      <View style={[styles.comparePanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <Text style={[styles.detailTitle, { color: colors.foreground }]}>Snapshot Comparison</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="x" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.compareAB, { borderBottomColor: colors.border }]}>
+          <View style={styles.compareSlot}>
+            <View style={[styles.slotBadge, { backgroundColor: "#3b82f6" }]}>
+              <Text style={styles.slotBadgeText}>A</Text>
+            </View>
+            <View>
+              <LabelBadge label={snapA?.label ?? aId} />
+              <Text style={[styles.rowDate, { color: colors.mutedForeground, marginTop: 2 }]}>
+                {snapA ? formatDate(snapA.createdAt) : ""}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.compareSlot}>
+            <View style={[styles.slotBadge, { backgroundColor: "#10b981" }]}>
+              <Text style={styles.slotBadgeText}>B</Text>
+            </View>
+            <View>
+              <LabelBadge label={snapB?.label ?? bId} />
+              <Text style={[styles.rowDate, { color: colors.mutedForeground, marginTop: 2 }]}>
+                {snapB ? formatDate(snapB.createdAt) : ""}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {isLoading && <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />}
+
+        {error && (
+          <View style={[styles.compareError, { borderColor: "#ef444440" }]}>
+            <Feather name="alert-circle" size={16} color="#ef4444" />
+            <Text style={[styles.compareErrorText, { color: "#ef4444" }]}>Failed to load comparison</Text>
+          </View>
+        )}
+
+        {diff && (
+          <>
+            <View style={styles.summaryRow}>
+              {(["added", "removed", "changed", "unchanged"] as const).map((s) => (
+                <View key={s} style={[styles.summaryChip, { backgroundColor: statusColor[s] + "20" }]}>
+                  <Text style={[styles.summaryCount, { color: statusColor[s] }]}>{diff.summary[s]}</Text>
+                  <Text style={[styles.summaryLabel, { color: statusColor[s] }]}>{s}</Text>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={styles.toggleUnchanged}
+              onPress={() => setShowUnchanged((v) => !v)}
+            >
+              <Feather
+                name={showUnchanged ? "eye-off" : "eye"}
+                size={13}
+                color={colors.mutedForeground}
+              />
+              <Text style={[styles.toggleUnchangedText, { color: colors.mutedForeground }]}>
+                {showUnchanged ? "Hide unchanged" : "Show unchanged"}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.diffList}>
+              {displayLines.map((line, idx) => {
+                const key = `${line.category}|${line.lineItem}|${idx}`;
+                const isExpanded = expandedKey === key;
+                const delta =
+                  line.totalBudgetA != null && line.totalBudgetB != null
+                    ? line.totalBudgetB - line.totalBudgetA
+                    : null;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[styles.diffRow, { borderColor: statusColor[line.status] + "40" }]}
+                    onPress={() => setExpandedKey(isExpanded ? null : key)}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      style={[
+                        styles.diffRowHeader,
+                        { backgroundColor: statusColor[line.status] + "10" },
+                      ]}
+                    >
+                      <View style={styles.diffRowLeft}>
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: statusColor[line.status],
+                          }}
+                        />
+                        <View>
+                          <Text style={[styles.diffLineItem, { color: colors.foreground }]}>
+                            {line.lineItem}
+                          </Text>
+                          <Text style={[styles.diffCategory, { color: colors.mutedForeground }]}>
+                            {line.category}
+                            {line.subcategory ? ` › ${line.subcategory}` : ""}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.diffRowRight}>
+                        <Text style={[styles.diffBudget, { color: colors.mutedForeground }]}>
+                          {fmt(line.totalBudgetA)} → {fmt(line.totalBudgetB)}
+                        </Text>
+                        {delta != null && delta !== 0 && (
+                          <Text
+                            style={[
+                              styles.diffDelta,
+                              { color: delta > 0 ? "#ef4444" : "#10b981" },
+                            ]}
+                          >
+                            {delta > 0 ? "+" : ""}
+                            {fmt(delta)}
+                          </Text>
+                        )}
+                        <Feather
+                          name={isExpanded ? "chevron-up" : "chevron-down"}
+                          size={13}
+                          color={colors.mutedForeground}
+                        />
+                      </View>
+                    </View>
+
+                    {isExpanded && line.changes.length > 0 && (
+                      <View style={[styles.diffDetail, { borderTopColor: colors.border }]}>
+                        <View style={styles.diffSection}>
+                          <Text style={[styles.diffSectionTitle, { color: colors.mutedForeground }]}>
+                            Changes
+                          </Text>
+                          {line.changes.map((ch, ci) => (
+                            <View key={ci} style={styles.diffChangeRow}>
+                              <Text style={[styles.diffChangeField, { color: colors.mutedForeground }]}>
+                                {ch.field}
+                              </Text>
+                              <Text style={[styles.diffChangeVal, { color: "#ef4444" }]}>
+                                {ch.from ?? "—"}
+                              </Text>
+                              <Feather name="arrow-right" size={11} color={colors.mutedForeground} />
+                              <Text style={[styles.diffChangeVal, { color: "#10b981" }]}>
+                                {ch.to ?? "—"}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -932,8 +1519,6 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
   slotBadge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   slotBadgeText: { color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold" },
-  empty: { borderWidth: 1, borderStyle: "dashed", borderRadius: 12, padding: 40, alignItems: "center", gap: 12 },
-  emptyText: { fontSize: 14, textAlign: "center" },
   detail: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 10 },
   detailHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   detailTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
@@ -945,13 +1530,9 @@ const styles = StyleSheet.create({
   detailBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8 },
   detailBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   detailWarning: { fontSize: 11, lineHeight: 15, textAlign: "center" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-  modalBox: { width: "100%", maxWidth: 440, borderRadius: 16, borderWidth: 1, padding: 24, gap: 14 },
   modalHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   modalSubtitle: { fontSize: 13, lineHeight: 18 },
   modalInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular" },
-  modalActions: { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   modalBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8, minWidth: 80, alignItems: "center" },
   modalBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   comparePanel: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 12 },

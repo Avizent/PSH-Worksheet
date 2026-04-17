@@ -847,6 +847,55 @@ router.delete(
   }),
 );
 
+// ─── PATCH /snapshots/:id ────────────────────────────────────────────────────
+// Rename the label stored in the snapshot JSON (filename/id stays unchanged)
+
+router.patch(
+  "/snapshots/:id",
+  asyncHandler(async (req, res): Promise<void> => {
+    const { id } = req.params;
+    if (!id || !/^[\w-]+$/.test(id)) {
+      res.status(400).json({ error: "Invalid snapshot id" });
+      return;
+    }
+    const filename = idFromStem(id);
+    if (filename.includes("..") || filename.includes("/")) {
+      res.status(400).json({ error: "Invalid snapshot ID" });
+      return;
+    }
+    const filepath = path.join(SNAPSHOTS_DIR, filename);
+    if (!fs.existsSync(filepath)) {
+      res.status(404).json({ error: "Snapshot not found" });
+      return;
+    }
+
+    const rawLabel = req.body?.label;
+    if (typeof rawLabel !== "string" || !rawLabel.trim()) {
+      res.status(400).json({ error: "Request body must include a non-empty 'label' string" });
+      return;
+    }
+    const label = rawLabel.trim().slice(0, 40);
+
+    let rawJson: Record<string, unknown>;
+    try {
+      rawJson = JSON.parse(fs.readFileSync(filepath, "utf-8")) as Record<string, unknown>;
+    } catch {
+      res.status(500).json({ error: "Failed to read snapshot file" });
+      return;
+    }
+    rawJson.label = label;
+    fs.writeFileSync(filepath, JSON.stringify(rawJson, null, 2), "utf-8");
+
+    const body = readSnapshotFile(filename);
+    if (!body) {
+      res.status(500).json({ error: "Failed to re-read snapshot after update" });
+      return;
+    }
+    logger.info({ id, label }, "Snapshot label renamed");
+    res.json(parseMeta(filename, body));
+  }),
+);
+
 // ─── PATCH /snapshots/:id/pin ─────────────────────────────────────────────────
 
 router.patch(
