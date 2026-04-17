@@ -59,7 +59,8 @@ type ImportState =
   | { phase: "idle" }
   | { phase: "validating" }
   | { phase: "errors"; errors: ValidationError[] }
-  | { phase: "confirm"; file: File; rowCount: number; diff: ImportDiff }
+  | { phase: "select-sheet"; file: File; sheetNames: string[] }
+  | { phase: "confirm"; file: File; rowCount: number; diff: ImportDiff; sheetName?: string }
   | { phase: "importing" }
   | { phase: "done"; result: ImportResult };
 
@@ -159,18 +160,25 @@ export default function ExcelScreen() {
     if (e.target) e.target.value = "";
   };
 
-  const validateFile = async (file: File) => {
+  const validateFile = async (file: File, sheetName?: string) => {
     setImportState({ phase: "validating" });
     setConfirmText("");
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (sheetName) formData.append("sheetName", sheetName);
       const baseUrl = getApiUrl();
       const res = await fetch(`${baseUrl}/api/excel/validate`, {
         method: "POST",
         body: formData,
       });
       const json = await res.json();
+
+      // Multi-sheet workbook — user needs to pick a sheet
+      if (json.needsSheetSelection === true) {
+        setImportState({ phase: "select-sheet", file, sheetNames: json.sheetNames ?? [] });
+        return;
+      }
 
       if (!res.ok || json.valid === false) {
         setImportState({
@@ -186,6 +194,7 @@ export default function ExcelScreen() {
         file,
         rowCount: json.rowCount,
         diff: json.diff ?? { toAdd: [], toUpdate: [], toDelete: [] },
+        sheetName,
       });
     } catch (e: unknown) {
       showToast("Validation error: " + (e instanceof Error ? e.message : String(e)), "error");
@@ -197,11 +206,12 @@ export default function ExcelScreen() {
 
   const doImport = async () => {
     if (importState.phase !== "confirm") return;
-    const { file } = importState;
+    const { file, sheetName } = importState;
     setImportState({ phase: "importing" });
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (sheetName) formData.append("sheetName", sheetName);
       const baseUrl = getApiUrl();
       const res = await fetch(`${baseUrl}/api/excel/import`, {
         method: "POST",
@@ -337,6 +347,40 @@ export default function ExcelScreen() {
           </View>
         )}
 
+        {/* Sheet selection — multi-sheet workbook */}
+        {importState.phase === "select-sheet" && (
+          <View>
+            <View style={[styles.sheetPickerBanner, { borderColor: colors.primary + "40", backgroundColor: colors.primary + "0a" }]}>
+              <Feather name="layers" size={15} color={colors.primary} />
+              <Text style={[styles.sheetPickerBannerText, { color: colors.primary }]}>
+                This workbook has {importState.sheetNames.length} sheets — choose the one to import:
+              </Text>
+            </View>
+            <View style={{ gap: 8, marginTop: 10 }}>
+              {importState.sheetNames.map((name) => (
+                <TouchableOpacity
+                  key={name}
+                  onPress={() => validateFile(importState.file, name)}
+                  style={[styles.sheetOption, { borderColor: colors.border, backgroundColor: colors.card }]}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="file-text" size={14} color={colors.mutedForeground} />
+                  <Text style={[styles.sheetOptionText, { color: colors.foreground }]}>{name}</Text>
+                  <Feather name="chevron-right" size={14} color={colors.mutedForeground} style={{ marginLeft: "auto" }} />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              onPress={reset}
+              style={[styles.secondaryBtn, { borderColor: colors.border, marginTop: 12 }]}
+              activeOpacity={0.7}
+            >
+              <Feather name="x" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.secondaryBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Importing */}
         {importState.phase === "importing" && (
           <View style={styles.statusRow}>
@@ -385,6 +429,7 @@ export default function ExcelScreen() {
               <Feather name="check-circle" size={14} color="#16a34a" />
               <Text style={styles.validBadgeText}>
                 File validated — {importState.rowCount} budget line{importState.rowCount !== 1 ? "s" : ""} ready to import
+                {importState.sheetName ? ` from "${importState.sheetName}"` : ""}
               </Text>
             </View>
 
@@ -678,6 +723,27 @@ const styles = StyleSheet.create({
 
   statusRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 16 },
   statusText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+
+  sheetPickerBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  sheetPickerBannerText: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
+  sheetOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  sheetOptionText: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
 
   errorBox: { borderWidth: 1, borderRadius: 8, padding: 14, gap: 6 },
   errorBoxHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },

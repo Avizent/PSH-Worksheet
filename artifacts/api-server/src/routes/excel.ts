@@ -83,18 +83,14 @@ router.get("/excel/export", asyncHandler(async (_req, res): Promise<void> => {
   sheet.columns.forEach((col, i) => {
     const colNum = i + 1;
     if (colNum <= 7) {
-      // Metadata text columns (1-7): Category through Cost Status
       col.width = 18;
     } else if (colNum === 8) {
-      // Projection % — raw 0-100 integer, formatted as "0.0" (not %)
       col.width = 12;
       col.numFmt = "0.0";
     } else if (colNum === 9) {
-      // Board Approved Amount — currency format
       col.width = 18;
       col.numFmt = "£#,##0";
     } else {
-      // Monthly plan and actual columns (10-33) — currency format
       col.width = 11;
       col.numFmt = "£#,##0";
     }
@@ -138,37 +134,38 @@ function cellToString(val: unknown): string {
 
 function cellToNumber(val: unknown): number | null {
   if (val === null || val === undefined || val === "") return null;
-  // Reject string cells — cells must be numeric type, not text-formatted numbers
   if (typeof val === "string") return null;
   const n = Number(val);
   if (!isFinite(n)) return null;
   return n;
 }
 
-async function validateBuffer(buf: Buffer): Promise<
-  | { valid: true; parsed: ParsedRow[] }
-  | { valid: false; errors: ValidationError[] }
+/**
+ * Pre-flight check: returns sheet names from the workbook, or an error if the
+ * file is not a valid / safe .xlsx.
+ */
+async function inspectWorkbook(buf: Buffer): Promise<
+  | { ok: true; workbook: XLSX.WorkBook; sheetNames: string[] }
+  | { ok: false; errors: ValidationError[] }
 > {
-  // Must be ZIP (xlsx magic bytes: PK)
   if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) {
     return {
-      valid: false,
+      ok: false,
       errors: [{ column: "file", row: 0, message: "File must be a valid .xlsx file. CSV and .xls (Excel 97-2003) files are not supported — please save as .xlsx first." }],
     };
   }
 
-  // Reject .xlsm: check ZIP for xl/vbaProject.bin (macro-enabled workbook)
   try {
     const zip = await JSZip.loadAsync(buf);
     if (zip.file("xl/vbaProject.bin")) {
       return {
-        valid: false,
+        ok: false,
         errors: [{ column: "file", row: 0, message: "Macro-enabled workbooks (.xlsm) are not accepted. Please save as .xlsx (no macros) and try again." }],
       };
     }
   } catch {
     return {
-      valid: false,
+      ok: false,
       errors: [{ column: "file", row: 0, message: "Could not inspect file contents. Make sure the file is a valid .xlsx workbook." }],
     };
   }
@@ -178,26 +175,49 @@ async function validateBuffer(buf: Buffer): Promise<
     workbook = XLSX.read(buf, { type: "buffer", cellDates: true });
   } catch {
     return {
-      valid: false,
+      ok: false,
       errors: [{ column: "file", row: 0, message: "Could not parse file as .xlsx. The file may be corrupted." }],
     };
   }
 
-  if (!workbook.SheetNames.includes("Budget Lines")) {
+  return { ok: true, workbook, sheetNames: workbook.SheetNames };
+}
+
+async function validateBuffer(
+  buf: Buffer,
+  sheetName?: string
+): Promise<
+  | { valid: true; parsed: ParsedRow[] }
+  | { valid: false; errors: ValidationError[] }
+> {
+  const inspection = await inspectWorkbook(buf);
+  if (!inspection.ok) {
+    return { valid: false, errors: inspection.errors };
+  }
+
+  const { workbook, sheetNames } = inspection;
+  const target = sheetName ?? "Budget Lines";
+
+  if (!sheetNames.includes(target)) {
     return {
       valid: false,
-      errors: [{ column: "sheet", row: 0, message: `Sheet named exactly "Budget Lines" not found. Found: ${workbook.SheetNames.join(", ")}` }],
+      errors: [{
+        column: "sheet",
+        row: 0,
+        message: sheetName
+          ? `Sheet "${sheetName}" not found. Available sheets: ${sheetNames.join(", ")}`
+          : `Sheet named exactly "Budget Lines" not found. Found: ${sheetNames.join(", ")}`,
+      }],
     };
   }
 
-  const sheet = workbook.Sheets["Budget Lines"];
+  const sheet = workbook.Sheets[target];
   const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
   if (rows.length < 1) {
     return { valid: false, errors: [{ column: "file", row: 0, message: "Sheet is empty" }] };
   }
 
-  // Validate headers
   const headerRow = (rows[0] as unknown[]).map((h) => cellToString(h));
   const headerErrors: ValidationError[] = [];
   EXPECTED_HEADERS.forEach((expected, i) => {
@@ -319,7 +339,30 @@ router.post(
       res.status(400).json({ valid: false, errors: [{ column: "file", row: 0, message: "No file uploaded" }] });
       return;
     }
-    const result = await validateBuffer(req.file.buffer);
+
+    const requestedSheet = typeof req.body.sheetName === "string" && req.body.sheetName.trim()
+      ? req.body.sheetName.trim()
+      : undefined;
+
+    // If no sheet was specified, first do a quick inspection to check for
+    // multi-sheet workbooks that need user selection.
+    if (!requestedSheet) {
+      const inspection = await inspectWorkbook(req.file.buffer);
+      if (!inspection.ok) {
+        res.status(422).json({ valid: false, errors: inspection.errors });
+        return;
+      }
+      const { sheetNames } = inspection;
+
+      if (sheetNames.length > 1) {
+        // Multiple sheets present — always ask the user to pick one so they
+        // don't accidentally import the wrong sheet.
+        res.json({ needsSheetSelection: true, sheetNames });
+        return;
+      }
+    }
+
+    const result = await validateBuffer(req.file.buffer, requestedSheet);
     if (!result.valid) {
       res.status(422).json(result);
       return;
@@ -339,7 +382,11 @@ router.post(
       .filter((l) => !incomingKeys.has(`${l.category}||${l.lineItem}`))
       .map((l) => ({ category: l.category, lineItem: l.lineItem }));
 
-    res.json({ valid: true, rowCount: result.parsed.length, diff: { toAdd, toUpdate, toDelete } });
+    res.json({
+      valid: true,
+      rowCount: result.parsed.length,
+      diff: { toAdd, toUpdate, toDelete },
+    });
   })
 );
 
@@ -354,7 +401,11 @@ router.post(
       return;
     }
 
-    const validation = await validateBuffer(req.file.buffer);
+    const requestedSheet = typeof req.body.sheetName === "string" && req.body.sheetName.trim()
+      ? req.body.sheetName.trim()
+      : undefined;
+
+    const validation = await validateBuffer(req.file.buffer, requestedSheet);
     if (!validation.valid) {
       res.status(422).json(validation);
       return;
@@ -362,7 +413,6 @@ router.post(
 
     const { parsed } = validation;
 
-    // Attempt pre-import snapshot before any DB writes.
     let snapshotSaved = false;
     try {
       await createSnapshot("pre-import");

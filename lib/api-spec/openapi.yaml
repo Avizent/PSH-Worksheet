@@ -1195,7 +1195,12 @@ paths:
       operationId: validateBudgetExcel
       tags: [excel]
       summary: Validate an Excel file without importing
-      description: Validates the structure and data of an .xlsx file without writing to the database. Returns errors or a row count if valid.
+      description: >
+        Validates the structure and data of an .xlsx file without writing to the
+        database. If the workbook has multiple sheets and no `sheetName` is
+        provided, returns `needsSheetSelection: true` with the available sheet
+        names so the caller can prompt the user to pick one. Otherwise returns
+        errors or a row count if valid.
       requestBody:
         required: true
         content:
@@ -1206,15 +1211,24 @@ paths:
                 file:
                   type: string
                   format: binary
+                sheetName:
+                  type: string
+                  description: >
+                    Name of the sheet to import data from. Required when the workbook has
+                    multiple sheets — if omitted and the workbook has more than one sheet,
+                    the endpoint returns needsSheetSelection instead of validating. For
+                    single-sheet workbooks, omit this field and the sole sheet is used.
               required:
                 - file
       responses:
         "200":
-          description: Validation passed
+          description: Validation passed, or sheet selection is required
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ExcelValidateResult"
+                oneOf:
+                  - $ref: "#/components/schemas/ExcelValidateResult"
+                  - $ref: "#/components/schemas/ExcelSheetSelectionRequired"
         "400":
           description: No file uploaded
         "422":
@@ -1240,6 +1254,9 @@ paths:
                 file:
                   type: string
                   format: binary
+                sheetName:
+                  type: string
+                  description: Name of the sheet to import. Defaults to "Budget Lines" when omitted.
               required:
                 - file
       responses:
@@ -2623,6 +2640,21 @@ components:
         - category
         - lineItem
 
+    ExcelSheetSelectionRequired:
+      type: object
+      description: Returned by /excel/validate when the workbook has multiple sheets and no sheetName was provided.
+      properties:
+        needsSheetSelection:
+          type: boolean
+          enum: [true]
+        sheetNames:
+          type: array
+          items:
+            type: string
+      required:
+        - needsSheetSelection
+        - sheetNames
+
     ExcelValidateResult:
       type: object
       properties:
@@ -2649,6 +2681,11 @@ components:
             - toAdd
             - toUpdate
             - toDelete
+        sheetNames:
+          type: array
+          description: Present when the workbook contains more than one sheet, so the UI can offer the user a chance to switch sheets.
+          items:
+            type: string
       required:
         - valid
         - rowCount
