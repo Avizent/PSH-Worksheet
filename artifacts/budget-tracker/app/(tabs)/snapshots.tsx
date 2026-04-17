@@ -115,10 +115,20 @@ const formatDate = (dateStr: string) => {
         },
       );
     };
+    const message = snap.pinned
+      ? `This snapshot is pinned — are you sure you want to delete it? This cannot be undone.`
+      : `Delete snapshot "${snap.label}"? This cannot be undone.`;
     if (Platform.OS === "web") {
-      if (window.confirm(`Delete snapshot "${snap.label}"? This cannot be undone.`)) doDelete();
+      if (window.confirm(message)) doDelete();
     } else {
-      doDelete();
+      Alert.alert(
+        snap.pinned ? "Delete Pinned Snapshot?" : `Delete Snapshot?`,
+        message,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: doDelete },
+        ]
+      );
     }
   };
 

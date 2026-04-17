@@ -7,6 +7,7 @@ export interface SnapshotMeta {
   filename: string;
   label: string;
   createdAt: string;
+  pinned?: boolean;
 }
 
 export interface CreateSnapshotBody {
