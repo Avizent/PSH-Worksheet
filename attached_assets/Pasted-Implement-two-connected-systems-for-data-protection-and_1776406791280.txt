@@ -1,0 +1,79 @@
+Implement two connected systems for data protection and portability: a snapshot/restore system and an Excel export/import system. Both live primarily in the admin section. Neither touches app code — this is purely about protecting and moving budget data.
+
+1. Snapshot System
+Storage
+Save all snapshots as JSON files inside a /snapshots folder in the project root. Each filename must include a timestamp and a label, e.g. snapshot_2026-04-17T14-32-00_auto-open.json. The label must also be stored inside the JSON itself alongside the timestamp and the complete budget data object so the file is self-describing.
+Automatic Snapshots
+Take a snapshot automatically when the app starts (label: auto-open). Take a snapshot automatically when the app closes or the window unloads (label: auto-close) using a beforeunload event listener on the frontend that calls the save endpoint.
+Manual Snapshots
+Add a "Save Snapshot" button in the main dashboard toolbar so the user can trigger a snapshot without navigating away from their work. The button should be unobtrusive — not styled as a primary action. When clicked, prompt the user for an optional description/label (e.g. "before Q3 changes") and save the snapshot with that label in both the filename and the JSON contents. This button must only save — it must not expose any restore or delete functionality.
+API Endpoints
+
+POST /api/snapshots — save a snapshot
+GET /api/snapshots — list all snapshots
+GET /api/snapshots/:id — retrieve a specific snapshot
+POST /api/snapshots/:id/restore — restore from a snapshot
+
+Snapshot Manager UI (Admin Section Only)
+Integrate a Snapshot Manager as a clearly labelled panel or tab inside the existing admin section. Do not create a new admin section. The Snapshot Manager must:
+
+List all saved snapshots showing timestamp, label, and a brief summary of top-level budget figures
+Allow the user to click any snapshot to preview the figures before committing
+On restore, display a prominent warning that the current budget will be overwritten
+Before applying any restore, automatically take a snapshot of the current state labelled pre-restore so nothing is ever accidentally lost
+Allow deletion of individual snapshots
+Restore and delete actions must only appear inside the admin Snapshot Manager, never in the main dashboard
+
+Housekeeping
+Keep a maximum of 50 snapshots. When the limit is hit, auto-delete the oldest auto-open and auto-close snapshots only. Never auto-delete manual snapshots or any snapshot with a pre-restore or pre-import label.
+
+2. Excel Export/Import System
+Add an "Excel" tab in the admin section (add to AdminSubnav pill bar and DesktopSidebar alongside the Snapshot Manager). This tab contains two cards: Export and Import.
+Export
+Add an "Export to Excel" button that downloads the complete current budget as a formatted .xlsx file.
+
+Filename: budget_export_YYYY-MM-DD.xlsx (server uses today's date)
+Sheet name: Budget Lines
+Columns (left to right): Category, Subcategory, Line Item, Owner, Region, Channel, Cost Status, Projection %, then columns 9–20: Jan Plan through Dec Plan, then columns 21–32: Jan Actual through Dec Actual (33 columns total)
+Styling: Row 1 headers bold, white text, dark blue fill (#1e3a5f), frozen. Amount columns formatted £#,##0. Projection % column formatted 0.0%. Metadata column widths 18, month column widths 11
+On native (non-web) platforms, use expo-sharing to show a share sheet instead of a browser download. This must be handled explicitly in the screen component, not assumed
+Follow the ExcelJS export pattern already present in board.ts lines 525–600 and the download pattern in board.tsx lines 147–175
+
+Import
+Add an "Import from Excel" file picker that accepts .xlsx files in the same format as the export. The import is always a full replacement — it deletes all existing budget lines and replaces them entirely with the imported data. Partial updates are not supported.
+Validation — run all checks before touching the database and return all errors at once, not just the first:
+
+File must be a valid .xlsx (not CSV or .xls)
+A sheet named Budget Lines must exist
+Row 1 must contain all 33 expected column headers, exact match, case-sensitive
+At least one data row (row 2+) must exist
+Every data row: Category and Line Item must be non-empty strings
+Every data row: Cost Status must be exactly "Variable" or "Fixed Cost"
+Amount columns: if non-empty, must be a valid number (not text, not formula result stored as string)
+Projection %: if non-empty, must be a number between 0 and 100 (not a decimal fraction). Confirm whether the database stores this as 0–100 or 0–1 and apply conversion in the import route explicitly — do not silently assume
+If validation fails, display a clear specific error identifying the column, row, and nature of the problem. Do not proceed
+
+On validation pass — overwrite flow:
+
+Display a prominent amber/red warning box (visually distinct, not a standard card or dialog) stating that this will completely overwrite all current budget data and cannot be undone except via snapshot
+The "Yes, overwrite my budget" confirm button must remain disabled until the user types CONFIRM exactly in a text field beneath the warning
+On confirm, the server must first call POST /api/snapshots with label pre-import before touching the database. Wrap this call in a try-catch so a snapshot failure does not block the import, but log a warning if it fails
+Then delete all existing budget lines and insert the imported rows, applying ID-remapping for monthly plan and actual data. Clarify the remapping key before implementing: match imported rows to existing DB rows by Category + Line Item composite key, upsert matches, delete any DB rows not present in the import file
+Monthly actuals columns (Jan Actual–Dec Actual) are included in the import and will overwrite existing actuals. This is intentional as the import is a full replacement. Ensure the developer is aware this includes actuals, not just plan figures
+On success, show a toast notification: "Budget imported. A pre-import snapshot has been saved to the Snapshot Manager."
+
+Follow the multer upload pattern in imports.ts lines 1–40 and the DocumentPicker + FormData pattern in import.tsx.
+API Endpoints
+
+GET /api/excel/export — streams .xlsx to client
+POST /api/excel/import — multer single upload, validates, snapshots, overwrites DB
+
+Register both in routes/index.ts. Add an excel tag and both endpoints to openapi.yaml. Define ExcelImportResult and ExcelValidationError schemas. Run codegen after: pnpm --filter @workspace/api-spec run codegen.
+
+3. What Is Explicitly Out of Scope
+
+No changes to the existing CSV actuals import screen (import.tsx) — that imports monthly actual spend only; this is a separate, unrelated feature
+No partial Excel updates — import is always a full replacement
+No PDF export — that already exists on the Board screen
+No changes to app code structure — this is data management only
+No new admin section — integrate into the existing one
