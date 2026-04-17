@@ -23,8 +23,11 @@ import {
   useCreateSnapshot,
   useRestoreSnapshot,
   useDeleteSnapshot,
+  useCompareSnapshots,
   getListSnapshotsQueryKey,
   type SnapshotMeta,
+  type SnapshotDiff,
+  type SnapshotDiffLine,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -64,24 +67,39 @@ interface SnapshotRowProps {
   snap: SnapshotMeta;
   isSelected: boolean;
   onSelect: (id: string) => void;
+  compareSlot?: "A" | "B" | null;
+  compareMode?: boolean;
 }
 
-function SnapshotRow({ snap, isSelected, onSelect }: SnapshotRowProps) {
+function SnapshotRow({ snap, isSelected, onSelect, compareSlot, compareMode }: SnapshotRowProps) {
   const colors = useColors();
+
+  let borderColor = isSelected ? colors.primary : colors.border;
+  let bg = isSelected ? colors.primary + "10" : colors.card;
+  if (compareSlot === "A") { borderColor = "#2563eb"; bg = "#2563eb10"; }
+  if (compareSlot === "B") { borderColor = "#16a34a"; bg = "#16a34a10"; }
+
   return (
     <TouchableOpacity
       onPress={() => onSelect(snap.id)}
       activeOpacity={0.7}
-      style={[
-        styles.row,
-        {
-          backgroundColor: isSelected ? colors.primary + "10" : colors.card,
-          borderColor: isSelected ? colors.primary : colors.border,
-        },
-      ]}
+      style={[styles.row, { backgroundColor: bg, borderColor }]}
     >
       <View style={styles.rowLeft}>
-        <Feather name="camera" size={14} color={isSelected ? colors.primary : colors.mutedForeground} />
+        {compareSlot ? (
+          <View style={[
+            styles.slotBadge,
+            { backgroundColor: compareSlot === "A" ? "#2563eb" : "#16a34a" },
+          ]}>
+            <Text style={styles.slotBadgeText}>{compareSlot}</Text>
+          </View>
+        ) : (
+          <Feather
+            name={compareMode ? "circle" : "camera"}
+            size={14}
+            color={isSelected ? colors.primary : colors.mutedForeground}
+          />
+        )}
         <View style={styles.rowMeta}>
           <Text style={[styles.rowDate, { color: colors.foreground }]}>{fmtDate(snap.timestamp)}</Text>
           <LabelBadge label={snap.label} />
@@ -92,7 +110,7 @@ function SnapshotRow({ snap, isSelected, onSelect }: SnapshotRowProps) {
         <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>spent {fmt(snap.totalSpent)}</Text>
         <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>{snap.lineCount} lines</Text>
       </View>
-      <Feather name="chevron-right" size={14} color={isSelected ? colors.primary : colors.mutedForeground} />
+      <Feather name="chevron-right" size={14} color={compareSlot ? borderColor : (isSelected ? colors.primary : colors.mutedForeground)} />
     </TouchableOpacity>
   );
 }
@@ -191,6 +209,254 @@ function DetailPanel({ snap, onRestore, onDelete, onClose, restoring, deleting }
   );
 }
 
+// ─── Diff status badge ────────────────────────────────────────────────────────
+
+const STATUS_COLORS: Record<string, { bg: string; fg: string; label: string }> = {
+  added:     { bg: "#16a34a20", fg: "#16a34a", label: "Added" },
+  removed:   { bg: "#dc262620", fg: "#dc2626", label: "Removed" },
+  changed:   { bg: "#d9770620", fg: "#d97706", label: "Changed" },
+  unchanged: { bg: "#6b728020", fg: "#6b7280", label: "Unchanged" },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const c = STATUS_COLORS[status] ?? STATUS_COLORS.unchanged;
+  return (
+    <View style={[styles.badge, { backgroundColor: c.bg }]}>
+      <Text style={[styles.badgeText, { color: c.fg }]}>{c.label}</Text>
+    </View>
+  );
+}
+
+// ─── Diff line row ────────────────────────────────────────────────────────────
+
+function DiffLineRow({ line }: { line: SnapshotDiffLine }) {
+  const colors = useColors();
+  const [expanded, setExpanded] = useState(false);
+
+  const budgetDelta =
+    line.totalBudgetA != null && line.totalBudgetB != null
+      ? line.totalBudgetB - line.totalBudgetA
+      : null;
+
+  const planChanges = line.changes.filter((c) => c.field.startsWith("plan:"));
+  const actualChanges = line.changes.filter((c) => c.field.startsWith("actual:"));
+  const fieldChanges = line.changes.filter((c) => !c.field.startsWith("plan:") && !c.field.startsWith("actual:"));
+
+  return (
+    <View style={[styles.diffRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <TouchableOpacity
+        onPress={() => line.changes.length > 0 && setExpanded((e) => !e)}
+        activeOpacity={line.changes.length > 0 ? 0.7 : 1}
+        style={styles.diffRowHeader}
+      >
+        <View style={styles.diffRowLeft}>
+          <StatusBadge status={line.status} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.diffLineItem, { color: colors.foreground }]} numberOfLines={1}>
+              {line.lineItem}
+            </Text>
+            <Text style={[styles.diffCategory, { color: colors.mutedForeground }]}>
+              {line.category}{line.subcategory ? ` · ${line.subcategory}` : ""}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.diffRowRight}>
+          {line.totalBudgetA != null && (
+            <Text style={[styles.diffBudget, { color: colors.mutedForeground }]}>{fmt(line.totalBudgetA)}</Text>
+          )}
+          {line.totalBudgetA != null && line.totalBudgetB != null && (
+            <Feather name="arrow-right" size={11} color={colors.mutedForeground} />
+          )}
+          {line.totalBudgetB != null && (
+            <Text style={[styles.diffBudget, { color: colors.foreground }]}>{fmt(line.totalBudgetB)}</Text>
+          )}
+          {budgetDelta != null && budgetDelta !== 0 && (
+            <Text style={[styles.diffDelta, { color: budgetDelta > 0 ? "#16a34a" : "#dc2626" }]}>
+              {budgetDelta > 0 ? "+" : ""}{fmt(budgetDelta)}
+            </Text>
+          )}
+          {line.changes.length > 0 && (
+            <Feather name={expanded ? "chevron-up" : "chevron-down"} size={13} color={colors.mutedForeground} />
+          )}
+        </View>
+      </TouchableOpacity>
+
+      {expanded && line.changes.length > 0 && (
+        <View style={[styles.diffDetail, { borderColor: colors.border }]}>
+          {fieldChanges.length > 0 && (
+            <View style={styles.diffSection}>
+              <Text style={[styles.diffSectionTitle, { color: colors.mutedForeground }]}>Field changes</Text>
+              {fieldChanges.map((c) => (
+                <View key={c.field} style={styles.diffChangeRow}>
+                  <Text style={[styles.diffChangeField, { color: colors.mutedForeground }]}>{c.field}</Text>
+                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{c.from ?? "—"}</Text>
+                  <Feather name="arrow-right" size={10} color={colors.mutedForeground} />
+                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{c.to ?? "—"}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          {planChanges.length > 0 && (
+            <View style={styles.diffSection}>
+              <Text style={[styles.diffSectionTitle, { color: colors.mutedForeground }]}>Monthly plan changes</Text>
+              {planChanges.map((c) => (
+                <View key={c.field} style={styles.diffChangeRow}>
+                  <Text style={[styles.diffChangeField, { color: colors.mutedForeground }]}>{c.field.replace("plan:", "")}</Text>
+                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{"£" + Number(c.from ?? 0).toLocaleString("en-GB")}</Text>
+                  <Feather name="arrow-right" size={10} color={colors.mutedForeground} />
+                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{"£" + Number(c.to ?? 0).toLocaleString("en-GB")}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          {actualChanges.length > 0 && (
+            <View style={styles.diffSection}>
+              <Text style={[styles.diffSectionTitle, { color: colors.mutedForeground }]}>Monthly actual changes</Text>
+              {actualChanges.map((c) => (
+                <View key={c.field} style={styles.diffChangeRow}>
+                  <Text style={[styles.diffChangeField, { color: colors.mutedForeground }]}>{c.field.replace("actual:", "")}</Text>
+                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{"£" + Number(c.from ?? 0).toLocaleString("en-GB")}</Text>
+                  <Feather name="arrow-right" size={10} color={colors.mutedForeground} />
+                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{"£" + Number(c.to ?? 0).toLocaleString("en-GB")}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Compare panel ────────────────────────────────────────────────────────────
+
+interface ComparePanelProps {
+  aId: string;
+  bId: string;
+  snapshots: SnapshotMeta[];
+  onClose: () => void;
+}
+
+function ComparePanel({ aId, bId, snapshots, onClose }: ComparePanelProps) {
+  const colors = useColors();
+  const [showUnchanged, setShowUnchanged] = useState(false);
+
+  const { data: diff, isLoading, error } = useCompareSnapshots({ a: aId, b: bId });
+
+  const snapA = snapshots.find((s) => s.id === aId);
+  const snapB = snapshots.find((s) => s.id === bId);
+
+  const visibleLines = diff?.lines.filter((l) =>
+    showUnchanged ? true : l.status !== "unchanged"
+  ) ?? [];
+
+  return (
+    <View style={[styles.comparePanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.detailHeader}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Feather name="git-merge" size={16} color={colors.primary} />
+          <Text style={[styles.detailTitle, { color: colors.foreground }]}>Snapshot Comparison</Text>
+        </View>
+        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Feather name="x" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.compareAB, { borderColor: colors.border }]}>
+        <View style={styles.compareSlot}>
+          <View style={[styles.slotBadge, { backgroundColor: "#2563eb" }]}>
+            <Text style={styles.slotBadgeText}>A</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowDate, { color: colors.foreground }]} numberOfLines={1}>
+              {snapA ? fmtDate(snapA.timestamp) : aId}
+            </Text>
+            {snapA && <LabelBadge label={snapA.label} />}
+          </View>
+        </View>
+        <Feather name="arrow-right" size={14} color={colors.mutedForeground} style={{ alignSelf: "center" }} />
+        <View style={styles.compareSlot}>
+          <View style={[styles.slotBadge, { backgroundColor: "#16a34a" }]}>
+            <Text style={styles.slotBadgeText}>B</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowDate, { color: colors.foreground }]} numberOfLines={1}>
+              {snapB ? fmtDate(snapB.timestamp) : bId}
+            </Text>
+            {snapB && <LabelBadge label={snapB.label} />}
+          </View>
+        </View>
+      </View>
+
+      {isLoading && (
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
+      )}
+
+      {error && (
+        <View style={[styles.compareError, { borderColor: "#dc2626", backgroundColor: "#dc262610" }]}>
+          <Feather name="alert-circle" size={16} color="#dc2626" />
+          <Text style={[styles.compareErrorText, { color: "#dc2626" }]}>Failed to load comparison</Text>
+        </View>
+      )}
+
+      {diff && (
+        <>
+          <View style={styles.summaryRow}>
+            {([
+              { label: "Added", count: diff.summary.added, color: "#16a34a" },
+              { label: "Removed", count: diff.summary.removed, color: "#dc2626" },
+              { label: "Changed", count: diff.summary.changed, color: "#d97706" },
+              { label: "Unchanged", count: diff.summary.unchanged, color: "#6b7280" },
+            ] as const).map((s) => (
+              <View key={s.label} style={[styles.summaryChip, { backgroundColor: s.color + "20" }]}>
+                <Text style={[styles.summaryCount, { color: s.color }]}>{s.count}</Text>
+                <Text style={[styles.summaryLabel, { color: s.color }]}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {diff.summary.unchanged > 0 && (
+            <TouchableOpacity
+              onPress={() => setShowUnchanged((v) => !v)}
+              style={styles.toggleUnchanged}
+            >
+              <Feather
+                name={showUnchanged ? "eye-off" : "eye"}
+                size={13}
+                color={colors.mutedForeground}
+              />
+              <Text style={[styles.toggleUnchangedText, { color: colors.mutedForeground }]}>
+                {showUnchanged ? "Hide unchanged lines" : `Show ${diff.summary.unchanged} unchanged line${diff.summary.unchanged !== 1 ? "s" : ""}`}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {visibleLines.length === 0 ? (
+            <View style={[styles.empty, { borderColor: colors.border, marginTop: 8 }]}>
+              <Feather name="check-circle" size={28} color={colors.mutedForeground} />
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                No differences found between these snapshots.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.diffList}>
+              {visibleLines.map((line, idx) => (
+                <DiffLineRow key={`${line.category}|${line.lineItem}|${idx}`} line={line} />
+              ))}
+            </View>
+          )}
+
+          <Text style={[styles.detailWarning, { color: colors.mutedForeground, marginTop: 8 }]}>
+            This view is read-only. Use the normal snapshot list to restore.
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
+
 export default function SnapshotsScreen() {
   const colors = useColors();
   const { mode } = useLayout();
@@ -203,6 +469,11 @@ export default function SnapshotsScreen() {
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [labelInput, setLabelInput] = useState("");
+
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareA, setCompareA] = useState<string | null>(null);
+  const [compareB, setCompareB] = useState<string | null>(null);
+  const [showCompare, setShowCompare] = useState(false);
 
   const { data: snapshots = [], isLoading, refetch, isFetching } = useListSnapshots();
 
@@ -288,6 +559,52 @@ export default function SnapshotsScreen() {
     );
   }, [deleteSnap, invalidate, selectedId]);
 
+  const handleToggleCompare = useCallback(() => {
+    if (compareMode) {
+      setCompareMode(false);
+      setCompareA(null);
+      setCompareB(null);
+      setShowCompare(false);
+    } else {
+      setCompareMode(true);
+      setSelectedId(null);
+    }
+  }, [compareMode]);
+
+  const handleCompareSelect = useCallback((id: string) => {
+    if (compareA === id) {
+      setCompareA(compareB);
+      setCompareB(null);
+      setShowCompare(false);
+      return;
+    }
+    if (compareB === id) {
+      setCompareB(null);
+      setShowCompare(false);
+      return;
+    }
+    if (!compareA) {
+      setCompareA(id);
+      return;
+    }
+    if (!compareB) {
+      setCompareB(id);
+      setShowCompare(true);
+      return;
+    }
+    setCompareA(id);
+    setCompareB(null);
+    setShowCompare(false);
+  }, [compareA, compareB]);
+
+  const handleRowSelect = useCallback((id: string) => {
+    if (compareMode) {
+      handleCompareSelect(id);
+    } else {
+      setSelectedId((prev) => (prev === id ? null : id));
+    }
+  }, [compareMode, handleCompareSelect]);
+
   const selectedSnap = selectedId ? (snapshots as SnapshotMeta[]).find((s) => s.id === selectedId) ?? null : null;
 
   const listContent = (
@@ -298,19 +615,50 @@ export default function SnapshotsScreen() {
           title="Snapshots"
           subtitle={`${snapshots.length} snapshot${snapshots.length !== 1 ? "s" : ""} saved`}
         />
-        <TouchableOpacity
-          style={[styles.saveBtn, { backgroundColor: colors.primary }]}
-          onPress={() => { setLabelInput(""); setShowSaveModal(true); }}
-          activeOpacity={0.8}
-        >
-          <Feather name="camera" size={13} color="#fff" />
-          <Text style={styles.saveBtnText}>Save Snapshot</Text>
-        </TouchableOpacity>
+        <View style={styles.topBarActions}>
+          <TouchableOpacity
+            style={[
+              styles.compareBtn,
+              {
+                backgroundColor: compareMode ? colors.primary : colors.muted,
+                borderColor: compareMode ? colors.primary : colors.border,
+              },
+            ]}
+            onPress={handleToggleCompare}
+            activeOpacity={0.8}
+          >
+            <Feather name="git-merge" size={13} color={compareMode ? "#fff" : colors.foreground} />
+            <Text style={[styles.compareBtnText, { color: compareMode ? "#fff" : colors.foreground }]}>
+              {compareMode ? "Exit Compare" : "Compare"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+            onPress={() => { setLabelInput(""); setShowSaveModal(true); }}
+            activeOpacity={0.8}
+          >
+            <Feather name="camera" size={13} color="#fff" />
+            <Text style={styles.saveBtnText}>Save Snapshot</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <Text style={[styles.explainer, { color: colors.mutedForeground }]}>
-        Snapshots capture the full budget state. Tap a row to preview and restore.
-      </Text>
+      {compareMode ? (
+        <View style={[styles.compareHint, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "40" }]}>
+          <Feather name="info" size={13} color={colors.primary} />
+          <Text style={[styles.compareHintText, { color: colors.primary }]}>
+            {!compareA
+              ? "Tap a snapshot to select it as A (before)"
+              : !compareB
+              ? "Now tap another snapshot to select it as B (after)"
+              : "Both selected — view the diff below, or tap a snapshot to change the selection"}
+          </Text>
+        </View>
+      ) : (
+        <Text style={[styles.explainer, { color: colors.mutedForeground }]}>
+          Snapshots capture the full budget state. Tap a row to preview and restore.
+        </Text>
+      )}
 
       {isLoading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
@@ -327,8 +675,10 @@ export default function SnapshotsScreen() {
             <SnapshotRow
               key={snap.id}
               snap={snap}
-              isSelected={selectedId === snap.id}
-              onSelect={setSelectedId}
+              isSelected={!compareMode && selectedId === snap.id}
+              onSelect={handleRowSelect}
+              compareSlot={compareA === snap.id ? "A" : compareB === snap.id ? "B" : null}
+              compareMode={compareMode}
             />
           ))}
         </View>
@@ -346,6 +696,16 @@ export default function SnapshotsScreen() {
       deleting={deletingId === selectedSnap.id}
     />
   ) : null;
+
+  const compareContent =
+    compareMode && showCompare && compareA && compareB ? (
+      <ComparePanel
+        aId={compareA}
+        bId={compareB}
+        snapshots={snapshots as SnapshotMeta[]}
+        onClose={() => { setShowCompare(false); setCompareA(null); setCompareB(null); }}
+      />
+    ) : null;
 
   const saveModal = (
     <Modal
@@ -410,12 +770,17 @@ export default function SnapshotsScreen() {
           <AdminSubnav active="snapshots" />
           <View style={styles.desktopSplit}>
             {listContent}
-            {detailContent && (
+            {!compareMode && detailContent && (
               <View style={styles.detailPaneDesktop}>
                 {detailContent}
               </View>
             )}
           </View>
+          {compareContent && (
+            <View style={{ marginTop: 16 }}>
+              {compareContent}
+            </View>
+          )}
         </ScrollView>
         {saveModal}
       </View>
@@ -431,9 +796,14 @@ export default function SnapshotsScreen() {
       >
         <AdminSubnav active="snapshots" />
         {listContent}
-        {selectedSnap && (
+        {!compareMode && selectedSnap && (
           <View style={styles.detailPaneMobile}>
             {detailContent}
+          </View>
+        )}
+        {compareContent && (
+          <View style={{ marginTop: 8 }}>
+            {compareContent}
           </View>
         )}
       </ScrollView>
@@ -451,8 +821,13 @@ const styles = StyleSheet.create({
   detailPaneDesktop: { width: 320 },
   detailPaneMobile: { marginTop: 4 },
   topBar: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
+  topBarActions: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
   saveBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   saveBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  compareBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
+  compareBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  compareHint: { borderRadius: 8, borderWidth: 1, padding: 10, flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  compareHintText: { flex: 1, fontSize: 13, lineHeight: 18 },
   explainer: { fontSize: 13, lineHeight: 18 },
   rowList: { gap: 6 },
   row: {
@@ -471,6 +846,8 @@ const styles = StyleSheet.create({
   rowLines: { fontSize: 11 },
   badge: { alignSelf: "flex-start", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
+  slotBadge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  slotBadgeText: { color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold" },
   empty: { borderWidth: 1, borderStyle: "dashed", borderRadius: 12, padding: 40, alignItems: "center", gap: 12 },
   emptyText: { fontSize: 14, textAlign: "center" },
   detail: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 10 },
@@ -493,4 +870,30 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   modalBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8, minWidth: 80, alignItems: "center" },
   modalBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  comparePanel: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 12 },
+  compareAB: { flexDirection: "row", gap: 8, alignItems: "flex-start", paddingVertical: 10, borderBottomWidth: 1 },
+  compareSlot: { flex: 1, flexDirection: "row", gap: 8, alignItems: "flex-start" },
+  compareError: { borderWidth: 1, borderRadius: 8, padding: 12, flexDirection: "row", gap: 8, alignItems: "center" },
+  compareErrorText: { fontSize: 13 },
+  summaryRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  summaryChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignItems: "center", gap: 2 },
+  summaryCount: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  summaryLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
+  toggleUnchanged: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
+  toggleUnchangedText: { fontSize: 12 },
+  diffList: { gap: 6 },
+  diffRow: { borderWidth: 1, borderRadius: 8, overflow: "hidden" },
+  diffRowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 10, gap: 8 },
+  diffRowLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  diffLineItem: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  diffCategory: { fontSize: 11 },
+  diffRowRight: { flexDirection: "row", alignItems: "center", gap: 4 },
+  diffBudget: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  diffDelta: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  diffDetail: { borderTopWidth: 1, padding: 10, gap: 10 },
+  diffSection: { gap: 4 },
+  diffSectionTitle: { fontSize: 10, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 },
+  diffChangeRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  diffChangeField: { fontSize: 11, fontFamily: "Inter_500Medium", minWidth: 80 },
+  diffChangeVal: { fontSize: 11, fontFamily: "Inter_500Medium" },
 });

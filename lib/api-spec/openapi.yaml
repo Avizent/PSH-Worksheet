@@ -1331,6 +1331,37 @@ paths:
         "404":
           description: Snapshot not found
 
+  /snapshots/compare:
+    get:
+      operationId: compareSnapshots
+      tags: [snapshots]
+      summary: Compare two snapshots
+      description: Returns a line-by-line diff between two snapshots (added, removed, changed, unchanged lines)
+      parameters:
+        - name: a
+          in: query
+          required: true
+          schema:
+            type: string
+          description: ID of the "before" snapshot
+        - name: b
+          in: query
+          required: true
+          schema:
+            type: string
+          description: ID of the "after" snapshot
+      responses:
+        "200":
+          description: Snapshot diff result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotDiff"
+        "400":
+          description: Missing or invalid snapshot IDs
+        "404":
+          description: One or both snapshots not found
+
   /snapshots/{id}/restore:
     post:
       operationId: restoreSnapshot
@@ -2755,3 +2786,87 @@ components:
       required:
         - restored
         - preRestore
+
+    SnapshotDiffChange:
+      type: object
+      properties:
+        field:
+          type: string
+        from:
+          type: string
+          nullable: true
+        to:
+          type: string
+          nullable: true
+      required:
+        - field
+        - from
+        - to
+
+    SnapshotDiffLine:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [added, removed, changed, unchanged]
+        lineItem:
+          type: string
+        category:
+          type: string
+        subcategory:
+          type: string
+          nullable: true
+        totalBudgetA:
+          type: number
+          nullable: true
+        totalBudgetB:
+          type: number
+          nullable: true
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SnapshotDiffChange"
+      required:
+        - status
+        - lineItem
+        - category
+        - subcategory
+        - totalBudgetA
+        - totalBudgetB
+        - changes
+
+    SnapshotDiffSummary:
+      type: object
+      properties:
+        added:
+          type: integer
+        removed:
+          type: integer
+        changed:
+          type: integer
+        unchanged:
+          type: integer
+      required:
+        - added
+        - removed
+        - changed
+        - unchanged
+
+    SnapshotDiff:
+      type: object
+      properties:
+        snapshotA:
+          $ref: "#/components/schemas/SnapshotMeta"
+        snapshotB:
+          $ref: "#/components/schemas/SnapshotMeta"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/SnapshotDiffLine"
+        summary:
+          $ref: "#/components/schemas/SnapshotDiffSummary"
+      required:
+        - snapshotA
+        - snapshotB
+        - lines
+        - summary

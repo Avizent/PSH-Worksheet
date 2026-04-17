@@ -656,6 +656,46 @@ export interface RestoreResult {
   preRestore: SnapshotMeta | null;
 }
 
+export interface SnapshotDiffChange {
+  field: string;
+  from: string | null;
+  to: string | null;
+}
+
+export type SnapshotDiffLineStatus =
+  (typeof SnapshotDiffLineStatus)[keyof typeof SnapshotDiffLineStatus];
+
+export const SnapshotDiffLineStatus = {
+  added: "added",
+  removed: "removed",
+  changed: "changed",
+  unchanged: "unchanged",
+} as const;
+
+export interface SnapshotDiffLine {
+  status: SnapshotDiffLineStatus;
+  lineItem: string;
+  category: string;
+  subcategory: string | null;
+  totalBudgetA: number | null;
+  totalBudgetB: number | null;
+  changes: SnapshotDiffChange[];
+}
+
+export interface SnapshotDiffSummary {
+  added: number;
+  removed: number;
+  changed: number;
+  unchanged: number;
+}
+
+export interface SnapshotDiff {
+  snapshotA: SnapshotMeta;
+  snapshotB: SnapshotMeta;
+  lines: SnapshotDiffLine[];
+  summary: SnapshotDiffSummary;
+}
+
 export type GetDashboardSummaryParams = {
   year?: number;
 };
@@ -740,4 +780,15 @@ export type ImportBudgetExcelBody = {
 
 export type CreateSnapshotBody = {
   label?: string;
+};
+
+export type CompareSnapshotsParams = {
+  /**
+   * ID of the "before" snapshot
+   */
+  a: string;
+  /**
+   * ID of the "after" snapshot
+   */
+  b: string;
 };

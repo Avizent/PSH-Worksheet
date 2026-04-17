@@ -1388,6 +1388,57 @@ export const DeleteSnapshotParams = zod.object({
 });
 
 /**
+ * Returns a line-by-line diff between two snapshots (added, removed, changed, unchanged lines)
+ * @summary Compare two snapshots
+ */
+export const CompareSnapshotsQueryParams = zod.object({
+  a: zod.coerce.string().describe('ID of the \"before\" snapshot'),
+  b: zod.coerce.string().describe('ID of the \"after\" snapshot'),
+});
+
+export const CompareSnapshotsResponse = zod.object({
+  snapshotA: zod.object({
+    id: zod.string(),
+    timestamp: zod.coerce.date(),
+    label: zod.string(),
+    totalBudget: zod.number(),
+    totalSpent: zod.number(),
+    lineCount: zod.number(),
+  }),
+  snapshotB: zod.object({
+    id: zod.string(),
+    timestamp: zod.coerce.date(),
+    label: zod.string(),
+    totalBudget: zod.number(),
+    totalSpent: zod.number(),
+    lineCount: zod.number(),
+  }),
+  lines: zod.array(
+    zod.object({
+      status: zod.enum(["added", "removed", "changed", "unchanged"]),
+      lineItem: zod.string(),
+      category: zod.string(),
+      subcategory: zod.string().nullable(),
+      totalBudgetA: zod.number().nullable(),
+      totalBudgetB: zod.number().nullable(),
+      changes: zod.array(
+        zod.object({
+          field: zod.string(),
+          from: zod.string().nullable(),
+          to: zod.string().nullable(),
+        }),
+      ),
+    }),
+  ),
+  summary: zod.object({
+    added: zod.number(),
+    removed: zod.number(),
+    changed: zod.number(),
+    unchanged: zod.number(),
+  }),
+});
+
+/**
  * Saves a pre-restore snapshot, then overwrites the database with the snapshot data
  * @summary Restore a snapshot
  */

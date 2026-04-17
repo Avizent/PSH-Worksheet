@@ -30,6 +30,7 @@ import type {
   Category,
   CategoryWithCount,
   CompareForecastVersionsParams,
+  CompareSnapshotsParams,
   CreateBudgetLineBody,
   CreateCategoryBody,
   CreateEventBody,
@@ -77,6 +78,7 @@ import type {
   SeedResult,
   ShareToken,
   SnapshotDetail,
+  SnapshotDiff,
   SnapshotMeta,
   UpdateBoardSettingBody,
   UpdateBudgetLineBody,
@@ -5562,6 +5564,104 @@ export const useDeleteSnapshot = <
 > => {
   return useMutation(getDeleteSnapshotMutationOptions(options));
 };
+
+/**
+ * Returns a line-by-line diff between two snapshots (added, removed, changed, unchanged lines)
+ * @summary Compare two snapshots
+ */
+export const getCompareSnapshotsUrl = (params: CompareSnapshotsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/snapshots/compare?${stringifiedParams}`
+    : `/api/snapshots/compare`;
+};
+
+export const compareSnapshots = async (
+  params: CompareSnapshotsParams,
+  options?: RequestInit,
+): Promise<SnapshotDiff> => {
+  return customFetch<SnapshotDiff>(getCompareSnapshotsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getCompareSnapshotsQueryKey = (
+  params?: CompareSnapshotsParams,
+) => {
+  return [`/api/snapshots/compare`, ...(params ? [params] : [])] as const;
+};
+
+export const getCompareSnapshotsQueryOptions = <
+  TData = Awaited<ReturnType<typeof compareSnapshots>>,
+  TError = ErrorType<void>,
+>(
+  params: CompareSnapshotsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof compareSnapshots>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getCompareSnapshotsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof compareSnapshots>>
+  > = ({ signal }) => compareSnapshots(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof compareSnapshots>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type CompareSnapshotsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof compareSnapshots>>
+>;
+export type CompareSnapshotsQueryError = ErrorType<void>;
+
+/**
+ * @summary Compare two snapshots
+ */
+
+export function useCompareSnapshots<
+  TData = Awaited<ReturnType<typeof compareSnapshots>>,
+  TError = ErrorType<void>,
+>(
+  params: CompareSnapshotsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof compareSnapshots>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getCompareSnapshotsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Saves a pre-restore snapshot, then overwrites the database with the snapshot data

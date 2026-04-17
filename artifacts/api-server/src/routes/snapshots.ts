@@ -234,6 +234,217 @@ router.get("/snapshots", asyncHandler(async (_req, res): Promise<void> => {
   res.json(metas);
 }));
 
+// ─── GET /snapshots/compare ───────────────────────────────────────────────────
+
+router.get("/snapshots/compare", asyncHandler(async (req, res): Promise<void> => {
+  const aId = String(req.query.a ?? "").trim();
+  const bId = String(req.query.b ?? "").trim();
+
+  if (!aId || !bId) {
+    res.status(400).json({ error: "Both 'a' and 'b' query parameters are required" });
+    return;
+  }
+
+  const aFile = idFromStem(aId);
+  const bFile = idFromStem(bId);
+
+  if (aFile.includes("..") || aFile.includes("/") || bFile.includes("..") || bFile.includes("/")) {
+    res.status(400).json({ error: "Invalid snapshot ID" });
+    return;
+  }
+
+  const aBody = readSnapshotFile(aFile);
+  const bBody = readSnapshotFile(bFile);
+
+  if (!aBody) {
+    res.status(404).json({ error: `Snapshot A not found: ${aId}` });
+    return;
+  }
+  if (!bBody) {
+    res.status(404).json({ error: `Snapshot B not found: ${bId}` });
+    return;
+  }
+
+  const aMeta = parseMeta(aFile, aBody);
+  const bMeta = parseMeta(bFile, bBody);
+
+  // Build lookup maps keyed by all stable identifying fields to avoid collisions.
+  // Budget lines have no guaranteed unique business key across snapshots, so we use
+  // a composite of every discriminating field. Duplicates within a snapshot would
+  // be a data-integrity issue but are guarded below with a per-key array to avoid
+  // silently dropping rows.
+  const lineKey = (bl: SnapshotBudgetLine) =>
+    [
+      bl.category,
+      bl.subcategory ?? "",
+      bl.lineItem,
+      bl.owner ?? "",
+      bl.region ?? "",
+      bl.channel ?? "",
+    ]
+      .map((v) => v.replace(/\|/g, "\x01"))
+      .join("|");
+
+  const aMap = new Map<string, SnapshotBudgetLine[]>();
+  for (const bl of aBody.budgetLines) {
+    const k = lineKey(bl);
+    const arr = aMap.get(k) ?? [];
+    arr.push(bl);
+    aMap.set(k, arr);
+  }
+
+  const bMap = new Map<string, SnapshotBudgetLine[]>();
+  for (const bl of bBody.budgetLines) {
+    const k = lineKey(bl);
+    const arr = bMap.get(k) ?? [];
+    arr.push(bl);
+    bMap.set(k, arr);
+  }
+
+  const allKeys = new Set([...aMap.keys(), ...bMap.keys()]);
+
+  interface DiffChange { field: string; from: string | null; to: string | null; }
+  interface DiffLine {
+    status: "added" | "removed" | "changed" | "unchanged";
+    lineItem: string;
+    category: string;
+    subcategory: string | null;
+    totalBudgetA: number | null;
+    totalBudgetB: number | null;
+    changes: DiffChange[];
+  }
+
+  const diffLines: DiffLine[] = [];
+
+  // Helper: compare two matched lines and produce a DiffLine entry
+  function comparePair(a: SnapshotBudgetLine, b: SnapshotBudgetLine): DiffLine {
+    const totalA = a.plans.reduce((s, p) => s + p.plannedAmount, 0);
+    const totalB = b.plans.reduce((s, p) => s + p.plannedAmount, 0);
+
+    const changes: DiffChange[] = [];
+
+    // Compare scalar fields
+    if (a.costStatus !== b.costStatus) {
+      changes.push({ field: "costStatus", from: a.costStatus, to: b.costStatus });
+    }
+    if (a.projectionPct !== b.projectionPct) {
+      changes.push({ field: "projectionPct", from: String(a.projectionPct), to: String(b.projectionPct) });
+    }
+    if ((a.boardApprovedAmount ?? null) !== (b.boardApprovedAmount ?? null)) {
+      changes.push({
+        field: "boardApprovedAmount",
+        from: a.boardApprovedAmount != null ? String(a.boardApprovedAmount) : null,
+        to: b.boardApprovedAmount != null ? String(b.boardApprovedAmount) : null,
+      });
+    }
+
+    // Compare monthly plans: build month-year keyed maps
+    const planKey = (p: SnapshotPlan) => `${p.year}-${String(p.month).padStart(2, "0")}`;
+    const aPlans = new Map<string, SnapshotPlan>();
+    for (const p of a.plans) aPlans.set(planKey(p), p);
+    const bPlans = new Map<string, SnapshotPlan>();
+    for (const p of b.plans) bPlans.set(planKey(p), p);
+
+    const allPlanKeys = new Set([...aPlans.keys(), ...bPlans.keys()]);
+    for (const pk of Array.from(allPlanKeys).sort()) {
+      const ap = aPlans.get(pk);
+      const bp = bPlans.get(pk);
+      const av = ap?.plannedAmount ?? 0;
+      const bv = bp?.plannedAmount ?? 0;
+      if (av !== bv) {
+        changes.push({ field: `plan:${pk}`, from: String(av), to: String(bv) });
+      }
+    }
+
+    // Compare monthly actuals
+    const actualKey = (act: SnapshotActual) => `${act.year}-${String(act.month).padStart(2, "0")}`;
+    const aActuals = new Map<string, SnapshotActual>();
+    for (const act of a.actuals) aActuals.set(actualKey(act), act);
+    const bActuals = new Map<string, SnapshotActual>();
+    for (const act of b.actuals) bActuals.set(actualKey(act), act);
+
+    const allActualKeys = new Set([...aActuals.keys(), ...bActuals.keys()]);
+    for (const ak of Array.from(allActualKeys).sort()) {
+      const aa = aActuals.get(ak);
+      const ba = bActuals.get(ak);
+      const av = aa?.actualAmount ?? 0;
+      const bv = ba?.actualAmount ?? 0;
+      if (av !== bv) {
+        changes.push({ field: `actual:${ak}`, from: String(av), to: String(bv) });
+      }
+    }
+
+    const status = changes.length > 0 ? "changed" : "unchanged";
+    return {
+      status,
+      lineItem: a.lineItem,
+      category: a.category,
+      subcategory: a.subcategory,
+      totalBudgetA: totalA,
+      totalBudgetB: totalB,
+      changes,
+    };
+  }
+
+  // Iterate over all unique composite keys. For each key, pair up items from
+  // aArr and bArr by position; extras on either side are added/removed.
+  for (const key of allKeys) {
+    const aArr = aMap.get(key) ?? [];
+    const bArr = bMap.get(key) ?? [];
+    const maxLen = Math.max(aArr.length, bArr.length);
+
+    for (let i = 0; i < maxLen; i++) {
+      const a = aArr[i];
+      const b = bArr[i];
+
+      if (a && !b) {
+        const totalA = a.plans.reduce((s, p) => s + p.plannedAmount, 0);
+        diffLines.push({
+          status: "removed",
+          lineItem: a.lineItem,
+          category: a.category,
+          subcategory: a.subcategory,
+          totalBudgetA: totalA,
+          totalBudgetB: null,
+          changes: [],
+        });
+      } else if (!a && b) {
+        const totalB = b.plans.reduce((s, p) => s + p.plannedAmount, 0);
+        diffLines.push({
+          status: "added",
+          lineItem: b.lineItem,
+          category: b.category,
+          subcategory: b.subcategory,
+          totalBudgetA: null,
+          totalBudgetB: totalB,
+          changes: [],
+        });
+      } else if (a && b) {
+        diffLines.push(comparePair(a, b));
+      }
+    }
+  }
+
+  // Sort: added/removed/changed first, then by category + lineItem
+  diffLines.sort((x, y) => {
+    const order: Record<string, number> = { added: 0, removed: 1, changed: 2, unchanged: 3 };
+    const diff = order[x.status] - order[y.status];
+    if (diff !== 0) return diff;
+    const cat = x.category.localeCompare(y.category);
+    if (cat !== 0) return cat;
+    return x.lineItem.localeCompare(y.lineItem);
+  });
+
+  const summary = {
+    added: diffLines.filter((l) => l.status === "added").length,
+    removed: diffLines.filter((l) => l.status === "removed").length,
+    changed: diffLines.filter((l) => l.status === "changed").length,
+    unchanged: diffLines.filter((l) => l.status === "unchanged").length,
+  };
+
+  res.json({ snapshotA: aMeta, snapshotB: bMeta, lines: diffLines, summary });
+}));
+
 // ─── GET /snapshots/:id ───────────────────────────────────────────────────────
 
 router.get("/snapshots/:id", asyncHandler(async (req, res): Promise<void> => {
