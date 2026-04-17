@@ -1,6 +1,6 @@
 import { pgTable, serial, text, integer, timestamp, real, boolean } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { makeInsertSchema } from "../utils";
 import { budgetLinesTable } from "./budgetLines";
 
 export const forecastVersionsTable = pgTable("forecast_versions", {
@@ -22,10 +22,10 @@ export const forecastPlansTable = pgTable("forecast_plans", {
   plannedAmount: real("planned_amount").notNull().default(0),
 });
 
-export const insertForecastVersionSchema = createInsertSchema(forecastVersionsTable).omit({ id: true, createdAt: true });
+export const insertForecastVersionSchema = makeInsertSchema(forecastVersionsTable);
 export type InsertForecastVersion = z.infer<typeof insertForecastVersionSchema>;
 export type ForecastVersion = typeof forecastVersionsTable.$inferSelect;
 
-export const insertForecastPlanSchema = createInsertSchema(forecastPlansTable).omit({ id: true });
+export const insertForecastPlanSchema = makeInsertSchema(forecastPlansTable);
 export type InsertForecastPlan = z.infer<typeof insertForecastPlanSchema>;
 export type ForecastPlan = typeof forecastPlansTable.$inferSelect;

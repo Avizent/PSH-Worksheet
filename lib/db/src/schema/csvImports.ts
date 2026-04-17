@@ -1,6 +1,6 @@
 import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { makeInsertSchema } from "../utils";
 
 export const csvImportsTable = pgTable("csv_imports", {
   id: serial("id").primaryKey(),
@@ -15,6 +15,6 @@ export const csvImportsTable = pgTable("csv_imports", {
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
-export const insertCsvImportSchema = createInsertSchema(csvImportsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCsvImportSchema = makeInsertSchema(csvImportsTable);
 export type InsertCsvImport = z.infer<typeof insertCsvImportSchema>;
 export type CsvImport = typeof csvImportsTable.$inferSelect;

@@ -1,6 +1,6 @@
 import { pgTable, serial, integer, real, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { makeInsertSchema } from "../utils";
 import { budgetLinesTable } from "./budgetLines";
 
 export const monthlyPlansTable = pgTable("monthly_plans", {
@@ -16,6 +16,6 @@ export const monthlyPlansTable = pgTable("monthly_plans", {
   uniqLineMonthYear: uniqueIndex("monthly_plans_line_month_year_uniq").on(t.budgetLineId, t.month, t.year),
 }));
 
-export const insertMonthlyPlanSchema = createInsertSchema(monthlyPlansTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMonthlyPlanSchema = makeInsertSchema(monthlyPlansTable);
 export type InsertMonthlyPlan = z.infer<typeof insertMonthlyPlanSchema>;
 export type MonthlyPlan = typeof monthlyPlansTable.$inferSelect;

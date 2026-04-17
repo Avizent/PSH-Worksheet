@@ -1,6 +1,6 @@
 import { pgTable, serial, integer, text, real, timestamp } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { makeInsertSchema } from "../utils";
 import { csvImportsTable } from "./csvImports";
 import { budgetLinesTable } from "./budgetLines";
 
@@ -21,6 +21,6 @@ export const csvImportRowsTable = pgTable("csv_import_rows", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertCsvImportRowSchema = createInsertSchema(csvImportRowsTable).omit({ id: true, createdAt: true });
+export const insertCsvImportRowSchema = makeInsertSchema(csvImportRowsTable);
 export type InsertCsvImportRow = z.infer<typeof insertCsvImportRowSchema>;
 export type CsvImportRow = typeof csvImportRowsTable.$inferSelect;

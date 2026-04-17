@@ -1,6 +1,6 @@
 import { pgTable, serial, text, integer, real, timestamp } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { makeInsertSchema } from "../utils";
 import { budgetLinesTable } from "./budgetLines";
 
 export const eventsTable = pgTable("events", {
@@ -14,6 +14,6 @@ export const eventsTable = pgTable("events", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-export const insertEventSchema = createInsertSchema(eventsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEventSchema = makeInsertSchema(eventsTable);
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type MarketingEvent = typeof eventsTable.$inferSelect;

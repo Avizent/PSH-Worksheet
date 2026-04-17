@@ -1,6 +1,6 @@
 import { pgTable, text, serial, boolean, integer, timestamp } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { makeInsertSchema } from "../utils";
 
 export const boardSettingsTable = pgTable("board_settings", {
   id: serial("id").primaryKey(),
@@ -12,6 +12,6 @@ export const boardSettingsTable = pgTable("board_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-export const insertBoardSettingSchema = createInsertSchema(boardSettingsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBoardSettingSchema = makeInsertSchema(boardSettingsTable);
 export type InsertBoardSetting = z.infer<typeof insertBoardSettingSchema>;
 export type BoardSetting = typeof boardSettingsTable.$inferSelect;

@@ -1,6 +1,6 @@
 import { pgTable, text, serial, timestamp, real } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { makeInsertSchema } from "../utils";
 
 export const budgetLinesTable = pgTable("budget_lines", {
   id: serial("id").primaryKey(),
@@ -17,6 +17,6 @@ export const budgetLinesTable = pgTable("budget_lines", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-export const insertBudgetLineSchema = createInsertSchema(budgetLinesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBudgetLineSchema = makeInsertSchema(budgetLinesTable);
 export type InsertBudgetLine = z.infer<typeof insertBudgetLineSchema>;
 export type BudgetLine = typeof budgetLinesTable.$inferSelect;

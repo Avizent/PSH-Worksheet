@@ -1,6 +1,6 @@
 import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { makeInsertSchema } from "../utils";
 import { budgetLinesTable } from "./budgetLines";
 
 export const alertsTable = pgTable("alerts", {
@@ -15,6 +15,6 @@ export const alertsTable = pgTable("alerts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertAlertSchema = createInsertSchema(alertsTable).omit({ id: true, createdAt: true });
+export const insertAlertSchema = makeInsertSchema(alertsTable);
 export type InsertAlert = z.infer<typeof insertAlertSchema>;
 export type Alert = typeof alertsTable.$inferSelect;
