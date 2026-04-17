@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAuthUsers } from "./lib/seedAuthUsers";
+import { startScheduler } from "./lib/scheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -30,4 +31,6 @@ app.listen(port, async (err) => {
   } catch (e) {
     logger.error({ err: e }, "Failed to seed auth users");
   }
+
+  startScheduler();
 });

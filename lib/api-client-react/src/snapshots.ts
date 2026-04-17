@@ -154,23 +154,21 @@ export function usePinSnapshot(options?: {
 }
 
 export function useCompareSnapshots(
-  params: { a: string; b: string } | null,
-  options?: {
-    query?: Partial<Parameters<typeof useQuery>[0]>;
-  }
-): UseQueryResult<SnapshotDiff> {
-  return useQuery<SnapshotDiff>({
-    queryKey: params
-      ? getCompareSnapshotsQueryKey(params.a, params.b)
-      : ["/api/snapshots/compare", "", ""],
+  a: string,
+  b: string,
+  options?: { query?: Partial<Parameters<typeof useQuery>[0]> },
+): UseQueryResult<SnapshotDiff> & { queryKey: QueryKey } {
+  const queryKey = getCompareSnapshotsQueryKey(a, b);
+  const query = useQuery<SnapshotDiff>({
+    queryKey,
     queryFn: ({ signal }) =>
-      customFetch<SnapshotDiff>(
-        `/api/snapshots/compare?a=${encodeURIComponent(params!.a)}&b=${encodeURIComponent(params!.b)}`,
-        { signal }
-      ),
-    enabled: !!params?.a && !!params?.b,
+      customFetch<SnapshotDiff>(`/api/snapshots/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`, {
+        signal,
+      }),
+    enabled: Boolean(a && b),
     ...options?.query,
   });
+  return { ...query, queryKey };
 }
 
 export function useRenameSnapshot(options?: {
