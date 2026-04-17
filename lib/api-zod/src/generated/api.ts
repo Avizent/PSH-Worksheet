@@ -1287,3 +1287,131 @@ export const ImportBudgetExcelResponse = zod.object({
     actualsWritten: zod.number(),
   }),
 });
+
+/**
+ * Captures current DB state to a JSON file in /snapshots, applies housekeeping, returns SnapshotMeta
+ * @summary Save a budget snapshot
+ */
+export const createSnapshotBodyLabelDefault = `manual`;
+
+export const CreateSnapshotBody = zod.object({
+  label: zod.string().default(createSnapshotBodyLabelDefault),
+});
+
+/**
+ * Returns all snapshot metadata sorted newest-first
+ * @summary List all snapshots
+ */
+export const ListSnapshotsResponseItem = zod.object({
+  id: zod.string(),
+  timestamp: zod.coerce.date(),
+  label: zod.string(),
+  totalBudget: zod.number(),
+  totalSpent: zod.number(),
+  lineCount: zod.number(),
+});
+export const ListSnapshotsResponse = zod.array(ListSnapshotsResponseItem);
+
+/**
+ * Returns the full snapshot detail including all budget line data
+ * @summary Get a snapshot by ID
+ */
+export const GetSnapshotParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetSnapshotResponse = zod
+  .object({
+    id: zod.string(),
+    timestamp: zod.coerce.date(),
+    label: zod.string(),
+    totalBudget: zod.number(),
+    totalSpent: zod.number(),
+    lineCount: zod.number(),
+  })
+  .and(
+    zod.object({
+      budgetLines: zod.array(
+        zod.object({
+          id: zod.number(),
+          category: zod.string(),
+          subcategory: zod.string().nullable(),
+          lineItem: zod.string(),
+          owner: zod.string().nullable(),
+          region: zod.string().nullable(),
+          channel: zod.string().nullable(),
+          costStatus: zod.string(),
+          projectionPct: zod.number(),
+          boardApprovedAmount: zod.number().nullable(),
+          plans: zod.array(
+            zod.object({
+              month: zod.number(),
+              year: zod.number(),
+              plannedAmount: zod.number(),
+              boardAmount: zod.number().nullable(),
+            }),
+          ),
+          actuals: zod.array(
+            zod.object({
+              month: zod.number(),
+              year: zod.number(),
+              actualAmount: zod.number(),
+              invoiceRef: zod.string().nullable(),
+            }),
+          ),
+        }),
+      ),
+      owners: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+          initials: zod.string(),
+          color: zod.string(),
+        }),
+      ),
+      categories: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+          color: zod.string(),
+          description: zod.string().nullable(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Delete a snapshot
+ */
+export const DeleteSnapshotParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * Saves a pre-restore snapshot, then overwrites the database with the snapshot data
+ * @summary Restore a snapshot
+ */
+export const RestoreSnapshotParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const RestoreSnapshotResponse = zod.object({
+  restored: zod.object({
+    id: zod.string(),
+    timestamp: zod.coerce.date(),
+    label: zod.string(),
+    totalBudget: zod.number(),
+    totalSpent: zod.number(),
+    lineCount: zod.number(),
+  }),
+  preRestore: zod
+    .object({
+      id: zod.string(),
+      timestamp: zod.coerce.date(),
+      label: zod.string(),
+      totalBudget: zod.number(),
+      totalSpent: zod.number(),
+      lineCount: zod.number(),
+    })
+    .nullable(),
+});

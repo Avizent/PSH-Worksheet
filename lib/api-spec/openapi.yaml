@@ -36,6 +36,8 @@ tags:
     description: Admin actions
   - name: excel
     description: Excel export and import
+  - name: snapshots
+    description: Budget snapshot save and restore
 paths:
   /healthz:
     get:
@@ -1251,6 +1253,103 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExcelImportValidationError"
+
+  /snapshots:
+    post:
+      operationId: createSnapshot
+      tags: [snapshots]
+      summary: Save a budget snapshot
+      description: Captures current DB state to a JSON file in /snapshots, applies housekeeping, returns SnapshotMeta
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                  default: manual
+      responses:
+        "201":
+          description: Snapshot saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotMeta"
+    get:
+      operationId: listSnapshots
+      tags: [snapshots]
+      summary: List all snapshots
+      description: Returns all snapshot metadata sorted newest-first
+      responses:
+        "200":
+          description: List of snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SnapshotMeta"
+
+  /snapshots/{id}:
+    get:
+      operationId: getSnapshot
+      tags: [snapshots]
+      summary: Get a snapshot by ID
+      description: Returns the full snapshot detail including all budget line data
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Full snapshot detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotDetail"
+        "404":
+          description: Snapshot not found
+    delete:
+      operationId: deleteSnapshot
+      tags: [snapshots]
+      summary: Delete a snapshot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Snapshot not found
+
+  /snapshots/{id}/restore:
+    post:
+      operationId: restoreSnapshot
+      tags: [snapshots]
+      summary: Restore a snapshot
+      description: Saves a pre-restore snapshot, then overwrites the database with the snapshot data
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Restore complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreResult"
+        "404":
+          description: Snapshot not found
 
 components:
   schemas:
@@ -2474,3 +2573,183 @@ components:
         - message
         - snapshotSaved
         - counts
+
+    SnapshotMeta:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        label:
+          type: string
+        totalBudget:
+          type: number
+        totalSpent:
+          type: number
+        lineCount:
+          type: integer
+      required:
+        - id
+        - timestamp
+        - label
+        - totalBudget
+        - totalSpent
+        - lineCount
+
+    SnapshotPlan:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        plannedAmount:
+          type: number
+        boardAmount:
+          type: number
+          nullable: true
+      required:
+        - month
+        - year
+        - plannedAmount
+        - boardAmount
+
+    SnapshotActual:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        actualAmount:
+          type: number
+        invoiceRef:
+          type: string
+          nullable: true
+      required:
+        - month
+        - year
+        - actualAmount
+        - invoiceRef
+
+    SnapshotBudgetLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        subcategory:
+          type: string
+          nullable: true
+        lineItem:
+          type: string
+        owner:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        channel:
+          type: string
+          nullable: true
+        costStatus:
+          type: string
+        projectionPct:
+          type: number
+        boardApprovedAmount:
+          type: number
+          nullable: true
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/SnapshotPlan"
+        actuals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SnapshotActual"
+      required:
+        - id
+        - category
+        - subcategory
+        - lineItem
+        - owner
+        - region
+        - channel
+        - costStatus
+        - projectionPct
+        - boardApprovedAmount
+        - plans
+        - actuals
+
+    SnapshotOwner:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        initials:
+          type: string
+        color:
+          type: string
+      required:
+        - id
+        - name
+        - initials
+        - color
+
+    SnapshotCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        description:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - color
+        - description
+
+    SnapshotDetail:
+      allOf:
+        - $ref: "#/components/schemas/SnapshotMeta"
+        - type: object
+          properties:
+            budgetLines:
+              type: array
+              items:
+                $ref: "#/components/schemas/SnapshotBudgetLine"
+            owners:
+              type: array
+              items:
+                $ref: "#/components/schemas/SnapshotOwner"
+            categories:
+              type: array
+              items:
+                $ref: "#/components/schemas/SnapshotCategory"
+          required:
+            - budgetLines
+            - owners
+            - categories
+
+    RestoreResult:
+      type: object
+      properties:
+        restored:
+          $ref: "#/components/schemas/SnapshotMeta"
+        preRestore:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/SnapshotMeta"
+      required:
+        - restored
+        - preRestore

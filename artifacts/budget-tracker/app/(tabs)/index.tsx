@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { View, ScrollView, StyleSheet, Platform, ActivityIndicator, RefreshControl, useWindowDimensions, Text, TouchableOpacity, FlatList } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -32,6 +32,7 @@ import {
   useResolveAlert,
   useSeedData,
   useEvaluateAlerts,
+  useCreateSnapshot,
   getGetDashboardSummaryQueryKey,
   getListBudgetLinesWithMonthlyQueryKey,
   getListAlertsQueryKey,
@@ -90,6 +91,9 @@ function RemainingBudgetChart({ categories, width, title = "Remaining Budget by 
 const EXTRA_CHART_TABS = ["Projections", "Events"] as const;
 type ExtraChartTab = (typeof EXTRA_CHART_TABS)[number];
 
+const SESSION_KEY = "hbt_auto_open_snapshot_saved";
+let nativeAutoOpenFired = false;
+
 function DashboardContent() {
   const colors = useColors();
   const { mode } = useLayout();
@@ -118,6 +122,51 @@ function DashboardContent() {
   const seedMutation = useSeedData();
   const evaluateAlertsMutation = useEvaluateAlerts();
   const resolveMutation = useResolveAlert();
+  const createSnapshot = useCreateSnapshot();
+  const [snapSaving, setSnapSaving] = useState(false);
+
+  const fireAutoOpen = useCallback(() => {
+    if (Platform.OS === "web") {
+      if (sessionStorage.getItem(SESSION_KEY)) return;
+      sessionStorage.setItem(SESSION_KEY, "1");
+    } else {
+      if (nativeAutoOpenFired) return;
+      nativeAutoOpenFired = true;
+    }
+    createSnapshot.mutate({ data: { label: "auto-open" } }, {
+      onSuccess: () => showToast("Auto snapshot saved on open"),
+      onError: () => {},
+    });
+  }, [createSnapshot, showToast]);
+
+  useEffect(() => {
+    fireAutoOpen();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const handler = () => {
+      try {
+        fetch("/api/snapshots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ label: "auto-close" }),
+          keepalive: true,
+        }).catch(() => {});
+      } catch {}
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
+  const handleSaveSnapshot = useCallback(() => {
+    setSnapSaving(true);
+    createSnapshot.mutate({ data: { label: "manual" } }, {
+      onSuccess: () => showToast("Snapshot saved"),
+      onError: () => showToast("Failed to save snapshot"),
+      onSettled: () => setSnapSaving(false),
+    });
+  }, [createSnapshot, showToast]);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -346,7 +395,26 @@ function DashboardContent() {
         />
       ) : (
         <>
-          <SectionHeader title="Budget Overview" subtitle="FY26 Marketing Budget" />
+          <View style={styles.overviewHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <SectionHeader title="Budget Overview" subtitle="FY26 Marketing Budget" />
+            </View>
+            <TouchableOpacity
+              style={[styles.snapBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={handleSaveSnapshot}
+              disabled={snapSaving}
+              activeOpacity={0.8}
+            >
+              {snapSaving ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <>
+                  <Feather name="camera" size={12} color={colors.primary} />
+                  <Text style={[styles.snapBtnText, { color: colors.primary }]}>Save Snapshot</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
           <View style={[styles.kpiRow, { flexDirection: isDesktop ? "row" : "column" }]}>
             <KpiCard title="Total Budget" value={formatCurrency(summary?.totalBudget ?? 0)} icon="target" color={colors.primary} />
             <KpiCard title="Spent YTD" value={formatCurrency(summary?.spentYtd ?? 0)} icon="credit-card" color={colors.accent} trend={summary && summary.budgetUtilisation > 80 ? "down" : "neutral"} />
@@ -568,6 +636,9 @@ export default function TabOneScreen() {
 }
 
 const styles = StyleSheet.create({
+  overviewHeaderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  snapBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  snapBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   loadingContainer: {
     flex: 1,
     alignItems: "center",

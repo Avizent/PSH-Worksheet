@@ -593,6 +593,69 @@ export interface ExcelImportResult {
   counts: ExcelImportCounts;
 }
 
+export interface SnapshotMeta {
+  id: string;
+  timestamp: string;
+  label: string;
+  totalBudget: number;
+  totalSpent: number;
+  lineCount: number;
+}
+
+export interface SnapshotPlan {
+  month: number;
+  year: number;
+  plannedAmount: number;
+  boardAmount: number | null;
+}
+
+export interface SnapshotActual {
+  month: number;
+  year: number;
+  actualAmount: number;
+  invoiceRef: string | null;
+}
+
+export interface SnapshotBudgetLine {
+  id: number;
+  category: string;
+  subcategory: string | null;
+  lineItem: string;
+  owner: string | null;
+  region: string | null;
+  channel: string | null;
+  costStatus: string;
+  projectionPct: number;
+  boardApprovedAmount: number | null;
+  plans: SnapshotPlan[];
+  actuals: SnapshotActual[];
+}
+
+export interface SnapshotOwner {
+  id: number;
+  name: string;
+  initials: string;
+  color: string;
+}
+
+export interface SnapshotCategory {
+  id: number;
+  name: string;
+  color: string;
+  description: string | null;
+}
+
+export type SnapshotDetail = SnapshotMeta & {
+  budgetLines: SnapshotBudgetLine[];
+  owners: SnapshotOwner[];
+  categories: SnapshotCategory[];
+};
+
+export interface RestoreResult {
+  restored: SnapshotMeta;
+  preRestore: SnapshotMeta | null;
+}
+
 export type GetDashboardSummaryParams = {
   year?: number;
 };
@@ -673,4 +736,8 @@ export type ValidateBudgetExcelBody = {
 
 export type ImportBudgetExcelBody = {
   file: Blob;
+};
+
+export type CreateSnapshotBody = {
+  label?: string;
 };

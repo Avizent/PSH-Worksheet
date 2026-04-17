@@ -66,6 +66,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "tag", selected: "tag.fill" }} />
         <Label>Categories</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="snapshots" hidden>
+        <Icon sf={{ default: "camera", selected: "camera.fill" }} />
+        <Label>Snapshots</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="owners">
         <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
         <Label>Admin</Label>
@@ -307,6 +311,14 @@ function ClassicTabLayout() {
           title: "Categories",
           tabBarItemStyle: { display: "none" },
           tabBarIcon: ({ color }) => <Feather name="tag" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="snapshots"
+        options={{
+          title: "Snapshots",
+          tabBarItemStyle: { display: "none" },
+          tabBarIcon: ({ color }) => <Feather name="camera" size={22} color={color} />,
         }}
       />
       <Tabs.Screen

@@ -21,6 +21,7 @@ import analyticsRouter from "./analytics";
 import ownersRouter from "./owners";
 import categoriesRouter from "./categories";
 import excelRouter from "./excel";
+import snapshotsRouter from "./snapshots";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(seedRouter);
 router.use(ownersRouter);
 router.use(categoriesRouter);
 router.use(excelRouter);
+router.use(snapshotsRouter);
 
 export default router;
