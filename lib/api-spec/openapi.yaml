@@ -1215,8 +1215,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExcelValidateResult"
+        "400":
+          description: No file uploaded
         "422":
-          description: Validation failed
+          description: Validation failed — structural or data errors found in the file
           content:
             application/json:
               schema:
