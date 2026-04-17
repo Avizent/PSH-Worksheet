@@ -89,6 +89,7 @@ function SnapshotRow({ snap, isSelected, onSelect }: SnapshotRowProps) {
       </View>
       <View style={styles.rowRight}>
         <Text style={[styles.rowBudget, { color: colors.foreground }]}>{fmt(snap.totalBudget)}</Text>
+        <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>spent {fmt(snap.totalSpent)}</Text>
         <Text style={[styles.rowLines, { color: colors.mutedForeground }]}>{snap.lineCount} lines</Text>
       </View>
       <Feather name="chevron-right" size={14} color={isSelected ? colors.primary : colors.mutedForeground} />

@@ -267,13 +267,15 @@ router.post("/snapshots/:id/restore", asyncHandler(async (req, res): Promise<voi
     return;
   }
 
-  // Save pre-restore snapshot before touching DB
-  let preRestoreMeta: SnapshotMeta | null = null;
+  // Save pre-restore snapshot before touching DB — abort restore if this fails
+  let preRestoreMeta: SnapshotMeta;
   try {
     const result = await captureSnapshot("pre-restore");
     preRestoreMeta = result.meta;
   } catch (e) {
-    logger.warn({ err: e }, "Pre-restore snapshot failed (continuing with restore)");
+    logger.error({ err: e }, "Pre-restore snapshot failed — aborting restore to preserve data safety");
+    res.status(500).json({ error: "Could not save pre-restore backup. Restore aborted to protect your data." });
+    return;
   }
 
   // Restore: delete in correct order to respect FK constraints, then re-insert
@@ -348,7 +350,7 @@ router.post("/snapshots/:id/restore", asyncHandler(async (req, res): Promise<voi
     }
   }
 
-  logger.info({ filename, preRestoreId: preRestoreMeta?.id }, "Snapshot restored");
+  logger.info({ filename, preRestoreId: preRestoreMeta.id }, "Snapshot restored");
 
   res.json({
     restored: parseMeta(filename, body),
