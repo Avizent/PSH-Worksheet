@@ -8,4 +8,7 @@
 
 export type ValidateBudgetExcelBody = {
   file: Blob;
+  /** Name of the sheet to import data from. Required when the workbook has multiple sheets — if omitted and the workbook has more than one sheet, the endpoint returns needsSheetSelection instead of validating. For single-sheet workbooks, omit this field and the sole sheet is used.
+   */
+  sheetName?: string;
 };

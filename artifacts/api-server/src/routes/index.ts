@@ -22,6 +22,9 @@ import ownersRouter from "./owners";
 import categoriesRouter from "./categories";
 import excelRouter from "./excel";
 import snapshotsRouter from "./snapshots";
+import eventTasksRouter from "./event-tasks";
+import taskRemindersRouter from "./task-reminders";
+import inAppAlertsRouter from "./in-app-alerts";
 
 const router: IRouter = Router();
 
@@ -48,5 +51,8 @@ router.use(ownersRouter);
 router.use(categoriesRouter);
 router.use(excelRouter);
 router.use(snapshotsRouter);
+router.use(eventTasksRouter);
+router.use(taskRemindersRouter);
+router.use(inAppAlertsRouter);
 
 export default router;

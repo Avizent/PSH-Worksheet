@@ -21,6 +21,7 @@ const MAIN_ITEMS: NavItem[] = [
   { key: "reports", label: "Reports", icon: "pie-chart", route: "/reports" },
   { key: "alerts", label: "Alerts", icon: "bell", route: "/alerts" },
   { key: "events", label: "Events", icon: "calendar", route: "/events" },
+  { key: "event-mgmnt", label: "Event Mgmnt", icon: "clipboard", route: "/event-mgmnt" },
   { key: "board", label: "Board View", icon: "monitor", route: "/board" },
 ];
 

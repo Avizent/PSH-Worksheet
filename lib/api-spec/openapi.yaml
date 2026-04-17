@@ -38,6 +38,8 @@ tags:
     description: Excel export and import
   - name: snapshots
     description: Budget snapshot save and restore
+  - name: event-management
+    description: Event task management, reminders and in-app alerts
 paths:
   /healthz:
     get:
@@ -1433,6 +1435,247 @@ paths:
                 $ref: "#/components/schemas/RestoreResult"
         "404":
           description: Snapshot not found
+
+  /events/{id}/tasks:
+    get:
+      operationId: listEventTasks
+      tags: [event-management]
+      summary: List tasks for an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventTask"
+    post:
+      operationId: createEventTask
+      tags: [event-management]
+      summary: Create a task for an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventTaskBody"
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventTask"
+
+  /event-tasks/{id}:
+    patch:
+      operationId: updateEventTask
+      tags: [event-management]
+      summary: Update an event task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEventTaskBody"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventTask"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteEventTask
+      tags: [event-management]
+      summary: Delete an event task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /event-tasks/{id}/reminders:
+    get:
+      operationId: listTaskReminders
+      tags: [event-management]
+      summary: List reminders for a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskReminder"
+    post:
+      operationId: createTaskReminder
+      tags: [event-management]
+      summary: Create a reminder for a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskReminderBody"
+      responses:
+        "201":
+          description: Created reminder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskReminder"
+
+  /task-reminders/{id}:
+    delete:
+      operationId: deleteTaskReminder
+      tags: [event-management]
+      summary: Delete a task reminder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /in-app-alerts:
+    get:
+      operationId: listInAppAlerts
+      tags: [event-management]
+      summary: List in-app alerts
+      parameters:
+        - name: eventId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: unread
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of in-app alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InAppAlert"
+
+  /in-app-alerts/{id}/read:
+    patch:
+      operationId: markInAppAlertRead
+      tags: [event-management]
+      summary: Mark an in-app alert as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InAppAlert"
+        "404":
+          description: Not found
+
+  /in-app-alerts/mark-all-read:
+    post:
+      operationId: markAllInAppAlertsRead
+      tags: [event-management]
+      summary: Mark all in-app alerts as read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventId:
+                  type: integer
+      responses:
+        "200":
+          description: Count of updated alerts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+                required:
+                  - updated
+
+  /events/{id}/check-reminders:
+    post:
+      operationId: checkEventReminders
+      tags: [event-management]
+      summary: Fire any pending reminders for tasks in an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Results of reminder check
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fired:
+                    type: integer
+                required:
+                  - fired
 
 components:
   schemas:
@@ -2974,3 +3217,132 @@ components:
         - snapshotB
         - lines
         - summary
+
+    EventTask:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        title:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+          format: date-time
+        assignee:
+          type: ["string", "null"]
+        status:
+          type: string
+        priority:
+          type: string
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - eventId
+        - title
+        - status
+        - priority
+        - createdAt
+        - updatedAt
+
+    CreateEventTaskBody:
+      type: object
+      properties:
+        title:
+          type: string
+        dueDate:
+          type: string
+          format: date-time
+        assignee:
+          type: string
+        status:
+          type: string
+          default: open
+        priority:
+          type: string
+          default: medium
+        notes:
+          type: string
+      required:
+        - title
+
+    UpdateEventTaskBody:
+      type: object
+      properties:
+        title:
+          type: string
+        dueDate:
+          type: string
+          format: date-time
+        assignee:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        notes:
+          type: string
+
+    TaskReminder:
+      type: object
+      properties:
+        id:
+          type: integer
+        taskId:
+          type: integer
+        daysBefore:
+          type: integer
+        label:
+          type: ["string", "null"]
+        firedAt:
+          type: ["string", "null"]
+          format: date-time
+        alertId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - taskId
+        - daysBefore
+        - createdAt
+
+    CreateTaskReminderBody:
+      type: object
+      properties:
+        daysBefore:
+          type: integer
+        label:
+          type: string
+      required:
+        - daysBefore
+
+    InAppAlert:
+      type: object
+      properties:
+        id:
+          type: integer
+        taskId:
+          type: integer
+        message:
+          type: string
+        readAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - taskId
+        - message
+        - createdAt

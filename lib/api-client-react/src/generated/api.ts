@@ -29,17 +29,20 @@ import type {
   BudgetLineWithMonthly,
   Category,
   CategoryWithCount,
+  CheckEventReminders200,
   CompareForecastVersionsParams,
   CompareSnapshotsParams,
   CreateBudgetLineBody,
   CreateCategoryBody,
   CreateEventBody,
+  CreateEventTaskBody,
   CreateForecastVersionBody,
   CreateMonthlyActualBody,
   CreateMonthlyPlanBody,
   CreateOwnerBody,
   CreateShareTokenBody,
   CreateSnapshotBody,
+  CreateTaskReminderBody,
   CsvImport,
   CsvImportRow,
   CsvImportWithRows,
@@ -47,8 +50,10 @@ import type {
   DashboardSummary,
   DeleteImport200,
   EvaluateAlertsParams,
+  EventTask,
   ExcelImportResult,
   ExcelImportValidationError,
+  ExcelSheetSelectionRequired,
   ExcelValidateResult,
   ExportExcelParams,
   ExportPdfParams,
@@ -62,13 +67,17 @@ import type {
   HealthStatus,
   ImportBudgetExcelBody,
   ImportConfirmResult,
+  InAppAlert,
   ListAlertsParams,
   ListAuditLogsParams,
   ListBudgetLinesParams,
   ListBudgetLinesWithMonthlyParams,
   ListForecastVersionsParams,
+  ListInAppAlertsParams,
   ListMonthlyActualsParams,
   ListMonthlyPlansParams,
+  MarkAllInAppAlertsRead200,
+  MarkAllInAppAlertsReadBody,
   MarketingEvent,
   MonthlyActual,
   MonthlyPlan,
@@ -81,10 +90,12 @@ import type {
   SnapshotDetail,
   SnapshotDiff,
   SnapshotMeta,
+  TaskReminder,
   UpdateBoardSettingBody,
   UpdateBudgetLineBody,
   UpdateCategoryBody,
   UpdateEventBody,
+  UpdateEventTaskBody,
   UpdateMonthlyActualBody,
   UpdateMonthlyPlanBody,
   UpdateOwnerBody,
@@ -5052,7 +5063,8 @@ export function useExportBudgetExcel<
 }
 
 /**
- * Validates the structure and data of an .xlsx file without writing to the database. Returns errors or a row count if valid.
+ * Validates the structure and data of an .xlsx file without writing to the database. If the workbook has multiple sheets and no `sheetName` is provided, returns `needsSheetSelection: true` with the available sheet names so the caller can prompt the user to pick one. Otherwise returns errors or a row count if valid.
+
  * @summary Validate an Excel file without importing
  */
 export const getValidateBudgetExcelUrl = () => {
@@ -5062,15 +5074,21 @@ export const getValidateBudgetExcelUrl = () => {
 export const validateBudgetExcel = async (
   validateBudgetExcelBody: ValidateBudgetExcelBody,
   options?: RequestInit,
-): Promise<ExcelValidateResult> => {
+): Promise<ExcelValidateResult | ExcelSheetSelectionRequired> => {
   const formData = new FormData();
   formData.append(`file`, validateBudgetExcelBody.file);
+  if (validateBudgetExcelBody.sheetName !== undefined) {
+    formData.append(`sheetName`, validateBudgetExcelBody.sheetName);
+  }
 
-  return customFetch<ExcelValidateResult>(getValidateBudgetExcelUrl(), {
-    ...options,
-    method: "POST",
-    body: formData,
-  });
+  return customFetch<ExcelValidateResult | ExcelSheetSelectionRequired>(
+    getValidateBudgetExcelUrl(),
+    {
+      ...options,
+      method: "POST",
+      body: formData,
+    },
+  );
 };
 
 export const getValidateBudgetExcelMutationOptions = <
@@ -5155,6 +5173,9 @@ export const importBudgetExcel = async (
 ): Promise<ExcelImportResult> => {
   const formData = new FormData();
   formData.append(`file`, importBudgetExcelBody.file);
+  if (importBudgetExcelBody.sheetName !== undefined) {
+    formData.append(`sheetName`, importBudgetExcelBody.sheetName);
+  }
 
   return customFetch<ExcelImportResult>(getImportBudgetExcelUrl(), {
     ...options,
@@ -5835,4 +5856,959 @@ export const useRestoreSnapshot = <
   TContext
 > => {
   return useMutation(getRestoreSnapshotMutationOptions(options));
+};
+
+/**
+ * @summary List tasks for an event
+ */
+export const getListEventTasksUrl = (id: number) => {
+  return `/api/events/${id}/tasks`;
+};
+
+export const listEventTasks = async (
+  id: number,
+  options?: RequestInit,
+): Promise<EventTask[]> => {
+  return customFetch<EventTask[]>(getListEventTasksUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListEventTasksQueryKey = (id: number) => {
+  return [`/api/events/${id}/tasks`] as const;
+};
+
+export const getListEventTasksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEventTasks>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEventTasks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListEventTasksQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listEventTasks>>> = ({
+    signal,
+  }) => listEventTasks(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEventTasks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListEventTasksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEventTasks>>
+>;
+export type ListEventTasksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List tasks for an event
+ */
+
+export function useListEventTasks<
+  TData = Awaited<ReturnType<typeof listEventTasks>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEventTasks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListEventTasksQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a task for an event
+ */
+export const getCreateEventTaskUrl = (id: number) => {
+  return `/api/events/${id}/tasks`;
+};
+
+export const createEventTask = async (
+  id: number,
+  createEventTaskBody: CreateEventTaskBody,
+  options?: RequestInit,
+): Promise<EventTask> => {
+  return customFetch<EventTask>(getCreateEventTaskUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createEventTaskBody),
+  });
+};
+
+export const getCreateEventTaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEventTask>>,
+    TError,
+    { id: number; data: BodyType<CreateEventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createEventTask>>,
+  TError,
+  { id: number; data: BodyType<CreateEventTaskBody> },
+  TContext
+> => {
+  const mutationKey = ["createEventTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createEventTask>>,
+    { id: number; data: BodyType<CreateEventTaskBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createEventTask(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateEventTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createEventTask>>
+>;
+export type CreateEventTaskMutationBody = BodyType<CreateEventTaskBody>;
+export type CreateEventTaskMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a task for an event
+ */
+export const useCreateEventTask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEventTask>>,
+    TError,
+    { id: number; data: BodyType<CreateEventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createEventTask>>,
+  TError,
+  { id: number; data: BodyType<CreateEventTaskBody> },
+  TContext
+> => {
+  return useMutation(getCreateEventTaskMutationOptions(options));
+};
+
+/**
+ * @summary Update an event task
+ */
+export const getUpdateEventTaskUrl = (id: number) => {
+  return `/api/event-tasks/${id}`;
+};
+
+export const updateEventTask = async (
+  id: number,
+  updateEventTaskBody: UpdateEventTaskBody,
+  options?: RequestInit,
+): Promise<EventTask> => {
+  return customFetch<EventTask>(getUpdateEventTaskUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateEventTaskBody),
+  });
+};
+
+export const getUpdateEventTaskMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEventTask>>,
+    TError,
+    { id: number; data: BodyType<UpdateEventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateEventTask>>,
+  TError,
+  { id: number; data: BodyType<UpdateEventTaskBody> },
+  TContext
+> => {
+  const mutationKey = ["updateEventTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateEventTask>>,
+    { id: number; data: BodyType<UpdateEventTaskBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateEventTask(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateEventTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEventTask>>
+>;
+export type UpdateEventTaskMutationBody = BodyType<UpdateEventTaskBody>;
+export type UpdateEventTaskMutationError = ErrorType<void>;
+
+/**
+ * @summary Update an event task
+ */
+export const useUpdateEventTask = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEventTask>>,
+    TError,
+    { id: number; data: BodyType<UpdateEventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateEventTask>>,
+  TError,
+  { id: number; data: BodyType<UpdateEventTaskBody> },
+  TContext
+> => {
+  return useMutation(getUpdateEventTaskMutationOptions(options));
+};
+
+/**
+ * @summary Delete an event task
+ */
+export const getDeleteEventTaskUrl = (id: number) => {
+  return `/api/event-tasks/${id}`;
+};
+
+export const deleteEventTask = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteEventTaskUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteEventTaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEventTask>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteEventTask>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteEventTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteEventTask>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteEventTask(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteEventTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteEventTask>>
+>;
+
+export type DeleteEventTaskMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete an event task
+ */
+export const useDeleteEventTask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEventTask>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteEventTask>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteEventTaskMutationOptions(options));
+};
+
+/**
+ * @summary List reminders for a task
+ */
+export const getListTaskRemindersUrl = (id: number) => {
+  return `/api/event-tasks/${id}/reminders`;
+};
+
+export const listTaskReminders = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TaskReminder[]> => {
+  return customFetch<TaskReminder[]>(getListTaskRemindersUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTaskRemindersQueryKey = (id: number) => {
+  return [`/api/event-tasks/${id}/reminders`] as const;
+};
+
+export const getListTaskRemindersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTaskReminders>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTaskReminders>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListTaskRemindersQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTaskReminders>>
+  > = ({ signal }) => listTaskReminders(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTaskReminders>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTaskRemindersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTaskReminders>>
+>;
+export type ListTaskRemindersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List reminders for a task
+ */
+
+export function useListTaskReminders<
+  TData = Awaited<ReturnType<typeof listTaskReminders>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTaskReminders>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTaskRemindersQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a reminder for a task
+ */
+export const getCreateTaskReminderUrl = (id: number) => {
+  return `/api/event-tasks/${id}/reminders`;
+};
+
+export const createTaskReminder = async (
+  id: number,
+  createTaskReminderBody: CreateTaskReminderBody,
+  options?: RequestInit,
+): Promise<TaskReminder> => {
+  return customFetch<TaskReminder>(getCreateTaskReminderUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createTaskReminderBody),
+  });
+};
+
+export const getCreateTaskReminderMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTaskReminder>>,
+    TError,
+    { id: number; data: BodyType<CreateTaskReminderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTaskReminder>>,
+  TError,
+  { id: number; data: BodyType<CreateTaskReminderBody> },
+  TContext
+> => {
+  const mutationKey = ["createTaskReminder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTaskReminder>>,
+    { id: number; data: BodyType<CreateTaskReminderBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createTaskReminder(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTaskReminderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTaskReminder>>
+>;
+export type CreateTaskReminderMutationBody = BodyType<CreateTaskReminderBody>;
+export type CreateTaskReminderMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a reminder for a task
+ */
+export const useCreateTaskReminder = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTaskReminder>>,
+    TError,
+    { id: number; data: BodyType<CreateTaskReminderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTaskReminder>>,
+  TError,
+  { id: number; data: BodyType<CreateTaskReminderBody> },
+  TContext
+> => {
+  return useMutation(getCreateTaskReminderMutationOptions(options));
+};
+
+/**
+ * @summary Delete a task reminder
+ */
+export const getDeleteTaskReminderUrl = (id: number) => {
+  return `/api/task-reminders/${id}`;
+};
+
+export const deleteTaskReminder = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteTaskReminderUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteTaskReminderMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTaskReminder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTaskReminder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteTaskReminder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTaskReminder>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteTaskReminder(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteTaskReminderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTaskReminder>>
+>;
+
+export type DeleteTaskReminderMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a task reminder
+ */
+export const useDeleteTaskReminder = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTaskReminder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTaskReminder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteTaskReminderMutationOptions(options));
+};
+
+/**
+ * @summary List in-app alerts
+ */
+export const getListInAppAlertsUrl = (params?: ListInAppAlertsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/in-app-alerts?${stringifiedParams}`
+    : `/api/in-app-alerts`;
+};
+
+export const listInAppAlerts = async (
+  params?: ListInAppAlertsParams,
+  options?: RequestInit,
+): Promise<InAppAlert[]> => {
+  return customFetch<InAppAlert[]>(getListInAppAlertsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListInAppAlertsQueryKey = (params?: ListInAppAlertsParams) => {
+  return [`/api/in-app-alerts`, ...(params ? [params] : [])] as const;
+};
+
+export const getListInAppAlertsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInAppAlerts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListInAppAlertsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInAppAlerts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListInAppAlertsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listInAppAlerts>>> = ({
+    signal,
+  }) => listInAppAlerts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInAppAlerts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInAppAlertsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInAppAlerts>>
+>;
+export type ListInAppAlertsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List in-app alerts
+ */
+
+export function useListInAppAlerts<
+  TData = Awaited<ReturnType<typeof listInAppAlerts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListInAppAlertsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInAppAlerts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInAppAlertsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Mark an in-app alert as read
+ */
+export const getMarkInAppAlertReadUrl = (id: number) => {
+  return `/api/in-app-alerts/${id}/read`;
+};
+
+export const markInAppAlertRead = async (
+  id: number,
+  options?: RequestInit,
+): Promise<InAppAlert> => {
+  return customFetch<InAppAlert>(getMarkInAppAlertReadUrl(id), {
+    ...options,
+    method: "PATCH",
+  });
+};
+
+export const getMarkInAppAlertReadMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markInAppAlertRead>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markInAppAlertRead>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["markInAppAlertRead"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markInAppAlertRead>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return markInAppAlertRead(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkInAppAlertReadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markInAppAlertRead>>
+>;
+
+export type MarkInAppAlertReadMutationError = ErrorType<void>;
+
+/**
+ * @summary Mark an in-app alert as read
+ */
+export const useMarkInAppAlertRead = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markInAppAlertRead>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof markInAppAlertRead>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getMarkInAppAlertReadMutationOptions(options));
+};
+
+/**
+ * @summary Mark all in-app alerts as read
+ */
+export const getMarkAllInAppAlertsReadUrl = () => {
+  return `/api/in-app-alerts/mark-all-read`;
+};
+
+export const markAllInAppAlertsRead = async (
+  markAllInAppAlertsReadBody?: MarkAllInAppAlertsReadBody,
+  options?: RequestInit,
+): Promise<MarkAllInAppAlertsRead200> => {
+  return customFetch<MarkAllInAppAlertsRead200>(
+    getMarkAllInAppAlertsReadUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(markAllInAppAlertsReadBody),
+    },
+  );
+};
+
+export const getMarkAllInAppAlertsReadMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markAllInAppAlertsRead>>,
+    TError,
+    { data: BodyType<MarkAllInAppAlertsReadBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markAllInAppAlertsRead>>,
+  TError,
+  { data: BodyType<MarkAllInAppAlertsReadBody> },
+  TContext
+> => {
+  const mutationKey = ["markAllInAppAlertsRead"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markAllInAppAlertsRead>>,
+    { data: BodyType<MarkAllInAppAlertsReadBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return markAllInAppAlertsRead(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkAllInAppAlertsReadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markAllInAppAlertsRead>>
+>;
+export type MarkAllInAppAlertsReadMutationBody =
+  BodyType<MarkAllInAppAlertsReadBody>;
+export type MarkAllInAppAlertsReadMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark all in-app alerts as read
+ */
+export const useMarkAllInAppAlertsRead = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markAllInAppAlertsRead>>,
+    TError,
+    { data: BodyType<MarkAllInAppAlertsReadBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof markAllInAppAlertsRead>>,
+  TError,
+  { data: BodyType<MarkAllInAppAlertsReadBody> },
+  TContext
+> => {
+  return useMutation(getMarkAllInAppAlertsReadMutationOptions(options));
+};
+
+/**
+ * @summary Fire any pending reminders for tasks in an event
+ */
+export const getCheckEventRemindersUrl = (id: number) => {
+  return `/api/events/${id}/check-reminders`;
+};
+
+export const checkEventReminders = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CheckEventReminders200> => {
+  return customFetch<CheckEventReminders200>(getCheckEventRemindersUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCheckEventRemindersMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof checkEventReminders>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof checkEventReminders>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["checkEventReminders"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof checkEventReminders>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return checkEventReminders(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CheckEventRemindersMutationResult = NonNullable<
+  Awaited<ReturnType<typeof checkEventReminders>>
+>;
+
+export type CheckEventRemindersMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Fire any pending reminders for tasks in an event
+ */
+export const useCheckEventReminders = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof checkEventReminders>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof checkEventReminders>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCheckEventRemindersMutationOptions(options));
 };

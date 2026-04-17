@@ -8,4 +8,6 @@
 
 export type ImportBudgetExcelBody = {
   file: Blob;
+  /** Name of the sheet to import. Defaults to "Budget Lines" when omitted. */
+  sheetName?: string;
 };

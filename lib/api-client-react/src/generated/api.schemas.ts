@@ -586,6 +586,14 @@ export interface ExcelDiffLine {
   lineItem: string;
 }
 
+/**
+ * Returned by /excel/validate when the workbook has multiple sheets and no sheetName was provided.
+ */
+export interface ExcelSheetSelectionRequired {
+  needsSheetSelection: boolean;
+  sheetNames: string[];
+}
+
 export type ExcelValidateResultDiff = {
   toAdd: ExcelDiffLine[];
   toUpdate: ExcelDiffLine[];
@@ -596,6 +604,8 @@ export interface ExcelValidateResult {
   valid: boolean;
   rowCount: number;
   diff: ExcelValidateResultDiff;
+  /** Present when the workbook contains more than one sheet, so the UI can offer the user a chance to switch sheets. */
+  sheetNames?: string[];
 }
 
 export interface ExcelImportResult {
@@ -709,6 +719,67 @@ export interface SnapshotDiff {
   summary: SnapshotDiffSummary;
 }
 
+export interface EventTask {
+  id: number;
+  eventId: number;
+  title: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  assignee?: string | null;
+  status: string;
+  priority: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEventTaskBody {
+  title: string;
+  dueDate?: string;
+  assignee?: string;
+  status?: string;
+  priority?: string;
+  notes?: string;
+}
+
+export interface UpdateEventTaskBody {
+  title?: string;
+  dueDate?: string;
+  assignee?: string;
+  status?: string;
+  priority?: string;
+  notes?: string;
+}
+
+export interface TaskReminder {
+  id: number;
+  taskId: number;
+  daysBefore: number;
+  /** @nullable */
+  label?: string | null;
+  /** @nullable */
+  firedAt?: string | null;
+  /** @nullable */
+  alertId?: number | null;
+  createdAt: string;
+}
+
+export interface CreateTaskReminderBody {
+  daysBefore: number;
+  label?: string;
+}
+
+export interface InAppAlert {
+  id: number;
+  taskId: number;
+  message: string;
+  /** @nullable */
+  readAt?: string | null;
+  createdAt: string;
+}
+
 export type GetDashboardSummaryParams = {
   year?: number;
 };
@@ -785,10 +856,15 @@ export type ListAuditLogsParams = {
 
 export type ValidateBudgetExcelBody = {
   file: Blob;
+  /** Name of the sheet to import data from. Required when the workbook has multiple sheets — if omitted and the workbook has more than one sheet, the endpoint returns needsSheetSelection instead of validating. For single-sheet workbooks, omit this field and the sole sheet is used.
+   */
+  sheetName?: string;
 };
 
 export type ImportBudgetExcelBody = {
   file: Blob;
+  /** Name of the sheet to import. Defaults to "Budget Lines" when omitted. */
+  sheetName?: string;
 };
 
 export type CreateSnapshotBody = {
@@ -808,4 +884,21 @@ export type CompareSnapshotsParams = {
 
 export type PinSnapshotBody = {
   pinned: boolean;
+};
+
+export type ListInAppAlertsParams = {
+  eventId?: number;
+  unread?: boolean;
+};
+
+export type MarkAllInAppAlertsReadBody = {
+  eventId?: number;
+};
+
+export type MarkAllInAppAlertsRead200 = {
+  updated: number;
+};
+
+export type CheckEventReminders200 = {
+  fired: number;
 };

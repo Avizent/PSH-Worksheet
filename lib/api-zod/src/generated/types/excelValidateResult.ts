@@ -11,4 +11,6 @@ export interface ExcelValidateResult {
   valid: boolean;
   rowCount: number;
   diff: ExcelValidateResultDiff;
+  /** Present when the workbook contains more than one sheet, so the UI can offer the user a chance to switch sheets. */
+  sheetNames?: string[];
 }

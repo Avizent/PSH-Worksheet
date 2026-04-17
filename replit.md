@@ -31,13 +31,16 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `artifacts/budget-tracker` — Expo app (port 25099, Expo dev domain)
 - `artifacts/mockup-sandbox` — Design sandbox
 
-### Database Schema (13 tables)
+### Database Schema (16 tables)
 - `users` — Auth-ready user table with role field
 - `budgetLines` — Budget line items with category, owner, region, cost status, `projectionPct` (real, default 0), `boardApprovedAmount` (real, nullable — Dec 2025 board sign-off amounts)
 - `monthlyPlans` — Monthly planned amounts per budget line
 - `monthlyActuals` — Monthly actual spend per budget line, `importId` FK to csvImports for rollback tracking
 - `alerts` — Budget alerts with severity levels (critical/warning/info), deduplication by type+budgetLineId+month+year
 - `events` — Marketing events with status tracking
+- `eventTasks` — Tasks linked to events (title, dueDate, assignee, status, priority, notes)
+- `taskReminders` — Reminders per task (daysBefore, label, firedAt, alertId FK)
+- `inAppAlerts` — In-app notification log when reminders fire (taskId, message, readAt)
 - `auditLogs` — Change audit trail (entityType, entityId, field, oldValue, newValue, action: create/update/delete/rollover)
 - `csvImports` — CSV/Excel import records (filename, status, row counts, `deletedAt` timestamp for soft-delete)
 - `csvImportRows` — Individual parsed CSV rows (raw data, match status, budget line assignment, row hash for idempotency)
@@ -54,6 +57,17 @@ pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's 
 - `GET /alerts`, `PATCH /alerts/:id/resolve` — Alert management
 - `POST /alerts/evaluate` — Trigger server-side alert evaluation (6 alert types)
 - `GET/POST /events` — Event management
+- `GET /events/:id/tasks` — List tasks for an event
+- `POST /events/:id/tasks` — Create task for an event
+- `PATCH /event-tasks/:id` — Update task (status, priority, dueDate, etc.)
+- `DELETE /event-tasks/:id` — Delete task
+- `GET /event-tasks/:id/reminders` — List reminders for a task
+- `POST /event-tasks/:id/reminders` — Add reminder (daysBefore, label)
+- `DELETE /task-reminders/:id` — Delete a reminder
+- `GET /in-app-alerts` — List in-app alerts (filters: eventId, unread)
+- `PATCH /in-app-alerts/:id/read` — Mark single alert read
+- `POST /in-app-alerts/mark-all-read` — Mark all (or event's) alerts read
+- `POST /events/:id/check-reminders` — Fire pending reminders for an event's tasks
 - `GET /dashboard/summary` — KPI dashboard aggregation
 - `GET /dashboard/charts` — Monthly + category chart data
 - `GET /projections` — Fixed cost forward projection with % adjustment

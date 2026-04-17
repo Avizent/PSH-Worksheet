@@ -30,6 +30,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "calendar", selected: "calendar" }} />
         <Label>Events</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="event-mgmnt">
+        <Icon sf={{ default: "checklist", selected: "checklist" }} />
+        <Label>Evt Mgmt</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="quarterly">
         <Icon sf={{ default: "chart.bar.xaxis", selected: "chart.bar.xaxis" }} />
         <Label>Quarterly</Label>
@@ -202,6 +206,19 @@ function ClassicTabLayout() {
               <SymbolView name="calendar" tintColor={color} size={24} />
             ) : (
               <Feather name="calendar" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="event-mgmnt"
+        options={{
+          title: "Evt Mgmt",
+          tabBarItemStyle: { display: "none" },
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="checklist" tintColor={color} size={24} />
+            ) : (
+              <Feather name="clipboard" size={22} color={color} />
             ),
         }}
       />

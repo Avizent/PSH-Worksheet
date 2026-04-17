@@ -1255,37 +1255,60 @@ export const SeedDataResponse = zod.object({
 });
 
 /**
- * Validates the structure and data of an .xlsx file without writing to the database. Returns errors or a row count if valid.
+ * Validates the structure and data of an .xlsx file without writing to the database. If the workbook has multiple sheets and no `sheetName` is provided, returns `needsSheetSelection: true` with the available sheet names so the caller can prompt the user to pick one. Otherwise returns errors or a row count if valid.
+
  * @summary Validate an Excel file without importing
  */
 export const ValidateBudgetExcelBody = zod.object({
   file: zod.instanceof(File),
+  sheetName: zod
+    .string()
+    .optional()
+    .describe(
+      "Name of the sheet to import data from. Required when the workbook has multiple sheets — if omitted and the workbook has more than one sheet, the endpoint returns needsSheetSelection instead of validating. For single-sheet workbooks, omit this field and the sole sheet is used.\n",
+    ),
 });
 
-export const ValidateBudgetExcelResponse = zod.object({
-  valid: zod.boolean(),
-  rowCount: zod.number(),
-  diff: zod.object({
-    toAdd: zod.array(
-      zod.object({
-        category: zod.string(),
-        lineItem: zod.string(),
-      }),
-    ),
-    toUpdate: zod.array(
-      zod.object({
-        category: zod.string(),
-        lineItem: zod.string(),
-      }),
-    ),
-    toDelete: zod.array(
-      zod.object({
-        category: zod.string(),
-        lineItem: zod.string(),
-      }),
-    ),
+export const ValidateBudgetExcelResponse = zod.union([
+  zod.object({
+    valid: zod.boolean(),
+    rowCount: zod.number(),
+    diff: zod.object({
+      toAdd: zod.array(
+        zod.object({
+          category: zod.string(),
+          lineItem: zod.string(),
+        }),
+      ),
+      toUpdate: zod.array(
+        zod.object({
+          category: zod.string(),
+          lineItem: zod.string(),
+        }),
+      ),
+      toDelete: zod.array(
+        zod.object({
+          category: zod.string(),
+          lineItem: zod.string(),
+        }),
+      ),
+    }),
+    sheetNames: zod
+      .array(zod.string())
+      .optional()
+      .describe(
+        "Present when the workbook contains more than one sheet, so the UI can offer the user a chance to switch sheets.",
+      ),
   }),
-});
+  zod
+    .object({
+      needsSheetSelection: zod.literal(true),
+      sheetNames: zod.array(zod.string()),
+    })
+    .describe(
+      "Returned by \/excel\/validate when the workbook has multiple sheets and no sheetName was provided.",
+    ),
+]);
 
 /**
  * Accepts an .xlsx file in the export format, validates it, then upserts the budget data
@@ -1293,6 +1316,12 @@ export const ValidateBudgetExcelResponse = zod.object({
  */
 export const ImportBudgetExcelBody = zod.object({
   file: zod.instanceof(File),
+  sheetName: zod
+    .string()
+    .optional()
+    .describe(
+      'Name of the sheet to import. Defaults to \"Budget Lines\" when omitted.',
+    ),
 });
 
 export const ImportBudgetExcelResponse = zod.object({
@@ -1513,4 +1542,173 @@ export const RestoreSnapshotResponse = zod.object({
       pinned: zod.boolean(),
     })
     .nullable(),
+});
+
+/**
+ * @summary List tasks for an event
+ */
+export const ListEventTasksParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListEventTasksResponseItem = zod.object({
+  id: zod.number(),
+  eventId: zod.number(),
+  title: zod.string(),
+  dueDate: zod.coerce.date().nullish(),
+  assignee: zod.string().nullish(),
+  status: zod.string(),
+  priority: zod.string(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListEventTasksResponse = zod.array(ListEventTasksResponseItem);
+
+/**
+ * @summary Create a task for an event
+ */
+export const CreateEventTaskParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createEventTaskBodyStatusDefault = `open`;
+export const createEventTaskBodyPriorityDefault = `medium`;
+
+export const CreateEventTaskBody = zod.object({
+  title: zod.string(),
+  dueDate: zod.coerce.date().optional(),
+  assignee: zod.string().optional(),
+  status: zod.string().default(createEventTaskBodyStatusDefault),
+  priority: zod.string().default(createEventTaskBodyPriorityDefault),
+  notes: zod.string().optional(),
+});
+
+/**
+ * @summary Update an event task
+ */
+export const UpdateEventTaskParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateEventTaskBody = zod.object({
+  title: zod.string().optional(),
+  dueDate: zod.coerce.date().optional(),
+  assignee: zod.string().optional(),
+  status: zod.string().optional(),
+  priority: zod.string().optional(),
+  notes: zod.string().optional(),
+});
+
+export const UpdateEventTaskResponse = zod.object({
+  id: zod.number(),
+  eventId: zod.number(),
+  title: zod.string(),
+  dueDate: zod.coerce.date().nullish(),
+  assignee: zod.string().nullish(),
+  status: zod.string(),
+  priority: zod.string(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete an event task
+ */
+export const DeleteEventTaskParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List reminders for a task
+ */
+export const ListTaskRemindersParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListTaskRemindersResponseItem = zod.object({
+  id: zod.number(),
+  taskId: zod.number(),
+  daysBefore: zod.number(),
+  label: zod.string().nullish(),
+  firedAt: zod.coerce.date().nullish(),
+  alertId: zod.number().nullish(),
+  createdAt: zod.coerce.date(),
+});
+export const ListTaskRemindersResponse = zod.array(
+  ListTaskRemindersResponseItem,
+);
+
+/**
+ * @summary Create a reminder for a task
+ */
+export const CreateTaskReminderParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateTaskReminderBody = zod.object({
+  daysBefore: zod.number(),
+  label: zod.string().optional(),
+});
+
+/**
+ * @summary Delete a task reminder
+ */
+export const DeleteTaskReminderParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List in-app alerts
+ */
+export const ListInAppAlertsQueryParams = zod.object({
+  eventId: zod.coerce.number().optional(),
+  unread: zod.coerce.boolean().optional(),
+});
+
+export const ListInAppAlertsResponseItem = zod.object({
+  id: zod.number(),
+  taskId: zod.number(),
+  message: zod.string(),
+  readAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+});
+export const ListInAppAlertsResponse = zod.array(ListInAppAlertsResponseItem);
+
+/**
+ * @summary Mark an in-app alert as read
+ */
+export const MarkInAppAlertReadParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MarkInAppAlertReadResponse = zod.object({
+  id: zod.number(),
+  taskId: zod.number(),
+  message: zod.string(),
+  readAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Mark all in-app alerts as read
+ */
+export const MarkAllInAppAlertsReadBody = zod.object({
+  eventId: zod.number().optional(),
+});
+
+export const MarkAllInAppAlertsReadResponse = zod.object({
+  updated: zod.number(),
+});
+
+/**
+ * @summary Fire any pending reminders for tasks in an event
+ */
+export const CheckEventRemindersParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CheckEventRemindersResponse = zod.object({
+  fired: zod.number(),
 });

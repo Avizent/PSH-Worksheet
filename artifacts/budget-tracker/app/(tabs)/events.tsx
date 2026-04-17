@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { WebRefreshButton } from "@/components/WebRefreshButton";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { useRouter } from "expo-router";
 import { useListEvents, useListAlerts } from "@workspace/api-client-react";
 
 function formatDate(dateStr: string | null): string {
@@ -30,6 +31,7 @@ function EventsContent() {
   const isDesktop = mode === "desktop";
   const isWeb = Platform.OS === "web";
 
+  const router = useRouter();
   const { data: events, isLoading, isError, refetch } = useListEvents();
   const { data: alerts } = useListAlerts({ resolved: false });
   const [refreshing, setRefreshing] = useState(false);
@@ -103,6 +105,14 @@ function EventsContent() {
                 <View style={styles.eventHeader}>
                   <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                   <Text style={[styles.eventName, { color: colors.foreground }]}>{event.name}</Text>
+                  <TouchableOpacity
+                    onPress={() => router.push("/event-mgmnt")}
+                    style={[styles.manageBtn, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="clipboard" size={12} color={colors.primary} />
+                    <Text style={{ fontSize: 11, color: colors.primary, fontFamily: "Inter_500Medium" }}>Manage</Text>
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.eventDetails}>
                   <View style={styles.detailRow}>
@@ -166,6 +176,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 10,
+    gap: 8,
+  },
+  manageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
   },
   statusDot: {
     width: 8,
