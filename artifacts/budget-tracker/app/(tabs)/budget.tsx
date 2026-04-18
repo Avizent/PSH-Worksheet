@@ -36,7 +36,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 const FY_YEAR = 2026;
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const BUILTIN_SORT_ACCESSORS: Record<string, (r: BudgetLineRow) => string | number> = {
+const BUILTIN_SORT_ACCESSORS: Record<string, (r: BudgetLineRow) => string | number | null> = {
   lineItem: (r) => r.lineItem,
   category: (r) => r.category,
   owner: (r) => r.owner ?? "",
@@ -45,7 +45,9 @@ const BUILTIN_SORT_ACCESSORS: Record<string, (r: BudgetLineRow) => string | numb
   totalPlan: (r) => r.totalPlan,
   totalActual: (r) => r.totalActual,
   variance: (r) => r.variance,
+  boardApproved: (r) => r.boardApprovedAmount ?? null,
 };
+const NULL_LAST_SORT_FIELDS = new Set(["boardApproved"]);
 
 function formatCurrency(val: number): string {
   if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
@@ -313,10 +315,10 @@ function BudgetContent() {
   const sorted = useMemo(() => {
     if (!sortField || !sortDir) return tableData;
     let accessor: (r: BudgetLineRow) => string | number | null;
-    let isCustom = false;
     let isNum = false;
+    let nullsLast = false;
     if (sortField.startsWith("custom:")) {
-      isCustom = true;
+      nullsLast = true;
       const name = sortField.slice("custom:".length);
       const def = customColumns.find((c) => c.name === name);
       isNum = def?.type === "number";
@@ -329,12 +331,13 @@ function BudgetContent() {
       const builtin = BUILTIN_SORT_ACCESSORS[sortField];
       if (!builtin) return tableData;
       accessor = builtin;
+      nullsLast = NULL_LAST_SORT_FIELDS.has(sortField);
     }
     const arr = [...tableData];
     arr.sort((a, b) => {
       const av = accessor(a);
       const bv = accessor(b);
-      if (isCustom) {
+      if (nullsLast) {
         const aNull = av === null;
         const bNull = bv === null;
         if (aNull && bNull) return 0;

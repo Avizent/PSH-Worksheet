@@ -36,7 +36,7 @@ export const CHANNEL_LABELS: Record<ChannelValue, string> = {
   referral: "Referral",
 };
 
-export type BuiltinSortField = "lineItem" | "category" | "owner" | "channel" | "costStatus" | "totalPlan" | "totalActual" | "variance";
+export type BuiltinSortField = "lineItem" | "category" | "owner" | "channel" | "costStatus" | "totalPlan" | "totalActual" | "variance" | "boardApproved";
 export type SortField = BuiltinSortField | `custom:${string}`;
 export type SortDir = "asc" | "desc" | null;
 
@@ -141,9 +141,7 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
             <SortHeader label="Variance" field="variance" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
             <Text style={[styles.cellVarPct, styles.headerText, { color: colors.mutedForeground }]}>Var %</Text>
             {showProjection && <Text style={[styles.cellProjection, styles.headerText, { color: colors.mutedForeground }]}>Proj %</Text>}
-            <View style={[styles.cellBoardSigned, { justifyContent: "flex-end" }]}>
-              <Text style={[styles.headerText, { color: colors.mutedForeground }]} numberOfLines={1}>Board Signed 2025</Text>
-            </View>
+            <SortHeader label="Board Signed 2025" field="boardApproved" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellBoardSigned, { justifyContent: "flex-end" }]} colors={colors} />
             {interactive && <Text style={[styles.cellAction, styles.headerText, { color: colors.mutedForeground }]}> </Text>}
           </View>
           {data.map((row) => {
