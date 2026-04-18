@@ -25,6 +25,8 @@ export interface BudgetLineWithMonthly {
   channel?: BudgetLineWithMonthlyChannel;
   costStatus: string;
   projectionPct?: number;
+  /** @nullable */
+  boardApprovedAmount?: number | null;
   plans: MonthlyPlan[];
   actuals: MonthlyActual[];
   projections?: BudgetLineWithMonthlyProjectionsItem[];

@@ -293,6 +293,7 @@ function BudgetContent() {
         totalActual,
         variance: totalPlan - totalActual,
         projectionPct: linesWithPct[line.id] ?? 0,
+        boardApprovedAmount: (line as { boardApprovedAmount?: number | null }).boardApprovedAmount ?? null,
         customFields: (line as { customFields?: Record<string, string | number | null> }).customFields ?? {},
       };
     })

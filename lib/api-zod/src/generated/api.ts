@@ -66,6 +66,7 @@ export const ListBudgetLinesResponseItem = zod.object({
   projectionPct: zod
     .number()
     .default(listBudgetLinesResponseProjectionPctDefault),
+  boardApprovedAmount: zod.number().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
   customFields: zod
@@ -125,6 +126,7 @@ export const GetBudgetLineResponse = zod.object({
   projectionPct: zod
     .number()
     .default(getBudgetLineResponseProjectionPctDefault),
+  boardApprovedAmount: zod.number().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
   customFields: zod
@@ -180,6 +182,7 @@ export const UpdateBudgetLineResponse = zod.object({
   projectionPct: zod
     .number()
     .default(updateBudgetLineResponseProjectionPctDefault),
+  boardApprovedAmount: zod.number().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
   customFields: zod
@@ -750,6 +753,7 @@ export const ListBudgetLinesWithMonthlyResponseItem = zod.object({
   projectionPct: zod
     .number()
     .default(listBudgetLinesWithMonthlyResponseProjectionPctDefault),
+  boardApprovedAmount: zod.number().nullish(),
   plans: zod.array(
     zod.object({
       id: zod.number(),

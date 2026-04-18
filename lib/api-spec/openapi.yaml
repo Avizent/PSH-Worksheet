@@ -1836,6 +1836,8 @@ components:
         projectionPct:
           type: number
           default: 0
+        boardApprovedAmount:
+          type: ["number", "null"]
         createdAt:
           type: string
           format: date-time
@@ -2287,6 +2289,8 @@ components:
         projectionPct:
           type: number
           default: 0
+        boardApprovedAmount:
+          type: ["number", "null"]
         plans:
           type: array
           items:

@@ -22,6 +22,8 @@ export interface BudgetLine {
   channel?: BudgetLineChannel;
   costStatus: string;
   projectionPct: number;
+  /** @nullable */
+  boardApprovedAmount?: number | null;
   createdAt: Date;
   updatedAt: Date;
   customFields?: BudgetLineCustomFields;

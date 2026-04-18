@@ -50,6 +50,8 @@ export interface BudgetLine {
   channel?: BudgetLineChannel;
   costStatus: string;
   projectionPct: number;
+  /** @nullable */
+  boardApprovedAmount?: number | null;
   createdAt: string;
   updatedAt: string;
   customFields?: BudgetLineCustomFields;
@@ -306,6 +308,8 @@ export interface BudgetLineWithMonthly {
   channel?: BudgetLineWithMonthlyChannel;
   costStatus: string;
   projectionPct?: number;
+  /** @nullable */
+  boardApprovedAmount?: number | null;
   plans: MonthlyPlan[];
   actuals: MonthlyActual[];
   projections?: BudgetLineWithMonthlyProjectionsItem[];

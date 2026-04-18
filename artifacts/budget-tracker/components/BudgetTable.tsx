@@ -15,6 +15,7 @@ export interface BudgetLineRow {
   totalActual: number;
   variance: number;
   projectionPct?: number;
+  boardApprovedAmount?: number | null;
   customFields?: Record<string, string | number | null>;
 }
 
@@ -140,6 +141,9 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
             <SortHeader label="Variance" field="variance" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
             <Text style={[styles.cellVarPct, styles.headerText, { color: colors.mutedForeground }]}>Var %</Text>
             {showProjection && <Text style={[styles.cellProjection, styles.headerText, { color: colors.mutedForeground }]}>Proj %</Text>}
+            <View style={[styles.cellBoardSigned, { justifyContent: "flex-end" }]}>
+              <Text style={[styles.headerText, { color: colors.mutedForeground }]} numberOfLines={1}>Board Signed 2025</Text>
+            </View>
             {interactive && <Text style={[styles.cellAction, styles.headerText, { color: colors.mutedForeground }]}> </Text>}
           </View>
           {data.map((row) => {
@@ -232,6 +236,19 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
                     )}
                   </View>
                 )}
+                <View style={styles.cellBoardSigned}>
+                  <Text
+                    style={{
+                      color: row.boardApprovedAmount != null ? colors.foreground : colors.mutedForeground,
+                      fontSize: 13,
+                      fontFamily: "Inter_400Regular",
+                      textAlign: "right",
+                    }}
+                    numberOfLines={1}
+                  >
+                    {row.boardApprovedAmount != null ? formatCurrency(row.boardApprovedAmount) : "—"}
+                  </Text>
+                </View>
                 {interactive && onDelete && (
                   <View style={styles.cellAction}>
                     <TouchableOpacity onPress={() => confirmDelete(row.lineItem, () => onDelete(row.id, row.lineItem))} hitSlop={8} activeOpacity={0.6}>
@@ -259,6 +276,7 @@ const styles = StyleSheet.create({
   cellNumber: { width: 90, paddingRight: 8, alignItems: "flex-end", justifyContent: "center" },
   cellVarPct: { width: 65, fontSize: 13, textAlign: "right" as const, paddingRight: 8 },
   cellProjection: { width: 80, paddingRight: 8, justifyContent: "center" },
+  cellBoardSigned: { width: 120, paddingRight: 8, alignItems: "flex-end", justifyContent: "center" },
   cellAction: { width: 36, alignItems: "center" },
   projInputContainer: { flexDirection: "row", alignItems: "center", gap: 2 },
   projInput: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, width: 50, fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "right" as const },
