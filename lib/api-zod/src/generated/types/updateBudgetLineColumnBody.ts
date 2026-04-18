@@ -10,5 +10,6 @@ import type { UpdateBudgetLineColumnBodyType } from "./updateBudgetLineColumnBod
 export interface UpdateBudgetLineColumnBody {
   name?: string;
   type?: UpdateBudgetLineColumnBodyType;
+  sortable?: boolean;
   sortOrder?: number;
 }

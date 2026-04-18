@@ -10,11 +10,13 @@ const router: IRouter = Router();
 const CreateBody = z.object({
   name: z.string().min(1).max(100),
   type: z.enum(["text", "number"]).default("text"),
+  sortable: z.boolean().default(false),
 });
 
 const UpdateBody = z.object({
   name: z.string().min(1).max(100).optional(),
   type: z.enum(["text", "number"]).optional(),
+  sortable: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 });
 
@@ -52,6 +54,7 @@ router.post("/budget-line-columns", asyncHandler(async (req, res): Promise<void>
     .values({
       name: parsed.data.name,
       type: parsed.data.type,
+      sortable: parsed.data.sortable,
       sortOrder: Number(maxOrder) + 1,
     })
     .returning();
@@ -111,6 +114,7 @@ router.patch("/budget-line-columns/:id", asyncHandler(async (req, res): Promise<
   const updates: Partial<typeof budgetLineColumnsTable.$inferInsert> = {};
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;
   if (parsed.data.type !== undefined) updates.type = parsed.data.type;
+  if (parsed.data.sortable !== undefined) updates.sortable = parsed.data.sortable;
   if (parsed.data.sortOrder !== undefined) updates.sortOrder = parsed.data.sortOrder;
 
   const [row] = await db

@@ -10,4 +10,5 @@ import type { CreateBudgetLineColumnBodyType } from "./createBudgetLineColumnBod
 export interface CreateBudgetLineColumnBody {
   name: string;
   type?: CreateBudgetLineColumnBodyType;
+  sortable?: boolean;
 }

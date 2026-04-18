@@ -311,6 +311,7 @@ export const ListBudgetLineColumnsResponseItem = zod.object({
   name: zod.string(),
   type: zod.enum(["text", "number"]),
   sortOrder: zod.number(),
+  sortable: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -324,6 +325,7 @@ export const ListBudgetLineColumnsResponse = zod.array(
 export const CreateBudgetLineColumnBody = zod.object({
   name: zod.string(),
   type: zod.enum(["text", "number"]).optional(),
+  sortable: zod.boolean().optional(),
 });
 
 /**
@@ -338,6 +340,7 @@ export const ReorderBudgetLineColumnsResponseItem = zod.object({
   name: zod.string(),
   type: zod.enum(["text", "number"]),
   sortOrder: zod.number(),
+  sortable: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -355,6 +358,7 @@ export const UpdateBudgetLineColumnParams = zod.object({
 export const UpdateBudgetLineColumnBody = zod.object({
   name: zod.string().optional(),
   type: zod.enum(["text", "number"]).optional(),
+  sortable: zod.boolean().optional(),
   sortOrder: zod.number().optional(),
 });
 
@@ -363,6 +367,7 @@ export const UpdateBudgetLineColumnResponse = zod.object({
   name: zod.string(),
   type: zod.enum(["text", "number"]),
   sortOrder: zod.number(),
+  sortable: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });

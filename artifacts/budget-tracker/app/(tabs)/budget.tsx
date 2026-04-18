@@ -302,10 +302,10 @@ function BudgetContent() {
 
   const customColumns: CustomColumnDef[] = useMemo(
     () =>
-      ((customColumnsData ?? []) as { name: string; type: "text" | "number"; sortOrder: number }[])
+      ((customColumnsData ?? []) as { name: string; type: "text" | "number"; sortable: boolean; sortOrder: number }[])
         .slice()
         .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((c) => ({ name: c.name, type: c.type })),
+        .map((c) => ({ name: c.name, type: c.type, sortable: c.sortable })),
     [customColumnsData]
   );
 

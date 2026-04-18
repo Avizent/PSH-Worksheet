@@ -819,6 +819,7 @@ export interface BudgetLineColumn {
   name: string;
   type: BudgetLineColumnType;
   sortOrder: number;
+  sortable: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -834,6 +835,7 @@ export const CreateBudgetLineColumnBodyType = {
 export interface CreateBudgetLineColumnBody {
   name: string;
   type?: CreateBudgetLineColumnBodyType;
+  sortable?: boolean;
 }
 
 export type UpdateBudgetLineColumnBodyType =
@@ -847,6 +849,7 @@ export const UpdateBudgetLineColumnBodyType = {
 export interface UpdateBudgetLineColumnBody {
   name?: string;
   type?: UpdateBudgetLineColumnBodyType;
+  sortable?: boolean;
   sortOrder?: number;
 }
 

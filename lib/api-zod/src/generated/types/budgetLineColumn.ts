@@ -12,6 +12,7 @@ export interface BudgetLineColumn {
   name: string;
   type: BudgetLineColumnType;
   sortOrder: number;
+  sortable: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

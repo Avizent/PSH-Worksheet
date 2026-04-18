@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  Switch,
   ActivityIndicator,
   RefreshControl,
   Modal,
@@ -33,6 +34,7 @@ type Column = {
   id: number;
   name: string;
   type: "text" | "number";
+  sortable: boolean;
   sortOrder: number;
 };
 
@@ -59,6 +61,7 @@ export default function ColumnsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState("");
   const [formType, setFormType] = useState<"text" | "number">("text");
+  const [formSortable, setFormSortable] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Column | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("manual");
@@ -96,6 +99,7 @@ export default function ColumnsScreen() {
     setEditing(null);
     setFormName("");
     setFormType("text");
+    setFormSortable(false);
     setFormError(null);
     setShowForm(true);
   };
@@ -104,6 +108,7 @@ export default function ColumnsScreen() {
     setEditing(c);
     setFormName(c.name);
     setFormType(c.type);
+    setFormSortable(c.sortable);
     setFormError(null);
     setShowForm(true);
   };
@@ -117,9 +122,9 @@ export default function ColumnsScreen() {
       setFormError(msg.includes("409") ? "A column with that name already exists" : msg);
     };
     if (editing) {
-      updateMutation.mutate({ id: editing.id, data: { name, type: formType } }, { onSuccess, onError });
+      updateMutation.mutate({ id: editing.id, data: { name, type: formType, sortable: formSortable } }, { onSuccess, onError });
     } else {
-      createMutation.mutate({ data: { name, type: formType } }, { onSuccess, onError });
+      createMutation.mutate({ data: { name, type: formType, sortable: formSortable } }, { onSuccess, onError });
     }
   };
 
@@ -180,7 +185,7 @@ export default function ColumnsScreen() {
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowName, { color: colors.foreground }]}>{c.name}</Text>
         <Text style={[styles.rowMeta, { color: colors.mutedForeground }]}>
-          {c.type === "number" ? "Number" : "Text"} · position {c.sortOrder + 1}
+          {c.type === "number" ? "Number" : "Text"} · position {c.sortOrder + 1}{c.sortable ? " · sortable" : ""}
         </Text>
       </View>
       <View style={[styles.typeBadge, { backgroundColor: c.type === "number" ? colors.primary + "15" : colors.mutedForeground + "15" }]}>
@@ -354,6 +359,21 @@ export default function ColumnsScreen() {
               })}
             </View>
 
+            <View style={[styles.sortableRow, { borderColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground, marginTop: 0, marginBottom: 2 }]}>Sortable in budget table</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
+                  Allow tapping this column header to sort rows
+                </Text>
+              </View>
+              <Switch
+                value={formSortable}
+                onValueChange={setFormSortable}
+                trackColor={{ false: colors.border, true: colors.primary + "80" }}
+                thumbColor={formSortable ? colors.primary : colors.mutedForeground}
+              />
+            </View>
+
             {editing && (
               <View style={[styles.renameNote, { backgroundColor: colors.primary + "0d", borderColor: colors.primary + "30" }]}>
                 <Feather name="refresh-cw" size={12} color={colors.primary} />
@@ -486,6 +506,7 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 10, borderRadius: 8, borderWidth: 1,
   },
+  sortableRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, marginTop: 12, borderTopWidth: 1 },
   renameNote: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 10, borderRadius: 8, borderWidth: 1, marginTop: 12 },
   renameNoteText: { fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 },
   warningBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 10, borderRadius: 8, borderWidth: 1, marginTop: 4 },

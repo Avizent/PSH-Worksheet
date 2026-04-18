@@ -21,6 +21,7 @@ export interface BudgetLineRow {
 export interface CustomColumnDef {
   name: string;
   type: "text" | "number";
+  sortable: boolean;
 }
 
 interface Owner { id: number; name: string; initials: string; color: string }
@@ -118,7 +119,7 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
             <SortHeader label="Owner" field="owner" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
             <SortHeader label="Channel" field="channel" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
             <SortHeader label="Type" field="costStatus" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
-            {customColumns.map((cc) => (
+            {customColumns.map((cc) => cc.sortable ? (
               <SortHeader
                 key={`hdr-${cc.name}`}
                 label={cc.name}
@@ -129,6 +130,10 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
                 style={cc.type === "number" ? [styles.cellNumber, { justifyContent: "flex-end" }] : styles.cellSmall}
                 colors={colors}
               />
+            ) : (
+              <View key={`hdr-${cc.name}`} style={cc.type === "number" ? [styles.cellNumber, { justifyContent: "flex-end" }] : styles.cellSmall}>
+                <Text style={[styles.headerText, { color: colors.mutedForeground }]} numberOfLines={1}>{cc.name}</Text>
+              </View>
             ))}
             <SortHeader label={interactive && amountColumnMode === "plan" ? "Plan ✎" : "Plan"} field="totalPlan" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
             <SortHeader label={interactive && amountColumnMode === "actual" ? "Actual ✎" : "Actual"} field="totalActual" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
