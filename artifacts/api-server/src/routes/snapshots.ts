@@ -687,7 +687,7 @@ router.get(
 router.get(
   "/snapshots/:id",
   asyncHandler(async (req, res): Promise<void> => {
-    const filename = idFromStem(req.params.id);
+    const filename = idFromStem(String(req.params.id));
     if (filename.includes("..") || filename.includes("/")) {
       res.status(400).json({ error: "Invalid snapshot ID" });
       return;
@@ -877,7 +877,7 @@ router.post(
 router.post(
   "/snapshots/:id/restore",
   asyncHandler(async (req, res): Promise<void> => {
-    const { id } = req.params;
+    const id = String(req.params.id ?? "");
     if (!id || !/^[\w-]+$/.test(id)) {
       res.status(400).json({ error: "Invalid snapshot id" });
       return;
@@ -1012,7 +1012,7 @@ router.post(
 router.delete(
   "/snapshots/:id",
   asyncHandler(async (req, res): Promise<void> => {
-    const { id } = req.params;
+    const id = String(req.params.id ?? "");
     if (!id || !/^[\w-]+$/.test(id)) {
       res.status(400).json({ error: "Invalid snapshot id" });
       return;
@@ -1044,7 +1044,7 @@ router.delete(
 router.patch(
   "/snapshots/:id",
   asyncHandler(async (req, res): Promise<void> => {
-    const { id } = req.params;
+    const id = String(req.params.id ?? "");
     if (!id || !/^[\w-]+$/.test(id)) {
       res.status(400).json({ error: "Invalid snapshot id" });
       return;
@@ -1092,7 +1092,7 @@ router.patch(
 router.patch(
   "/snapshots/:id/pin",
   asyncHandler(async (req, res): Promise<void> => {
-    const filename = idFromStem(req.params.id);
+    const filename = idFromStem(String(req.params.id));
     if (filename.includes("..") || filename.includes("/")) {
       res.status(400).json({ error: "Invalid snapshot ID" });
       return;

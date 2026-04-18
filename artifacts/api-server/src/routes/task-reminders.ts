@@ -1,8 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db, taskRemindersTable } from "@workspace/db";
-import { DeleteTaskReminderParams } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+
+const DeleteTaskReminderParams = z.object({
+  id: z.coerce.number(),
+});
 
 const router: IRouter = Router();
 

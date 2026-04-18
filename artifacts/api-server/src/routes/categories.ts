@@ -63,7 +63,7 @@ router.post("/categories", asyncHandler(async (req, res): Promise<void> => {
 }));
 
 router.patch("/categories/:id", asyncHandler(async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = UpdateCategoryBodySchema.safeParse(req.body);
@@ -98,7 +98,7 @@ router.patch("/categories/:id", asyncHandler(async (req, res): Promise<void> => 
 }));
 
 router.delete("/categories/:id", asyncHandler(async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [existing] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, id));

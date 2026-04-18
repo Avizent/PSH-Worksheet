@@ -99,7 +99,7 @@ router.post("/reforecast/versions", requireVpAuth, asyncHandler(async (req, res)
 }));
 
 router.get("/reforecast/versions/:id", requireVpAuth, asyncHandler(async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id), 10);
   const [version] = await db.select().from(forecastVersionsTable).where(eq(forecastVersionsTable.id, id));
   if (!version) {
     res.status(404).json({ error: "Version not found" });

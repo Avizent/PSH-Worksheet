@@ -168,7 +168,7 @@ router.post(
 router.post(
   "/events/:id/check-reminders",
   asyncHandler(async (req, res): Promise<void> => {
-    const eventId = parseInt(req.params.id, 10);
+    const eventId = parseInt(String(req.params.id), 10);
     if (isNaN(eventId)) {
       res.status(400).json({ error: "Invalid event id" });
       return;

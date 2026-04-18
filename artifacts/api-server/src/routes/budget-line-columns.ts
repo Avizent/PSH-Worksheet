@@ -88,7 +88,7 @@ router.patch("/budget-line-columns/reorder", asyncHandler(async (req, res): Prom
 }));
 
 router.patch("/budget-line-columns/:id", asyncHandler(async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = UpdateBody.safeParse(req.body);
@@ -140,7 +140,7 @@ router.patch("/budget-line-columns/:id", asyncHandler(async (req, res): Promise<
 }));
 
 router.delete("/budget-line-columns/:id", asyncHandler(async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [existing] = await db.select().from(budgetLineColumnsTable).where(eq(budgetLineColumnsTable.id, id));
