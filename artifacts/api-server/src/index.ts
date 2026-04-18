@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAuthUsers } from "./lib/seedAuthUsers";
+import { seedBudgetData, runStartupMigration } from "./lib/seedBudgetData";
 import { startScheduler } from "./lib/scheduler";
 
 const rawPort = process.env["PORT"];
@@ -30,6 +31,18 @@ app.listen(port, async (err) => {
     logger.info("Auth users seeded");
   } catch (e) {
     logger.error({ err: e }, "Failed to seed auth users");
+  }
+
+  try {
+    await seedBudgetData();
+  } catch (e) {
+    logger.error({ err: e }, "Failed to seed budget data");
+  }
+
+  try {
+    await runStartupMigration();
+  } catch (e) {
+    logger.error({ err: e }, "Failed to run startup migration");
   }
 
   startScheduler();

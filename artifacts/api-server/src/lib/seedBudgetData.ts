@@ -6,7 +6,7 @@ import {
   alertsTable,
   eventsTable,
 } from "@workspace/db/schema";
-import { count } from "drizzle-orm";
+import { count, eq, and } from "drizzle-orm";
 import { logger } from "./logger";
 
 type SeedLine = {
@@ -21,6 +21,7 @@ type SeedLine = {
 };
 
 const SEED_LINES: SeedLine[] = [
+  // ── Ads ────────────────────────────────────────────────────────────────────
   {
     category: "Ads",
     lineItem: "PR",
@@ -28,7 +29,7 @@ const SEED_LINES: SeedLine[] = [
     region: "Global",
     costStatus: "Variable",
     plans:   [0, 25000, 0, 25000, 0, 0, 0, 0, 25000, 0, 0, 0],
-    actuals: [0, 27000, 0, 25000, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 27000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     boardApproved: 75000,
   },
   {
@@ -38,10 +39,61 @@ const SEED_LINES: SeedLine[] = [
     region: "Global",
     costStatus: "Variable",
     plans:   [20000, 20000, 20000, 20000, 20000, 10000, 10000, 10000, 20000, 20000, 20000, 20000],
-    actuals: [21184.27, 13830.98, 20387.59, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     boardApproved: 240000,
   },
+  {
+    category: "Ads",
+    lineItem: "LinkedIn Premium costs",
+    owner: "JDT",
+    region: "Global",
+    costStatus: "Variable",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [6719.9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
+  },
+  {
+    category: "Ads",
+    lineItem: "LinkedIn ads/boosts etc",
+    owner: "JDT",
+    region: "Global",
+    costStatus: "Variable",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [14464.37, 13830.98, 20387.59, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
+  },
+  {
+    category: "Ads",
+    lineItem: "Resultify - Attribution",
+    owner: "PH",
+    region: "Global",
+    costStatus: "Variable",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 25000, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 25000,
+  },
+  {
+    category: "Ads",
+    lineItem: "PR",
+    owner: "",
+    region: "",
+    costStatus: "",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 27000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 27000,
+  },
 
+  // ── Marketing and Sales Software ───────────────────────────────────────────
+  {
+    category: "Marketing and Sales Software",
+    lineItem: "Adobe",
+    owner: "PH",
+    region: "Global",
+    costStatus: "Fixed Cost",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
+  },
   {
     category: "Marketing and Sales Software",
     lineItem: "Amplemarket",
@@ -51,6 +103,16 @@ const SEED_LINES: SeedLine[] = [
     plans:   [5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274, 5274],
     actuals: [5274, 5274, 5274, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     boardApproved: 63282,
+  },
+  {
+    category: "Marketing and Sales Software",
+    lineItem: "Cloudflare",
+    owner: "PH",
+    region: "Global",
+    costStatus: "Fixed Cost",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
   },
   {
     category: "Marketing and Sales Software",
@@ -94,6 +156,16 @@ const SEED_LINES: SeedLine[] = [
   },
   {
     category: "Marketing and Sales Software",
+    lineItem: "Zoho",
+    owner: "PH",
+    region: "Global",
+    costStatus: "Fixed Cost",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
+  },
+  {
+    category: "Marketing and Sales Software",
     lineItem: "Squarespace",
     owner: "PH",
     region: "Global",
@@ -103,6 +175,7 @@ const SEED_LINES: SeedLine[] = [
     boardApproved: 500,
   },
 
+  // ── Other Costs ────────────────────────────────────────────────────────────
   {
     category: "Other Costs",
     lineItem: "Zoom",
@@ -133,7 +206,18 @@ const SEED_LINES: SeedLine[] = [
     actuals: [0, 0, 10000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     boardApproved: 120000,
   },
+  {
+    category: "Other Costs",
+    lineItem: "Website fixes",
+    owner: "PH",
+    region: "",
+    costStatus: "",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
+  },
 
+  // ── Marketing and PR ───────────────────────────────────────────────────────
   {
     category: "Marketing and PR",
     lineItem: "Marcaria.com hubert.ai domain",
@@ -184,7 +268,58 @@ const SEED_LINES: SeedLine[] = [
     actuals: [0, 0, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     boardApproved: 0,
   },
+  {
+    category: "Marketing and PR",
+    lineItem: "Marcaria.com hubert.ai domain",
+    owner: "",
+    region: "",
+    costStatus: "",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 249, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 249,
+  },
+  {
+    category: "Marketing and PR",
+    lineItem: "LinkedIn Sales Navigator",
+    owner: "",
+    region: "",
+    costStatus: "",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [858, 858, 858, 858, 858, 858, 858, 858, 858, 858, 858, 858],
+    boardApproved: 10296,
+  },
+  {
+    category: "Marketing and PR",
+    lineItem: "Award entry",
+    owner: "",
+    region: "",
+    costStatus: "",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 2000,
+  },
+  {
+    category: "Marketing and PR",
+    lineItem: "Video - Case Study",
+    owner: "",
+    region: "",
+    costStatus: "",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 118600, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 118600,
+  },
+  {
+    category: "Marketing and PR",
+    lineItem: "G2/Capterra/Reddit",
+    owner: "",
+    region: "",
+    costStatus: "",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 0,
+  },
 
+  // ── Events and Conferences ─────────────────────────────────────────────────
   {
     category: "Events and Conferences",
     lineItem: "Merch",
@@ -295,6 +430,66 @@ const SEED_LINES: SeedLine[] = [
     actuals: [0, 0, 33000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     boardApproved: 396000,
   },
+  {
+    category: "Events and Conferences",
+    lineItem: "Pot",
+    owner: "",
+    region: "",
+    costStatus: "Variable",
+    plans:   [0, 0, 0, 0, 5000, 15000, 15000, 15000, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 50000,
+  },
+  {
+    category: "Events and Conferences",
+    lineItem: "Jobylon Dinner STKH",
+    owner: "PH",
+    region: "EU",
+    costStatus: "Variable",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 33000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 33000,
+  },
+  {
+    category: "Events and Conferences",
+    lineItem: "Merch",
+    owner: "",
+    region: "",
+    costStatus: "Booked",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 14500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 14500,
+  },
+  {
+    category: "Events and Conferences",
+    lineItem: "StaffingPro Virtual July",
+    owner: "",
+    region: "",
+    costStatus: "Booked",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 0, 0, 32000, 0, 0, 0, 0, 0],
+    boardApproved: 32000,
+  },
+  {
+    category: "Events and Conferences",
+    lineItem: "StaffingPro Germany Oct",
+    owner: "",
+    region: "",
+    costStatus: "",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 83000, 0, 0],
+    boardApproved: 83000,
+  },
+  {
+    category: "Events and Conferences",
+    lineItem: "Early Careers Event 19th march",
+    owner: "",
+    region: "",
+    costStatus: "",
+    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    actuals: [0, 0, 110000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    boardApproved: 110000,
+  },
 ];
 
 type SeedEvent = {
@@ -400,4 +595,65 @@ export async function seedBudgetData(): Promise<void> {
 
 export async function seedBudgetDataForce() {
   return insertSeedData();
+}
+
+/**
+ * Idempotent migration: adds any SEED_LINES that are missing from the DB
+ * without touching existing records. Safe to run on every startup.
+ */
+export async function runStartupMigration(): Promise<void> {
+  const existing = await db.select({ lineItem: budgetLinesTable.lineItem, owner: budgetLinesTable.owner, region: budgetLinesTable.region }).from(budgetLinesTable);
+
+  // Build a set of keys that already exist: "lineItem|owner|region"
+  const existingKeys = new Set(
+    existing.map((r) => `${r.lineItem}|${r.owner ?? ""}|${r.region ?? ""}`)
+  );
+
+  let added = 0;
+
+  for (const item of SEED_LINES) {
+    const key = `${item.lineItem}|${item.owner}|${item.region}`;
+    if (existingKeys.has(key)) continue;
+
+    const [line] = await db
+      .insert(budgetLinesTable)
+      .values({
+        category: item.category,
+        lineItem: item.lineItem,
+        owner: item.owner,
+        region: item.region,
+        costStatus: item.costStatus,
+        boardApprovedAmount: item.boardApproved ?? null,
+      })
+      .returning();
+
+    for (let m = 0; m < 12; m++) {
+      await db.insert(monthlyPlansTable).values({
+        budgetLineId: line.id,
+        month: m + 1,
+        year: 2026,
+        plannedAmount: item.plans[m],
+      });
+    }
+
+    for (let m = 0; m < 12; m++) {
+      if (item.actuals[m] > 0) {
+        await db.insert(monthlyActualsTable).values({
+          budgetLineId: line.id,
+          month: m + 1,
+          year: 2026,
+          actualAmount: item.actuals[m],
+        });
+      }
+    }
+
+    added++;
+    existingKeys.add(key);
+  }
+
+  if (added > 0) {
+    logger.info({ added }, "Startup migration: inserted missing budget lines");
+  } else {
+    logger.info("Startup migration: all budget lines already present, nothing to add");
+  }
 }
