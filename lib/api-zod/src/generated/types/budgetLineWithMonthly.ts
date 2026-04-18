@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BudgetLineWithMonthlyChannel } from "./budgetLineWithMonthlyChannel";
+import type { BudgetLineWithMonthlyCustomFields } from "./budgetLineWithMonthlyCustomFields";
 import type { BudgetLineWithMonthlyProjectionsItem } from "./budgetLineWithMonthlyProjectionsItem";
 import type { MonthlyActual } from "./monthlyActual";
 import type { MonthlyPlan } from "./monthlyPlan";
@@ -27,4 +28,5 @@ export interface BudgetLineWithMonthly {
   plans: MonthlyPlan[];
   actuals: MonthlyActual[];
   projections?: BudgetLineWithMonthlyProjectionsItem[];
+  customFields?: BudgetLineWithMonthlyCustomFields;
 }

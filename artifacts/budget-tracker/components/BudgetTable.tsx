@@ -15,6 +15,12 @@ export interface BudgetLineRow {
   totalActual: number;
   variance: number;
   projectionPct?: number;
+  customFields?: Record<string, string | number | null>;
+}
+
+export interface CustomColumnDef {
+  name: string;
+  type: "text" | "number";
 }
 
 interface Owner { id: number; name: string; initials: string; color: string }
@@ -28,7 +34,8 @@ export const CHANNEL_LABELS: Record<ChannelValue, string> = {
   referral: "Referral",
 };
 
-export type SortField = "lineItem" | "category" | "owner" | "channel" | "costStatus" | "totalPlan" | "totalActual" | "variance";
+export type BuiltinSortField = "lineItem" | "category" | "owner" | "channel" | "costStatus" | "totalPlan" | "totalActual" | "variance";
+export type SortField = BuiltinSortField | `custom:${string}`;
 export type SortDir = "asc" | "desc" | null;
 
 interface BudgetTableProps {
@@ -45,6 +52,7 @@ interface BudgetTableProps {
   onOpenMonthly?: (id: number, lineItem: string, mode: "plan" | "actual") => void;
   onDelete?: (id: number, lineItem: string) => void;
   readOnly?: boolean;
+  customColumns?: CustomColumnDef[];
 }
 
 function formatCurrency(val: number): string {
@@ -89,7 +97,7 @@ function InlineProjectionInput({ lineId, value, onSave, colors }: { lineId: numb
   );
 }
 
-export function BudgetTable({ data, showProjection, onProjectionChange, sortField = null, sortDir = null, onSort, categories = [], owners = [], amountColumnMode = "plan", onUpdateField, onOpenMonthly, onDelete, readOnly }: BudgetTableProps) {
+export function BudgetTable({ data, showProjection, onProjectionChange, sortField = null, sortDir = null, onSort, categories = [], owners = [], amountColumnMode = "plan", onUpdateField, onOpenMonthly, onDelete, readOnly, customColumns = [] }: BudgetTableProps) {
   const colors = useColors();
   const interactive = !readOnly && !!onUpdateField && !!onOpenMonthly && !!onDelete && !!onSort;
 
@@ -110,6 +118,18 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
             <SortHeader label="Owner" field="owner" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
             <SortHeader label="Channel" field="channel" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
             <SortHeader label="Type" field="costStatus" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={styles.cellSmall} colors={colors} />
+            {customColumns.map((cc) => (
+              <SortHeader
+                key={`hdr-${cc.name}`}
+                label={cc.name}
+                field={`custom:${cc.name}` as SortField}
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={sortHandler}
+                style={cc.type === "number" ? [styles.cellNumber, { justifyContent: "flex-end" }] : styles.cellSmall}
+                colors={colors}
+              />
+            ))}
             <SortHeader label={interactive && amountColumnMode === "plan" ? "Plan ✎" : "Plan"} field="totalPlan" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
             <SortHeader label={interactive && amountColumnMode === "actual" ? "Actual ✎" : "Actual"} field="totalActual" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
             <SortHeader label="Variance" field="variance" sortField={sortField} sortDir={sortDir} onSort={sortHandler} style={[styles.cellNumber, { justifyContent: "flex-end" }]} colors={colors} />
@@ -148,6 +168,34 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
                     <Text style={{ color: colors.foreground, fontSize: 12 }}>{row.costStatus}</Text>
                   )}
                 </View>
+                {customColumns.map((cc) => {
+                  const raw = row.customFields?.[cc.name];
+                  const isNum = cc.type === "number";
+                  let display = "—";
+                  if (raw != null && raw !== "") {
+                    display = isNum
+                      ? "\u00a3" + Number(raw).toLocaleString("en-GB", { maximumFractionDigits: 0 })
+                      : String(raw);
+                  }
+                  return (
+                    <View
+                      key={`cell-${row.id}-${cc.name}`}
+                      style={isNum ? styles.cellNumber : styles.cellSmall}
+                    >
+                      <Text
+                        style={{
+                          color: raw != null && raw !== "" ? colors.foreground : colors.mutedForeground,
+                          fontSize: 13,
+                          fontFamily: "Inter_400Regular",
+                          textAlign: isNum ? "right" : "left",
+                        }}
+                        numberOfLines={1}
+                      >
+                        {display}
+                      </Text>
+                    </View>
+                  );
+                })}
                 {interactive && amountColumnMode === "plan" && onOpenMonthly ? (
                   <TouchableOpacity onPress={() => onOpenMonthly(row.id, row.lineItem, "plan")} activeOpacity={0.6} style={styles.cellNumber}>
                     <Text style={[{ color: colors.primary, fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "right", textDecorationLine: "underline", textDecorationStyle: "dotted" }]}>{formatCurrency(row.totalPlan)}</Text>

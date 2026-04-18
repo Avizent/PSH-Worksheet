@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BudgetLineChannel } from "./budgetLineChannel";
+import type { BudgetLineCustomFields } from "./budgetLineCustomFields";
 
 export interface BudgetLine {
   id: number;
@@ -23,4 +24,5 @@ export interface BudgetLine {
   projectionPct: number;
   createdAt: Date;
   updatedAt: Date;
+  customFields?: BudgetLineCustomFields;
 }

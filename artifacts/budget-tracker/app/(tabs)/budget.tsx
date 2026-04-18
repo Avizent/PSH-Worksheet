@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
-import { BudgetTable, confirmDelete, CHANNEL_VALUES, CHANNEL_LABELS, type ChannelValue, type SortField, type SortDir, type BudgetLineRow } from "@/components/BudgetTable";
+import { BudgetTable, confirmDelete, CHANNEL_VALUES, CHANNEL_LABELS, type ChannelValue, type SortField, type SortDir, type BudgetLineRow, type CustomColumnDef } from "@/components/BudgetTable";
 import { MonthlyAmountModal } from "@/components/MonthlyAmountModal";
 import { AddLineModal } from "@/components/AddLineModal";
 import { EmptyState } from "@/components/EmptyState";
@@ -24,6 +24,7 @@ import {
   useUpsertMonthlyPlanByLine,
   useUpsertMonthlyActualByLine,
   useListBudgetLineCategories,
+  useListBudgetLineColumns,
   useListOwners,
   getListBudgetLinesWithMonthlyQueryKey,
   getListBudgetLinesQueryKey,
@@ -35,7 +36,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 const FY_YEAR = 2026;
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const SORT_ACCESSORS: Record<SortField, (r: BudgetLineRow) => string | number> = {
+const BUILTIN_SORT_ACCESSORS: Record<string, (r: BudgetLineRow) => string | number> = {
   lineItem: (r) => r.lineItem,
   category: (r) => r.category,
   owner: (r) => r.owner ?? "",
@@ -101,6 +102,7 @@ function BudgetContent() {
   const { data: alerts } = useListAlerts({ resolved: false });
   const { data: categoriesData } = useListBudgetLineCategories();
   const { data: ownersData } = useListOwners();
+  const { data: customColumnsData } = useListBudgetLineColumns();
   const updateMutation = useUpdateBudgetLine();
   const createMutation = useCreateBudgetLine();
   const deleteMutation = useDeleteBudgetLine();
@@ -291,19 +293,53 @@ function BudgetContent() {
         totalActual,
         variance: totalPlan - totalActual,
         projectionPct: linesWithPct[line.id] ?? 0,
+        customFields: (line as { customFields?: Record<string, string | number | null> }).customFields ?? {},
       };
     })
     .filter(d => filterCategory === "All" || d.category === filterCategory)
     .filter(d => !filterOwner || (d.owner ?? "") === filterOwner)
     .filter(d => filterChannel === "All" || (filterChannel === "none" ? !d.channel : d.channel === filterChannel));
 
+  const customColumns: CustomColumnDef[] = useMemo(
+    () =>
+      ((customColumnsData ?? []) as { name: string; type: "text" | "number"; sortOrder: number }[])
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((c) => ({ name: c.name, type: c.type })),
+    [customColumnsData]
+  );
+
   const sorted = useMemo(() => {
     if (!sortField || !sortDir) return tableData;
-    const accessor = SORT_ACCESSORS[sortField];
+    let accessor: (r: BudgetLineRow) => string | number | null;
+    let isCustom = false;
+    let isNum = false;
+    if (sortField.startsWith("custom:")) {
+      isCustom = true;
+      const name = sortField.slice("custom:".length);
+      const def = customColumns.find((c) => c.name === name);
+      isNum = def?.type === "number";
+      accessor = (r) => {
+        const v = r.customFields?.[name];
+        if (v == null || v === "") return null;
+        return isNum ? Number(v) : String(v).toLowerCase();
+      };
+    } else {
+      const builtin = BUILTIN_SORT_ACCESSORS[sortField];
+      if (!builtin) return tableData;
+      accessor = builtin;
+    }
     const arr = [...tableData];
     arr.sort((a, b) => {
       const av = accessor(a);
       const bv = accessor(b);
+      if (isCustom) {
+        const aNull = av === null;
+        const bNull = bv === null;
+        if (aNull && bNull) return 0;
+        if (aNull) return 1;
+        if (bNull) return -1;
+      }
       let cmp: number;
       if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
       else cmp = String(av).localeCompare(String(bv));
@@ -311,7 +347,7 @@ function BudgetContent() {
     });
     return arr;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableData, sortField, sortDir]);
+  }, [tableData, sortField, sortDir, customColumns]);
 
   const allCategories = [...new Set((budgetLines || []).map((d) => d.category))];
   const categories = [...new Set(sorted.map((d) => d.category))];
@@ -426,6 +462,7 @@ function BudgetContent() {
           onUpdateField={handleUpdateField}
           onOpenMonthly={(id, lineItem, mode) => setMonthlyOpen({ id, lineItem, mode })}
           onDelete={handleDelete}
+          customColumns={customColumns}
         />
       ) : (
         <View style={styles.mobileList}>

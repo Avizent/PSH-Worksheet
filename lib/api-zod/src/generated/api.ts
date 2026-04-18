@@ -68,6 +68,9 @@ export const ListBudgetLinesResponseItem = zod.object({
     .default(listBudgetLinesResponseProjectionPctDefault),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+  customFields: zod
+    .record(zod.string(), zod.union([zod.string(), zod.number()]).nullable())
+    .optional(),
 });
 export const ListBudgetLinesResponse = zod.array(ListBudgetLinesResponseItem);
 
@@ -124,6 +127,9 @@ export const GetBudgetLineResponse = zod.object({
     .default(getBudgetLineResponseProjectionPctDefault),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+  customFields: zod
+    .record(zod.string(), zod.union([zod.string(), zod.number()]).nullable())
+    .optional(),
 });
 
 /**
@@ -176,6 +182,9 @@ export const UpdateBudgetLineResponse = zod.object({
     .default(updateBudgetLineResponseProjectionPctDefault),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+  customFields: zod
+    .record(zod.string(), zod.union([zod.string(), zod.number()]).nullable())
+    .optional(),
 });
 
 /**
@@ -767,6 +776,9 @@ export const ListBudgetLinesWithMonthlyResponseItem = zod.object({
         projected: zod.number().nullish(),
       }),
     )
+    .optional(),
+  customFields: zod
+    .record(zod.string(), zod.union([zod.string(), zod.number()]).nullable())
     .optional(),
 });
 export const ListBudgetLinesWithMonthlyResponse = zod.array(

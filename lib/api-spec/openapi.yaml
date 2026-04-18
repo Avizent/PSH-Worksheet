@@ -1842,6 +1842,10 @@ components:
         updatedAt:
           type: string
           format: date-time
+        customFields:
+          type: object
+          additionalProperties:
+            type: ["string", "number", "null"]
       required:
         - id
         - category
@@ -2302,6 +2306,10 @@ components:
                 type: ["number", "null"]
             required:
               - month
+        customFields:
+          type: object
+          additionalProperties:
+            type: ["string", "number", "null"]
       required:
         - id
         - category

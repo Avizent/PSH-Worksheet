@@ -34,6 +34,8 @@ export const BudgetLineChannel = {
   referral: "referral",
 } as const;
 
+export type BudgetLineCustomFields = { [key: string]: string | number | null };
+
 export interface BudgetLine {
   id: number;
   category: string;
@@ -50,6 +52,7 @@ export interface BudgetLine {
   projectionPct: number;
   createdAt: string;
   updatedAt: string;
+  customFields?: BudgetLineCustomFields;
 }
 
 /**
@@ -285,6 +288,10 @@ export type BudgetLineWithMonthlyProjectionsItem = {
   projected?: number | null;
 };
 
+export type BudgetLineWithMonthlyCustomFields = {
+  [key: string]: string | number | null;
+};
+
 export interface BudgetLineWithMonthly {
   id: number;
   category: string;
@@ -302,6 +309,7 @@ export interface BudgetLineWithMonthly {
   plans: MonthlyPlan[];
   actuals: MonthlyActual[];
   projections?: BudgetLineWithMonthlyProjectionsItem[];
+  customFields?: BudgetLineWithMonthlyCustomFields;
 }
 
 export interface MonthlyChartPoint {
