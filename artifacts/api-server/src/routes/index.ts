@@ -25,6 +25,7 @@ import snapshotsRouter from "./snapshots";
 import eventTasksRouter from "./event-tasks";
 import taskRemindersRouter from "./task-reminders";
 import inAppAlertsRouter from "./in-app-alerts";
+import budgetLineColumnsRouter from "./budget-line-columns";
 
 const router: IRouter = Router();
 
@@ -54,5 +55,6 @@ router.use(snapshotsRouter);
 router.use(eventTasksRouter);
 router.use(taskRemindersRouter);
 router.use(inAppAlertsRouter);
+router.use(budgetLineColumnsRouter);
 
 export default router;

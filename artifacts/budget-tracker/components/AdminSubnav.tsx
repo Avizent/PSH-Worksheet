@@ -4,11 +4,12 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 
-type AdminKey = "owners" | "categories" | "import" | "audit" | "reforecast" | "excel" | "snapshots";
+type AdminKey = "owners" | "categories" | "columns" | "import" | "audit" | "reforecast" | "excel" | "snapshots";
 
 const ITEMS: { key: AdminKey; label: string; icon: keyof typeof Feather.glyphMap; route: Href }[] = [
   { key: "owners", label: "Owners", icon: "users", route: "/owners" },
   { key: "categories", label: "Categories", icon: "tag", route: "/categories" },
+  { key: "columns", label: "Columns", icon: "columns", route: "/columns" },
   { key: "import", label: "Import", icon: "upload", route: "/import" },
   { key: "audit", label: "Audit Log", icon: "file-text", route: "/audit" },
   { key: "reforecast", label: "Reforecast", icon: "refresh-cw", route: "/reforecast" },

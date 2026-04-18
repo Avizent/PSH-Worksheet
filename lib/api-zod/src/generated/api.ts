@@ -295,6 +295,77 @@ export const DeleteCategoryParams = zod.object({
 });
 
 /**
+ * @summary List all custom budget-line columns
+ */
+export const ListBudgetLineColumnsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  type: zod.enum(["text", "number"]),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListBudgetLineColumnsResponse = zod.array(
+  ListBudgetLineColumnsResponseItem,
+);
+
+/**
+ * @summary Create a custom budget-line column
+ */
+export const CreateBudgetLineColumnBody = zod.object({
+  name: zod.string(),
+  type: zod.enum(["text", "number"]).optional(),
+});
+
+/**
+ * @summary Reorder custom budget-line columns
+ */
+export const ReorderBudgetLineColumnsBody = zod.object({
+  ids: zod.array(zod.number()),
+});
+
+export const ReorderBudgetLineColumnsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  type: zod.enum(["text", "number"]),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ReorderBudgetLineColumnsResponse = zod.array(
+  ReorderBudgetLineColumnsResponseItem,
+);
+
+/**
+ * @summary Rename or change type of a custom column
+ */
+export const UpdateBudgetLineColumnParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateBudgetLineColumnBody = zod.object({
+  name: zod.string().optional(),
+  type: zod.enum(["text", "number"]).optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateBudgetLineColumnResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  type: zod.enum(["text", "number"]),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a custom column (also strips its values from every budget line)
+ */
+export const DeleteBudgetLineColumnParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List all owners
  */
 export const ListOwnersResponseItem = zod.object({

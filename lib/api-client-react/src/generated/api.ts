@@ -26,6 +26,7 @@ import type {
   BoardSetting,
   BoardViewData,
   BudgetLine,
+  BudgetLineColumn,
   BudgetLineWithMonthly,
   Category,
   CategoryWithCount,
@@ -33,6 +34,7 @@ import type {
   CompareForecastVersionsParams,
   CompareSnapshotsParams,
   CreateBudgetLineBody,
+  CreateBudgetLineColumnBody,
   CreateCategoryBody,
   CreateEventBody,
   CreateEventTaskBody,
@@ -84,6 +86,7 @@ import type {
   Owner,
   PinSnapshotBody,
   ProjectionData,
+  ReorderBudgetLineColumnsBody,
   RestoreResult,
   SeedResult,
   ShareToken,
@@ -93,6 +96,7 @@ import type {
   TaskReminder,
   UpdateBoardSettingBody,
   UpdateBudgetLineBody,
+  UpdateBudgetLineColumnBody,
   UpdateCategoryBody,
   UpdateEventBody,
   UpdateEventTaskBody,
@@ -1310,6 +1314,427 @@ export const useDeleteCategory = <
   TContext
 > => {
   return useMutation(getDeleteCategoryMutationOptions(options));
+};
+
+/**
+ * @summary List all custom budget-line columns
+ */
+export const getListBudgetLineColumnsUrl = () => {
+  return `/api/budget-line-columns`;
+};
+
+export const listBudgetLineColumns = async (
+  options?: RequestInit,
+): Promise<BudgetLineColumn[]> => {
+  return customFetch<BudgetLineColumn[]>(getListBudgetLineColumnsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBudgetLineColumnsQueryKey = () => {
+  return [`/api/budget-line-columns`] as const;
+};
+
+export const getListBudgetLineColumnsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBudgetLineColumns>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgetLineColumns>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBudgetLineColumnsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBudgetLineColumns>>
+  > = ({ signal }) => listBudgetLineColumns({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgetLineColumns>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBudgetLineColumnsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBudgetLineColumns>>
+>;
+export type ListBudgetLineColumnsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all custom budget-line columns
+ */
+
+export function useListBudgetLineColumns<
+  TData = Awaited<ReturnType<typeof listBudgetLineColumns>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgetLineColumns>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBudgetLineColumnsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a custom budget-line column
+ */
+export const getCreateBudgetLineColumnUrl = () => {
+  return `/api/budget-line-columns`;
+};
+
+export const createBudgetLineColumn = async (
+  createBudgetLineColumnBody: CreateBudgetLineColumnBody,
+  options?: RequestInit,
+): Promise<BudgetLineColumn> => {
+  return customFetch<BudgetLineColumn>(getCreateBudgetLineColumnUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createBudgetLineColumnBody),
+  });
+};
+
+export const getCreateBudgetLineColumnMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBudgetLineColumn>>,
+    TError,
+    { data: BodyType<CreateBudgetLineColumnBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBudgetLineColumn>>,
+  TError,
+  { data: BodyType<CreateBudgetLineColumnBody> },
+  TContext
+> => {
+  const mutationKey = ["createBudgetLineColumn"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBudgetLineColumn>>,
+    { data: BodyType<CreateBudgetLineColumnBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createBudgetLineColumn(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBudgetLineColumnMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBudgetLineColumn>>
+>;
+export type CreateBudgetLineColumnMutationBody =
+  BodyType<CreateBudgetLineColumnBody>;
+export type CreateBudgetLineColumnMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a custom budget-line column
+ */
+export const useCreateBudgetLineColumn = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBudgetLineColumn>>,
+    TError,
+    { data: BodyType<CreateBudgetLineColumnBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBudgetLineColumn>>,
+  TError,
+  { data: BodyType<CreateBudgetLineColumnBody> },
+  TContext
+> => {
+  return useMutation(getCreateBudgetLineColumnMutationOptions(options));
+};
+
+/**
+ * @summary Reorder custom budget-line columns
+ */
+export const getReorderBudgetLineColumnsUrl = () => {
+  return `/api/budget-line-columns/reorder`;
+};
+
+export const reorderBudgetLineColumns = async (
+  reorderBudgetLineColumnsBody: ReorderBudgetLineColumnsBody,
+  options?: RequestInit,
+): Promise<BudgetLineColumn[]> => {
+  return customFetch<BudgetLineColumn[]>(getReorderBudgetLineColumnsUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reorderBudgetLineColumnsBody),
+  });
+};
+
+export const getReorderBudgetLineColumnsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderBudgetLineColumns>>,
+    TError,
+    { data: BodyType<ReorderBudgetLineColumnsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderBudgetLineColumns>>,
+  TError,
+  { data: BodyType<ReorderBudgetLineColumnsBody> },
+  TContext
+> => {
+  const mutationKey = ["reorderBudgetLineColumns"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderBudgetLineColumns>>,
+    { data: BodyType<ReorderBudgetLineColumnsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reorderBudgetLineColumns(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderBudgetLineColumnsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderBudgetLineColumns>>
+>;
+export type ReorderBudgetLineColumnsMutationBody =
+  BodyType<ReorderBudgetLineColumnsBody>;
+export type ReorderBudgetLineColumnsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reorder custom budget-line columns
+ */
+export const useReorderBudgetLineColumns = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderBudgetLineColumns>>,
+    TError,
+    { data: BodyType<ReorderBudgetLineColumnsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderBudgetLineColumns>>,
+  TError,
+  { data: BodyType<ReorderBudgetLineColumnsBody> },
+  TContext
+> => {
+  return useMutation(getReorderBudgetLineColumnsMutationOptions(options));
+};
+
+/**
+ * @summary Rename or change type of a custom column
+ */
+export const getUpdateBudgetLineColumnUrl = (id: number) => {
+  return `/api/budget-line-columns/${id}`;
+};
+
+export const updateBudgetLineColumn = async (
+  id: number,
+  updateBudgetLineColumnBody: UpdateBudgetLineColumnBody,
+  options?: RequestInit,
+): Promise<BudgetLineColumn> => {
+  return customFetch<BudgetLineColumn>(getUpdateBudgetLineColumnUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateBudgetLineColumnBody),
+  });
+};
+
+export const getUpdateBudgetLineColumnMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBudgetLineColumn>>,
+    TError,
+    { id: number; data: BodyType<UpdateBudgetLineColumnBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBudgetLineColumn>>,
+  TError,
+  { id: number; data: BodyType<UpdateBudgetLineColumnBody> },
+  TContext
+> => {
+  const mutationKey = ["updateBudgetLineColumn"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBudgetLineColumn>>,
+    { id: number; data: BodyType<UpdateBudgetLineColumnBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateBudgetLineColumn(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBudgetLineColumnMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBudgetLineColumn>>
+>;
+export type UpdateBudgetLineColumnMutationBody =
+  BodyType<UpdateBudgetLineColumnBody>;
+export type UpdateBudgetLineColumnMutationError = ErrorType<void>;
+
+/**
+ * @summary Rename or change type of a custom column
+ */
+export const useUpdateBudgetLineColumn = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBudgetLineColumn>>,
+    TError,
+    { id: number; data: BodyType<UpdateBudgetLineColumnBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBudgetLineColumn>>,
+  TError,
+  { id: number; data: BodyType<UpdateBudgetLineColumnBody> },
+  TContext
+> => {
+  return useMutation(getUpdateBudgetLineColumnMutationOptions(options));
+};
+
+/**
+ * @summary Delete a custom column (also strips its values from every budget line)
+ */
+export const getDeleteBudgetLineColumnUrl = (id: number) => {
+  return `/api/budget-line-columns/${id}`;
+};
+
+export const deleteBudgetLineColumn = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteBudgetLineColumnUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBudgetLineColumnMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBudgetLineColumn>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBudgetLineColumn>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteBudgetLineColumn"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBudgetLineColumn>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteBudgetLineColumn(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBudgetLineColumnMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBudgetLineColumn>>
+>;
+
+export type DeleteBudgetLineColumnMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a custom column (also strips its values from every budget line)
+ */
+export const useDeleteBudgetLineColumn = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBudgetLineColumn>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBudgetLineColumn>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteBudgetLineColumnMutationOptions(options));
 };
 
 /**

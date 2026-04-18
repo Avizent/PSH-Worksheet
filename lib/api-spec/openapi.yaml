@@ -317,6 +317,103 @@ paths:
         "204":
           description: Deleted
 
+  /budget-line-columns:
+    get:
+      operationId: listBudgetLineColumns
+      tags: [admin]
+      summary: List all custom budget-line columns
+      responses:
+        "200":
+          description: List of custom columns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BudgetLineColumn"
+    post:
+      operationId: createBudgetLineColumn
+      tags: [admin]
+      summary: Create a custom budget-line column
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBudgetLineColumnBody"
+      responses:
+        "201":
+          description: Created column
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetLineColumn"
+        "409":
+          description: Column with that name already exists
+
+  /budget-line-columns/reorder:
+    patch:
+      operationId: reorderBudgetLineColumns
+      tags: [admin]
+      summary: Reorder custom budget-line columns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderBudgetLineColumnsBody"
+      responses:
+        "200":
+          description: New ordered list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BudgetLineColumn"
+
+  /budget-line-columns/{id}:
+    patch:
+      operationId: updateBudgetLineColumn
+      tags: [admin]
+      summary: Rename or change type of a custom column
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBudgetLineColumnBody"
+      responses:
+        "200":
+          description: Updated column
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetLineColumn"
+        "404":
+          description: Not found
+        "409":
+          description: Name conflict
+    delete:
+      operationId: deleteBudgetLineColumn
+      tags: [admin]
+      summary: Delete a custom column (also strips its values from every budget line)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /owners:
     get:
       operationId: listOwners
@@ -3325,6 +3422,64 @@ components:
           type: string
       required:
         - daysBefore
+
+    BudgetLineColumn:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+          enum: [text, number]
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - type
+        - sortOrder
+        - createdAt
+        - updatedAt
+
+    CreateBudgetLineColumnBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [text, number]
+      required:
+        - name
+
+    UpdateBudgetLineColumnBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [text, number]
+        sortOrder:
+          type: integer
+
+    ReorderBudgetLineColumnsBody:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+      required:
+        - ids
 
     InAppAlert:
       type: object

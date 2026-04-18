@@ -771,6 +771,54 @@ export interface CreateTaskReminderBody {
   label?: string;
 }
 
+export type BudgetLineColumnType =
+  (typeof BudgetLineColumnType)[keyof typeof BudgetLineColumnType];
+
+export const BudgetLineColumnType = {
+  text: "text",
+  number: "number",
+} as const;
+
+export interface BudgetLineColumn {
+  id: number;
+  name: string;
+  type: BudgetLineColumnType;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateBudgetLineColumnBodyType =
+  (typeof CreateBudgetLineColumnBodyType)[keyof typeof CreateBudgetLineColumnBodyType];
+
+export const CreateBudgetLineColumnBodyType = {
+  text: "text",
+  number: "number",
+} as const;
+
+export interface CreateBudgetLineColumnBody {
+  name: string;
+  type?: CreateBudgetLineColumnBodyType;
+}
+
+export type UpdateBudgetLineColumnBodyType =
+  (typeof UpdateBudgetLineColumnBodyType)[keyof typeof UpdateBudgetLineColumnBodyType];
+
+export const UpdateBudgetLineColumnBodyType = {
+  text: "text",
+  number: "number",
+} as const;
+
+export interface UpdateBudgetLineColumnBody {
+  name?: string;
+  type?: UpdateBudgetLineColumnBodyType;
+  sortOrder?: number;
+}
+
+export interface ReorderBudgetLineColumnsBody {
+  ids: number[];
+}
+
 export interface InAppAlert {
   id: number;
   taskId: number;
