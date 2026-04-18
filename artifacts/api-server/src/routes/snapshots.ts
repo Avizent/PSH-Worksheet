@@ -10,7 +10,9 @@ import {
   categoriesTable,
   csvImportRowsTable,
   csvImportsTable,
+  budgetLineColumnsTable,
 } from "@workspace/db";
+import { asc } from "drizzle-orm";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { logger } from "../lib/logger";
 import { isValidVpSession } from "../middleware/vpAuth";
@@ -72,9 +74,17 @@ interface SnapshotBudgetLine {
   costStatus: string;
   projectionPct: number;
   boardApprovedAmount: number | null;
+  customFields: Record<string, string | number | null>;
   // embedded after joining from flat arrays
   plans: SnapshotPlan[];
   actuals: SnapshotActual[];
+}
+
+interface SnapshotBudgetLineColumn {
+  id: number;
+  name: string;
+  type: string;
+  sortOrder: number;
 }
 
 interface SnapshotOwner {
@@ -100,6 +110,7 @@ interface SnapshotBody {
   budgetLines: SnapshotBudgetLine[];
   owners: SnapshotOwner[];
   categories: SnapshotCategory[];
+  budgetLineColumns: SnapshotBudgetLineColumn[];
 }
 
 // ─── File helpers ─────────────────────────────────────────────────────────────
@@ -120,11 +131,14 @@ function readSnapshotFile(filename: string): SnapshotBody | null {
       createdAt: string;
       pinned?: boolean;
       data: {
-        budgetLines: Omit<SnapshotBudgetLine, "plans" | "actuals">[];
+        budgetLines: (Omit<SnapshotBudgetLine, "plans" | "actuals" | "customFields"> & {
+          customFields?: Record<string, string | number | null> | null;
+        })[];
         monthlyPlans: SnapshotPlan[];
         monthlyActuals: SnapshotActual[];
         owners?: SnapshotOwner[];
         categories?: SnapshotCategory[];
+        budgetLineColumns?: SnapshotBudgetLineColumn[];
       };
     };
 
@@ -144,6 +158,7 @@ function readSnapshotFile(filename: string): SnapshotBody | null {
 
     const budgetLines: SnapshotBudgetLine[] = raw.data.budgetLines.map((bl) => ({
       ...bl,
+      customFields: bl.customFields ?? {},
       plans: plansByLine.get(bl.id) ?? [],
       actuals: actualsByLine.get(bl.id) ?? [],
     }));
@@ -156,6 +171,7 @@ function readSnapshotFile(filename: string): SnapshotBody | null {
       budgetLines,
       owners: raw.data.owners ?? [],
       categories: raw.data.categories ?? [],
+      budgetLineColumns: raw.data.budgetLineColumns ?? [],
     };
   } catch {
     return null;
@@ -236,12 +252,13 @@ export async function createSnapshot(label: string): Promise<SnapshotMeta> {
   const id = `snapshot_${ts}_${safeLabel}`;
   const filename = `${id}.json`;
 
-  const [budgetLines, monthlyPlans, monthlyActuals, owners, categories] = await Promise.all([
+  const [budgetLines, monthlyPlans, monthlyActuals, owners, categories, budgetLineColumns] = await Promise.all([
     db.select().from(budgetLinesTable),
     db.select().from(monthlyPlansTable),
     db.select().from(monthlyActualsTable),
     db.select().from(ownersTable).orderBy(ownersTable.id),
     db.select().from(categoriesTable).orderBy(categoriesTable.id),
+    db.select().from(budgetLineColumnsTable).orderBy(asc(budgetLineColumnsTable.sortOrder), asc(budgetLineColumnsTable.id)),
   ]);
 
   const snap = {
@@ -249,7 +266,7 @@ export async function createSnapshot(label: string): Promise<SnapshotMeta> {
     label,
     createdAt: now.toISOString(),
     pinned: false,
-    data: { budgetLines, monthlyPlans, monthlyActuals, owners, categories },
+    data: { budgetLines, monthlyPlans, monthlyActuals, owners, categories, budgetLineColumns },
   };
 
   fs.writeFileSync(path.join(SNAPSHOTS_DIR, filename), JSON.stringify(snap, null, 2), "utf-8");
@@ -334,6 +351,22 @@ function comparePair(a: SnapshotBudgetLine, b: SnapshotBudgetLine): DiffLine {
       from: a.boardApprovedAmount != null ? String(a.boardApprovedAmount) : null,
       to: b.boardApprovedAmount != null ? String(b.boardApprovedAmount) : null,
     });
+
+  // Custom field changes
+  const aCf = a.customFields ?? {};
+  const bCf = b.customFields ?? {};
+  const cfKeys = Array.from(new Set([...Object.keys(aCf), ...Object.keys(bCf)])).sort();
+  for (const k of cfKeys) {
+    const av = aCf[k];
+    const bv = bCf[k];
+    if ((av ?? null) !== (bv ?? null)) {
+      changes.push({
+        field: `customField:${k}`,
+        from: av != null ? String(av) : null,
+        to: bv != null ? String(bv) : null,
+      });
+    }
+  }
 
   const planKey = (p: SnapshotPlan) => `${p.year}-${String(p.month).padStart(2, "0")}`;
   const aPlans = new Map<string, SnapshotPlan>();
@@ -697,10 +730,16 @@ router.post(
     }
 
     // Accept the joined format returned by GET /snapshots/:id
-    // { id, label, createdAt, pinned, budgetLines (with .plans/.actuals), owners, categories }
+    // { id, label, createdAt, pinned, budgetLines (with .plans/.actuals/.customFields), owners, categories, budgetLineColumns }
     const budgetLines = body.budgetLines;
     const owners = body.owners ?? [];
     const categories = body.categories ?? [];
+    const budgetLineColumns = body.budgetLineColumns ?? [];
+
+    if (!Array.isArray(budgetLineColumns)) {
+      res.status(400).json({ error: "Invalid snapshot: budgetLineColumns must be an array" });
+      return;
+    }
 
     if (!Array.isArray(budgetLines)) {
       res.status(400).json({ error: "Invalid snapshot: budgetLines must be an array" });
@@ -816,6 +855,7 @@ router.post(
         monthlyActuals,
         owners,
         categories,
+        budgetLineColumns,
       },
     };
 
@@ -876,6 +916,16 @@ router.post(
       await tx.delete(budgetLinesTable);
       await tx.delete(ownersTable);
       await tx.delete(categoriesTable);
+      await tx.delete(budgetLineColumnsTable);
+
+      // Re-insert custom column definitions
+      for (const col of body.budgetLineColumns) {
+        await tx.insert(budgetLineColumnsTable).values({
+          name: col.name,
+          type: col.type,
+          sortOrder: col.sortOrder,
+        });
+      }
 
       // Re-insert categories
       for (const cat of body.categories) {
@@ -910,6 +960,7 @@ router.post(
             costStatus: bl.costStatus,
             projectionPct: bl.projectionPct,
             boardApprovedAmount: bl.boardApprovedAmount ?? undefined,
+            customFields: bl.customFields ?? {},
           })
           .returning();
         lineIdMap.set(bl.id, inserted.id);

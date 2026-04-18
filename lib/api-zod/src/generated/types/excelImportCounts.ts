@@ -12,4 +12,6 @@ export interface ExcelImportCounts {
   deleted: number;
   plansWritten: number;
   actualsWritten: number;
+  skippedNewRows?: number;
+  newColumnsCreated?: number;
 }

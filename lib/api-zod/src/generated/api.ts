@@ -1370,6 +1370,25 @@ export const ValidateBudgetExcelResponse = zod.union([
       .describe(
         "Present when the workbook contains more than one sheet, so the UI can offer the user a chance to switch sheets.",
       ),
+    unknownColumns: zod
+      .array(
+        zod.object({
+          name: zod.string(),
+          columnIndex: zod
+            .number()
+            .describe("1-based position of the column in the source sheet."),
+        }),
+      )
+      .optional()
+      .describe(
+        "Columns found in the sheet that do not match any fixed header or known custom column. The UI must let the user accept (with a type) or reject each one before \/excel\/import will succeed.",
+      ),
+    recognisedCustomColumns: zod
+      .array(zod.string())
+      .optional()
+      .describe(
+        "Custom column names from the sheet that matched an existing custom column definition.",
+      ),
   }),
   zod
     .object({
@@ -1405,7 +1424,25 @@ export const ImportBudgetExcelResponse = zod.object({
     deleted: zod.number(),
     plansWritten: zod.number(),
     actualsWritten: zod.number(),
+    skippedNewRows: zod.number().optional(),
+    newColumnsCreated: zod.number().optional(),
   }),
+  skippedNewRows: zod
+    .array(
+      zod.object({
+        category: zod.string(),
+        lineItem: zod.string(),
+      }),
+    )
+    .optional(),
+  newColumnsCreated: zod
+    .array(
+      zod.object({
+        name: zod.string(),
+        type: zod.enum(["text", "number"]),
+      }),
+    )
+    .optional(),
 });
 
 /**

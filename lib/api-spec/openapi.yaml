@@ -2962,12 +2962,40 @@ components:
           type: integer
         actualsWritten:
           type: integer
+        skippedNewRows:
+          type: integer
+        newColumnsCreated:
+          type: integer
       required:
         - upserted
         - inserted
         - deleted
         - plansWritten
         - actualsWritten
+
+    ExcelUnknownColumn:
+      type: object
+      properties:
+        name:
+          type: string
+        columnIndex:
+          type: integer
+          description: 1-based position of the column in the source sheet.
+      required:
+        - name
+        - columnIndex
+
+    ExcelAcceptedNewColumn:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [text, number]
+      required:
+        - name
+        - type
 
     ExcelDiffLine:
       type: object
@@ -3026,6 +3054,16 @@ components:
           description: Present when the workbook contains more than one sheet, so the UI can offer the user a chance to switch sheets.
           items:
             type: string
+        unknownColumns:
+          type: array
+          description: Columns found in the sheet that do not match any fixed header or known custom column. The UI must let the user accept (with a type) or reject each one before /excel/import will succeed.
+          items:
+            $ref: "#/components/schemas/ExcelUnknownColumn"
+        recognisedCustomColumns:
+          type: array
+          description: Custom column names from the sheet that matched an existing custom column definition.
+          items:
+            type: string
       required:
         - valid
         - rowCount
@@ -3042,6 +3080,14 @@ components:
           type: boolean
         counts:
           $ref: "#/components/schemas/ExcelImportCounts"
+        skippedNewRows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExcelDiffLine"
+        newColumnsCreated:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExcelAcceptedNewColumn"
       required:
         - valid
         - message

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ExcelUnknownColumn } from "./excelUnknownColumn";
 import type { ExcelValidateResultDiff } from "./excelValidateResultDiff";
 
 export interface ExcelValidateResult {
@@ -13,4 +14,8 @@ export interface ExcelValidateResult {
   diff: ExcelValidateResultDiff;
   /** Present when the workbook contains more than one sheet, so the UI can offer the user a chance to switch sheets. */
   sheetNames?: string[];
+  /** Columns found in the sheet that do not match any fixed header or known custom column. The UI must let the user accept (with a type) or reject each one before /excel/import will succeed. */
+  unknownColumns?: ExcelUnknownColumn[];
+  /** Custom column names from the sheet that matched an existing custom column definition. */
+  recognisedCustomColumns?: string[];
 }

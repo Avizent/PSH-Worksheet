@@ -579,6 +579,27 @@ export interface ExcelImportCounts {
   deleted: number;
   plansWritten: number;
   actualsWritten: number;
+  skippedNewRows?: number;
+  newColumnsCreated?: number;
+}
+
+export interface ExcelUnknownColumn {
+  name: string;
+  /** 1-based position of the column in the source sheet. */
+  columnIndex: number;
+}
+
+export type ExcelAcceptedNewColumnType =
+  (typeof ExcelAcceptedNewColumnType)[keyof typeof ExcelAcceptedNewColumnType];
+
+export const ExcelAcceptedNewColumnType = {
+  text: "text",
+  number: "number",
+} as const;
+
+export interface ExcelAcceptedNewColumn {
+  name: string;
+  type: ExcelAcceptedNewColumnType;
 }
 
 export interface ExcelDiffLine {
@@ -606,6 +627,10 @@ export interface ExcelValidateResult {
   diff: ExcelValidateResultDiff;
   /** Present when the workbook contains more than one sheet, so the UI can offer the user a chance to switch sheets. */
   sheetNames?: string[];
+  /** Columns found in the sheet that do not match any fixed header or known custom column. The UI must let the user accept (with a type) or reject each one before /excel/import will succeed. */
+  unknownColumns?: ExcelUnknownColumn[];
+  /** Custom column names from the sheet that matched an existing custom column definition. */
+  recognisedCustomColumns?: string[];
 }
 
 export interface ExcelImportResult {
@@ -613,6 +638,8 @@ export interface ExcelImportResult {
   message: string;
   snapshotSaved: boolean;
   counts: ExcelImportCounts;
+  skippedNewRows?: ExcelDiffLine[];
+  newColumnsCreated?: ExcelAcceptedNewColumn[];
 }
 
 export interface SnapshotMeta {

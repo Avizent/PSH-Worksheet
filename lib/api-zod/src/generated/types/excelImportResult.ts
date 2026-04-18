@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ExcelAcceptedNewColumn } from "./excelAcceptedNewColumn";
+import type { ExcelDiffLine } from "./excelDiffLine";
 import type { ExcelImportCounts } from "./excelImportCounts";
 
 export interface ExcelImportResult {
@@ -12,4 +14,6 @@ export interface ExcelImportResult {
   message: string;
   snapshotSaved: boolean;
   counts: ExcelImportCounts;
+  skippedNewRows?: ExcelDiffLine[];
+  newColumnsCreated?: ExcelAcceptedNewColumn[];
 }

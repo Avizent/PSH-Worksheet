@@ -41,7 +41,11 @@ interface ImportResult {
     deleted: number;
     plansWritten: number;
     actualsWritten: number;
+    skippedNewRows?: number;
+    newColumnsCreated?: number;
   };
+  skippedNewRows?: DiffLine[];
+  newColumnsCreated?: { name: string; type: string }[];
 }
 
 interface DiffLine {
@@ -55,12 +59,29 @@ interface ImportDiff {
   toDelete: DiffLine[];
 }
 
+interface UnknownColumn {
+  name: string;
+  columnIndex: number;
+}
+
+type ColumnDecision =
+  | { include: false }
+  | { include: true; type: "text" | "number" };
+
 type ImportState =
   | { phase: "idle" }
   | { phase: "validating" }
   | { phase: "errors"; errors: ValidationError[] }
   | { phase: "select-sheet"; file: File; sheetNames: string[] }
-  | { phase: "confirm"; file: File; rowCount: number; diff: ImportDiff; sheetName?: string }
+  | {
+      phase: "confirm";
+      file: File;
+      rowCount: number;
+      diff: ImportDiff;
+      sheetName?: string;
+      unknownColumns: UnknownColumn[];
+      recognisedCustomColumns: string[];
+    }
   | { phase: "importing" }
   | { phase: "done"; result: ImportResult };
 
@@ -78,6 +99,11 @@ export default function ExcelScreen() {
   const [importState, setImportState] = useState<ImportState>({ phase: "idle" });
   const [confirmText, setConfirmText] = useState("");
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  // Per-row decisions for unknown rows (toAdd). Default: EXCLUDE (false).
+  // Key: `${category}||${lineItem}`
+  const [rowDecisions, setRowDecisions] = useState<Record<string, boolean>>({});
+  // Per-column decisions for unknown columns. Default: { include: false }.
+  const [columnDecisions, setColumnDecisions] = useState<Record<string, ColumnDecision>>({});
 
   const toggleSection = useCallback((key: string) => {
     setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -163,6 +189,8 @@ export default function ExcelScreen() {
   const validateFile = async (file: File, sheetName?: string) => {
     setImportState({ phase: "validating" });
     setConfirmText("");
+    setRowDecisions({});
+    setColumnDecisions({});
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -189,12 +217,32 @@ export default function ExcelScreen() {
       }
 
       // Validation passed — move to confirm stage (no DB writes yet)
+      const unknownColumns: UnknownColumn[] = json.unknownColumns ?? [];
+      const recognisedCustomColumns: string[] = json.recognisedCustomColumns ?? [];
+
+      // Default decisions: every unknown column EXCLUDED (user must opt-in).
+      const initialColDecisions: Record<string, ColumnDecision> = {};
+      for (const c of unknownColumns) {
+        initialColDecisions[c.name] = { include: false };
+      }
+      setColumnDecisions(initialColDecisions);
+
+      // Default decisions: every unknown row EXCLUDED (user must opt-in).
+      const diff: ImportDiff = json.diff ?? { toAdd: [], toUpdate: [], toDelete: [] };
+      const initialRowDecisions: Record<string, boolean> = {};
+      for (const r of diff.toAdd) {
+        initialRowDecisions[`${r.category}||${r.lineItem}`] = false;
+      }
+      setRowDecisions(initialRowDecisions);
+
       setImportState({
         phase: "confirm",
         file,
         rowCount: json.rowCount,
-        diff: json.diff ?? { toAdd: [], toUpdate: [], toDelete: [] },
+        diff,
         sheetName,
+        unknownColumns,
+        recognisedCustomColumns,
       });
     } catch (e: unknown) {
       showToast("Validation error: " + (e instanceof Error ? e.message : String(e)), "error");
@@ -206,12 +254,26 @@ export default function ExcelScreen() {
 
   const doImport = async () => {
     if (importState.phase !== "confirm") return;
-    const { file, sheetName } = importState;
+    const { file, sheetName, diff, unknownColumns } = importState;
+
+    // Build acceptedNewRows from per-row decisions (default deny)
+    const acceptedNewRows = diff.toAdd.filter(
+      (r) => rowDecisions[`${r.category}||${r.lineItem}`] === true
+    );
+    // Build acceptedNewColumns from per-column decisions (default deny)
+    const acceptedNewColumns: { name: string; type: "text" | "number" }[] = [];
+    for (const c of unknownColumns) {
+      const d = columnDecisions[c.name];
+      if (d?.include) acceptedNewColumns.push({ name: c.name, type: d.type });
+    }
+
     setImportState({ phase: "importing" });
     try {
       const formData = new FormData();
       formData.append("file", file);
       if (sheetName) formData.append("sheetName", sheetName);
+      formData.append("acceptedNewRows", JSON.stringify(acceptedNewRows));
+      formData.append("acceptedNewColumns", JSON.stringify(acceptedNewColumns));
       const baseUrl = getApiUrl();
       const res = await fetch(`${baseUrl}/api/excel/import`, {
         method: "POST",
@@ -433,6 +495,85 @@ export default function ExcelScreen() {
               </Text>
             </View>
 
+            {/* Recognised custom columns — informational */}
+            {importState.recognisedCustomColumns.length > 0 && (
+              <View style={[styles.infoBox, { borderColor: "#a7f3d0", backgroundColor: "#ecfdf5" }]}>
+                <View style={styles.infoBoxHeader}>
+                  <Feather name="check" size={14} color="#047857" />
+                  <Text style={[styles.infoBoxTitle, { color: "#047857" }]}>
+                    Custom columns matched ({importState.recognisedCustomColumns.length})
+                  </Text>
+                </View>
+                <Text style={[styles.infoBoxBody, { color: "#065f46" }]}>
+                  {importState.recognisedCustomColumns.join(", ")}
+                </Text>
+              </View>
+            )}
+
+            {/* Unknown columns — per-column accept/reject decisions */}
+            {importState.unknownColumns.length > 0 && (
+              <View style={[styles.infoBox, { borderColor: "#fcd34d", backgroundColor: "#fffbeb" }]}>
+                <View style={styles.infoBoxHeader}>
+                  <Feather name="alert-circle" size={14} color="#b45309" />
+                  <Text style={[styles.infoBoxTitle, { color: "#b45309" }]}>
+                    Unknown columns ({importState.unknownColumns.length}) — choose what to do with each
+                  </Text>
+                </View>
+                <Text style={[styles.infoBoxBody, { color: "#78350f", marginBottom: 8 }]}>
+                  These columns are not in the locked base set and aren’t known custom columns. They’re excluded by default. To keep one, mark it Include and choose its type.
+                </Text>
+                {importState.unknownColumns.map((col) => {
+                  const d = columnDecisions[col.name] ?? { include: false };
+                  return (
+                    <View key={col.name} style={styles.unknownColRow}>
+                      <Text style={[styles.unknownColName, { color: "#78350f" }]}>
+                        “{col.name}” (col {col.columnIndex})
+                      </Text>
+                      <View style={styles.unknownColControls}>
+                        <TouchableOpacity
+                          onPress={() =>
+                            setColumnDecisions((prev) => ({ ...prev, [col.name]: { include: false } }))
+                          }
+                          style={[
+                            styles.pillBtn,
+                            !d.include && styles.pillBtnActive,
+                          ]}
+                        >
+                          <Text style={[styles.pillBtnText, !d.include && styles.pillBtnTextActive]}>Exclude</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() =>
+                            setColumnDecisions((prev) => ({ ...prev, [col.name]: { include: true, type: "text" } }))
+                          }
+                          style={[
+                            styles.pillBtn,
+                            d.include && d.type === "text" && styles.pillBtnActive,
+                          ]}
+                        >
+                          <Text style={[styles.pillBtnText, d.include && d.type === "text" && styles.pillBtnTextActive]}>
+                            Include as text
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() =>
+                            setColumnDecisions((prev) => ({ ...prev, [col.name]: { include: true, type: "number" } }))
+                          }
+                          style={[
+                            styles.pillBtn,
+                            d.include && d.type === "number" && styles.pillBtnActive,
+                          ]}
+                        >
+                          <Text style={[styles.pillBtnText, d.include && d.type === "number" && styles.pillBtnTextActive]}>
+                            Include as number
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             {/* Diff summary row */}
             <View style={styles.diffRow}>
               <TouchableOpacity
@@ -474,14 +615,51 @@ export default function ExcelScreen() {
             {/* Expandable line-by-line breakdown */}
             {expandedSections.add && importState.diff.toAdd.length > 0 && (
               <View style={[styles.breakdownBox, { borderColor: "#86efac", backgroundColor: "#f0fdf4" }]}>
-                <Text style={[styles.breakdownTitle, { color: "#166534" }]}>Lines to be added</Text>
-                {importState.diff.toAdd.map((line, i) => (
-                  <View key={i} style={styles.breakdownRow}>
-                    <Feather name="plus-circle" size={13} color="#16a34a" />
-                    <Text style={[styles.breakdownCategory, { color: "#15803d" }]}>{line.category}</Text>
-                    <Text style={[styles.breakdownLine, { color: "#166534" }]}>{line.lineItem}</Text>
-                  </View>
-                ))}
+                <Text style={[styles.breakdownTitle, { color: "#166534" }]}>
+                  Lines to be added — excluded by default. Tick each one you want to include.
+                </Text>
+                <View style={styles.bulkRowControls}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const next: Record<string, boolean> = { ...rowDecisions };
+                      for (const r of importState.diff.toAdd) next[`${r.category}||${r.lineItem}`] = true;
+                      setRowDecisions(next);
+                    }}
+                    style={[styles.pillBtn, { borderColor: "#16a34a" }]}
+                  >
+                    <Text style={[styles.pillBtnText, { color: "#15803d" }]}>Include all</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const next: Record<string, boolean> = { ...rowDecisions };
+                      for (const r of importState.diff.toAdd) next[`${r.category}||${r.lineItem}`] = false;
+                      setRowDecisions(next);
+                    }}
+                    style={[styles.pillBtn, { borderColor: "#16a34a" }]}
+                  >
+                    <Text style={[styles.pillBtnText, { color: "#15803d" }]}>Exclude all</Text>
+                  </TouchableOpacity>
+                </View>
+                {importState.diff.toAdd.map((line, i) => {
+                  const key = `${line.category}||${line.lineItem}`;
+                  const included = !!rowDecisions[key];
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setRowDecisions((prev) => ({ ...prev, [key]: !prev[key] }))}
+                      style={styles.breakdownRow}
+                      activeOpacity={0.7}
+                    >
+                      <Feather
+                        name={included ? "check-square" : "square"}
+                        size={15}
+                        color={included ? "#16a34a" : "#86efac"}
+                      />
+                      <Text style={[styles.breakdownCategory, { color: "#15803d" }]}>{line.category}</Text>
+                      <Text style={[styles.breakdownLine, { color: "#166534" }]}>{line.lineItem}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
 
@@ -844,4 +1022,27 @@ const styles = StyleSheet.create({
   breakdownCategory: { fontSize: 11, fontFamily: "Inter_500Medium" },
   breakdownLine: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   breakdownLineDeleted: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#dc2626", flex: 1, textDecorationLine: "line-through" as const },
+
+  infoBox: { borderWidth: 1, borderRadius: 8, padding: 12, marginTop: 12, gap: 6 },
+  infoBoxHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  infoBoxTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  infoBoxBody: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+
+  unknownColRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" as const, gap: 8, paddingVertical: 6 },
+  unknownColName: { fontSize: 12, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
+  unknownColControls: { flexDirection: "row", flexWrap: "wrap" as const, gap: 6, marginLeft: "auto" as const },
+
+  pillBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "#fff",
+  },
+  pillBtnActive: { backgroundColor: "#1e3a5f", borderColor: "#1e3a5f" },
+  pillBtnText: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#374151" },
+  pillBtnTextActive: { color: "#ffffff" },
+
+  bulkRowControls: { flexDirection: "row", gap: 8, marginTop: 4, marginBottom: 6 },
 });
