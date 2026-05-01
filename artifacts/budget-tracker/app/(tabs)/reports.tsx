@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { View, ScrollView, StyleSheet, Text, ActivityIndicator, useWindowDimensions, Platform } from "react-native";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
+import { View, ScrollView, StyleSheet, Text, ActivityIndicator, useWindowDimensions, Platform, Alert, TouchableOpacity } from "react-native";
 import Svg, { Path, Text as SvgText, Rect, G, Line, Circle, Polyline } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
@@ -11,6 +11,8 @@ import { WebRefreshButton } from "@/components/WebRefreshButton";
 import { useGetDashboardCharts, useGetDashboardSummary, useListBudgetLinesWithMonthly, useListAlerts } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
 import { CHANNEL_VALUES, CHANNEL_LABELS, type ChannelValue } from "@/components/BudgetTable";
+import { getSessionToken } from "@/lib/authSession";
+import { Feather } from "@expo/vector-icons";
 
 type ChannelFilter = "all" | "none" | ChannelValue;
 
@@ -386,6 +388,51 @@ function ReportsContent() {
     setRefreshing(false);
   };
 
+  const [exporting, setExporting] = useState(false);
+  const handleExportPdf = useCallback(async () => {
+    setExporting(true);
+    try {
+      const token = await getSessionToken();
+      const baseUrl = getApiUrl();
+      const headers: Record<string, string> = {};
+      if (token) headers["x-user-session"] = token;
+      const res = await fetch(`${baseUrl}/api/exports/reports-pdf`, { headers });
+      if (!res.ok) throw new Error("Export failed");
+      if (Platform.OS === "web") {
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "hubert-marketing-reports.pdf";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } else {
+        const FileSystem = (await import("expo-file-system")).default;
+        const Sharing = await import("expo-sharing");
+        const buffer = await res.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        const chunkSize = 8192;
+        let binary = "";
+        for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+          const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.byteLength));
+          binary += String.fromCharCode(...Array.from(chunk));
+        }
+        const base64 = btoa(binary);
+        const fileUri = `${FileSystem.cacheDirectory}hubert-marketing-reports.pdf`;
+        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, { mimeType: "application/pdf", dialogTitle: "Save Reports PDF", UTI: "com.adobe.pdf" });
+        } else {
+          Alert.alert("Error", "Sharing is not available on this device.");
+        }
+      }
+    } catch {
+      Alert.alert("Export Failed", "Could not generate the PDF. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }, []);
+
   const { data: ownerData } = useAnalytics("owner-breakdown");
   const { data: regionalData } = useAnalytics("regional-investment");
   const { data: fixedVarData } = useAnalytics("fixed-vs-variable");
@@ -498,7 +545,34 @@ function ReportsContent() {
     <View style={{ flex: 1 }}>
     <WebRefreshButton onRefresh={handleRefresh} refreshing={refreshing} />
     <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={[styles.content, { paddingBottom: isDesktop ? 40 : 120 }]}>
-      <SectionHeader title="Reports" subtitle={`Visual analytics and spend distribution \u00b7 FY2026`} />
+      <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
+        <View style={{ flex: 1 }}>
+          <SectionHeader title="Reports" subtitle={`Visual analytics and spend distribution \u00b7 FY2026`} />
+        </View>
+        <TouchableOpacity
+          onPress={handleExportPdf}
+          disabled={exporting}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: colors.primary,
+            backgroundColor: exporting ? colors.muted : colors.primary,
+            marginTop: 4,
+          }}
+        >
+          {exporting
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Feather name="download" size={14} color="#fff" />}
+          <Text style={{ color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" }}>
+            {exporting ? "Generating…" : "Export PDF"}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.channelFilterRow}>
         <Text style={[styles.channelFilterLabel, { color: colors.mutedForeground }]}>Channel:</Text>

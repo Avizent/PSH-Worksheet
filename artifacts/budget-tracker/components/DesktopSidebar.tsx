@@ -18,6 +18,7 @@ const MAIN_ITEMS: NavItem[] = [
   { key: "quarterly", label: "Quarterly", icon: "columns", route: "/quarterly" },
   { key: "annual", label: "Annual View", icon: "calendar", route: "/annual" },
   { key: "monthly", label: "Monthly View", icon: "clock", route: "/monthly" },
+  { key: "month-in-review", label: "Month in Review", icon: "zap", route: "/month-in-review" },
   { key: "reports", label: "Reports", icon: "pie-chart", route: "/reports" },
   { key: "alerts", label: "Alerts", icon: "bell", route: "/alerts" },
   { key: "events", label: "Events", icon: "calendar", route: "/events" },

@@ -46,6 +46,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "clock", selected: "clock.fill" }} />
         <Label>Monthly</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="month-in-review">
+        <Icon sf={{ default: "calendar.badge.clock", selected: "calendar.badge.clock" }} />
+        <Label>Month</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="reports">
         <Icon sf={{ default: "chart.pie", selected: "chart.pie.fill" }} />
         <Label>Reports</Label>
@@ -248,6 +252,18 @@ function ClassicTabLayout() {
           title: "Monthly",
           tabBarItemStyle: { display: "none" },
           tabBarIcon: ({ color }) => <Feather name="clock" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="month-in-review"
+        options={{
+          title: "Month",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="calendar.badge.clock" tintColor={color} size={24} />
+            ) : (
+              <Feather name="zap" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen

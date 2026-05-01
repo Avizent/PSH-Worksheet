@@ -27,6 +27,7 @@ import {
 import { asyncHandler } from "../middleware/asyncHandler";
 import { requireVpAuth, vpLogin, isValidVpSession } from "../middleware/vpAuth";
 import { writeAuditLog } from "../middleware/auditLog";
+import { isValidUserSession } from "./userAuth";
 
 const router: IRouter = Router();
 
@@ -515,6 +516,201 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
   doc.moveDown(1);
   doc.fontSize(8).font("Helvetica").fillColor("#9ca3af").text("Hubert Marketing \u00b7 Confidential", { align: "center" });
 
+  doc.end();
+}));
+
+router.get("/exports/reports-pdf", asyncHandler(async (req, res): Promise<void> => {
+  const userSession = req.headers["x-user-session"] as string | undefined;
+  const vpSession = req.headers["x-vp-session"] as string | undefined;
+  const hasUser = !!userSession && isValidUserSession(userSession);
+  const hasVp = !!vpSession && isValidVpSession(vpSession);
+  if (!hasUser && !hasVp) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  const year = 2026;
+  const data = await buildBoardViewData(year);
+
+  const ownerPlanned = await db
+    .select({ owner: budgetLinesTable.owner, total: sql<number>`COALESCE(SUM(${monthlyPlansTable.plannedAmount}), 0)` })
+    .from(budgetLinesTable)
+    .leftJoin(monthlyPlansTable, sql`${monthlyPlansTable.budgetLineId} = ${budgetLinesTable.id} AND ${monthlyPlansTable.year} = ${year}`)
+    .groupBy(budgetLinesTable.owner);
+  const ownerActual = await db
+    .select({ owner: budgetLinesTable.owner, total: sql<number>`COALESCE(SUM(${monthlyActualsTable.actualAmount}), 0)` })
+    .from(budgetLinesTable)
+    .leftJoin(monthlyActualsTable, sql`${monthlyActualsTable.budgetLineId} = ${budgetLinesTable.id} AND ${monthlyActualsTable.year} = ${year}`)
+    .groupBy(budgetLinesTable.owner);
+  const ownerActualMap = new Map(ownerActual.map(o => [o.owner, Number(o.total)]));
+  const owners = ownerPlanned
+    .map(o => ({ owner: o.owner || "Unknown", planned: Number(o.total), actual: ownerActualMap.get(o.owner) ?? 0 }))
+    .sort((a, b) => b.planned - a.planned);
+
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const allLines = await db.select().from(budgetLinesTable);
+  const allPlans = await db.select().from(monthlyPlansTable).where(eq(monthlyPlansTable.year, year));
+  const allActuals = await db.select().from(monthlyActualsTable).where(eq(monthlyActualsTable.year, year));
+  const mirLines = allLines.map(bl => {
+    const mp = allPlans.find(p => p.budgetLineId === bl.id && p.month === currentMonth);
+    const ma = allActuals.find(a => a.budgetLineId === bl.id && a.month === currentMonth);
+    const planned = mp ? Number(mp.plannedAmount) : 0;
+    const actual = ma ? Number(ma.actualAmount) : 0;
+    return { lineItem: bl.lineItem, category: bl.category, planned, actual, variance: actual - planned };
+  }).filter(l => l.planned > 0 || l.actual > 0).sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
+
+  const fmt = (v: number) => {
+    if (Math.abs(v) >= 1000000) return "£" + (v / 1000000).toFixed(2) + "M";
+    if (Math.abs(v) >= 1000) return "£" + (v / 1000).toFixed(1) + "k";
+    return "£" + v.toFixed(0);
+  };
+  const fmtPct = (a: number, p: number) => p > 0 ? ((a / p) * 100).toFixed(0) + "%" : "-";
+  const varPct = (a: number, p: number) => p > 0 ? ((a - p) / p * 100).toFixed(1) + "%" : "-";
+
+  const PDFDocument = (await import("pdfkit")).default;
+  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'attachment; filename="hubert-marketing-reports.pdf"');
+  doc.pipe(res);
+
+  const drawTable = (headers: string[], rows: string[][], colWidths: number[]) => {
+    const tableX = 40;
+    const rowH = 18;
+    let y = doc.y;
+    doc.rect(tableX, y, colWidths.reduce((a, b) => a + b, 0), rowH).fill("#f3f4f6");
+    let cx = tableX;
+    headers.forEach((h, i) => {
+      doc.fontSize(8).font("Helvetica-Bold").fillColor("#374151").text(h, cx + 4, y + 5, { width: colWidths[i] - 8 });
+      cx += colWidths[i];
+    });
+    y += rowH;
+    for (const row of rows) {
+      if (y > doc.page.height - 60) { doc.addPage(); y = 40; }
+      cx = tableX;
+      row.forEach((cell, i) => {
+        doc.fontSize(8).font("Helvetica").fillColor("#1a1a2e").text(cell, cx + 4, y + 4, { width: colWidths[i] - 8 });
+        cx += colWidths[i];
+      });
+      doc.moveTo(tableX, y + rowH - 1).lineTo(tableX + colWidths.reduce((a, b) => a + b, 0), y + rowH - 1).strokeColor("#f0f0f0").lineWidth(0.5).stroke();
+      y += rowH;
+    }
+    doc.y = y + 8;
+  };
+
+  const MONTH_LABELS_PDF = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const genDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  doc.fontSize(22).font("Helvetica-Bold").text("Hubert Marketing Budget", { align: "center" });
+  doc.moveDown(0.3);
+  doc.fontSize(11).font("Helvetica").fillColor("#6b7280")
+    .text(`FY${year} Reports — Generated ${genDate}`, { align: "center" });
+  doc.moveDown(1);
+  doc.fillColor("#1a1a2e");
+
+  const kpis = [
+    { label: "TOTAL BUDGET", value: fmt(data.summary.totalBudget) },
+    { label: "SPENT YTD", value: fmt(data.summary.spentYtd) },
+    { label: "REMAINING", value: fmt(data.summary.remaining) },
+    { label: "UTILISATION", value: data.summary.budgetUtilisation.toFixed(1) + "%" },
+  ];
+  const kpiW = (doc.page.width - 80 - (kpis.length - 1) * 12) / kpis.length;
+  const kpiY = doc.y;
+  kpis.forEach((k, i) => {
+    const x = 40 + i * (kpiW + 12);
+    doc.rect(x, kpiY, kpiW, 50).lineWidth(0.5).strokeColor("#e5e7eb").stroke();
+    doc.fontSize(16).font("Helvetica-Bold").fillColor("#1a1a2e").text(k.value, x + 10, kpiY + 10, { width: kpiW - 20 });
+    doc.fontSize(8).font("Helvetica").fillColor("#6b7280").text(k.label, x + 10, kpiY + 32, { width: kpiW - 20 });
+  });
+  doc.y = kpiY + 60;
+  doc.fillColor("#1a1a2e");
+
+  doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text("Monthly Plan vs Actual");
+  doc.moveDown(0.3);
+  drawTable(
+    ["Month", "Planned", "Actual", "Variance", "Var %", "Utilisation"],
+    data.charts.monthly.map(m => [
+      MONTH_LABELS_PDF[m.month - 1],
+      fmt(Number(m.planned)),
+      fmt(Number(m.actual)),
+      fmt(Number(m.actual) - Number(m.planned)),
+      varPct(Number(m.actual), Number(m.planned)),
+      fmtPct(Number(m.actual), Number(m.planned)),
+    ]),
+    [55, 85, 85, 85, 60, 75],
+  );
+
+  doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text("Category Breakdown");
+  doc.moveDown(0.3);
+  drawTable(
+    ["Category", "Planned", "Actual", "Variance", "Utilisation"],
+    data.charts.categories.map(c => [
+      c.category,
+      fmt(Number(c.planned)),
+      fmt(Number(c.actual)),
+      fmt(Number(c.actual) - Number(c.planned)),
+      fmtPct(Number(c.actual), Number(c.planned)),
+    ]),
+    [155, 95, 95, 95, 105],
+  );
+
+  if (owners.length > 0) {
+    doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text("Owner Breakdown");
+    doc.moveDown(0.3);
+    drawTable(
+      ["Owner", "Planned", "Actual", "Variance", "Utilisation"],
+      owners.map(o => [
+        o.owner,
+        fmt(o.planned),
+        fmt(o.actual),
+        fmt(o.actual - o.planned),
+        fmtPct(o.actual, o.planned),
+      ]),
+      [155, 95, 95, 95, 105],
+    );
+  }
+
+  if (data.charts.channels.length > 0) {
+    doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text("Channel Breakdown");
+    doc.moveDown(0.3);
+    drawTable(
+      ["Channel", "Planned", "Actual", "Variance", "Utilisation"],
+      data.charts.channels.map(c => [
+        c.channel.charAt(0).toUpperCase() + c.channel.slice(1),
+        fmt(Number(c.planned)),
+        fmt(Number(c.actual)),
+        fmt(Number(c.actual) - Number(c.planned)),
+        fmtPct(Number(c.actual), Number(c.planned)),
+      ]),
+      [155, 95, 95, 95, 105],
+    );
+  }
+
+  if (mirLines.length > 0) {
+    const mirMonthName = MONTH_LABELS_PDF[currentMonth - 1];
+    const mirTotalPlanned = mirLines.reduce((s, l) => s + l.planned, 0);
+    const mirTotalActual = mirLines.reduce((s, l) => s + l.actual, 0);
+    doc.moveDown(0.5).fontSize(13).font("Helvetica-Bold").fillColor("#1a1a2e").text(`${mirMonthName} in Review — Top Variances`);
+    doc.moveDown(0.3);
+    doc.fontSize(9).font("Helvetica").fillColor("#6b7280")
+      .text(`${mirMonthName} total: Planned ${fmt(mirTotalPlanned)} · Actual ${fmt(mirTotalActual)} · Variance ${fmt(mirTotalActual - mirTotalPlanned)} (${varPct(mirTotalActual, mirTotalPlanned)})`);
+    doc.moveDown(0.4);
+    drawTable(
+      ["Line Item", "Category", "Planned", "Actual", "Variance", "Var %"],
+      mirLines.slice(0, 15).map(l => [
+        l.lineItem,
+        l.category,
+        fmt(l.planned),
+        fmt(l.actual),
+        fmt(l.variance),
+        varPct(l.actual, l.planned),
+      ]),
+      [160, 80, 75, 75, 75, 80],
+    );
+  }
+
+  doc.moveDown(1);
+  doc.fontSize(8).font("Helvetica").fillColor("#9ca3af").text("Hubert Marketing · Confidential · Reports Export", { align: "center" });
   doc.end();
 }));
 
