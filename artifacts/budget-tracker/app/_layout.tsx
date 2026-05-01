@@ -71,6 +71,7 @@ function RootLayoutNav() {
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="board-view" options={{ headerShown: false }} />
+          <Stack.Screen name="desktop-preview" options={{ headerShown: false }} />
         </Stack>
       </AuthGate>
     </AuthProvider>

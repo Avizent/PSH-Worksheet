@@ -218,6 +218,10 @@ function DashboardContent() {
     });
   };
 
+  const goToDesktopPreview = () => {
+    router.push("/desktop-preview");
+  };
+
   const isLoading = summaryLoading || linesLoading;
   const hasError = summaryError || linesError;
 
@@ -406,33 +410,56 @@ function DashboardContent() {
         <>
           <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 4 }}>
             <SectionHeader title="Budget Overview" subtitle="FY26 Marketing Budget" />
-            <TouchableOpacity
-              onPress={handleSaveSnapshot}
-              disabled={snapSaving}
-              activeOpacity={0.8}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 5,
-                paddingHorizontal: 12,
-                paddingVertical: 7,
-                borderRadius: 8,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                marginBottom: 16,
-                opacity: snapSaving ? 0.5 : 1,
-              }}
-            >
-              {snapSaving ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Feather name="archive" size={13} color={colors.primary} />
-              )}
-              <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.primary }}>
-                Save Snapshot
-              </Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                onPress={goToDesktopPreview}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  marginBottom: 16,
+                }}
+              >
+                <Feather name="monitor" size={13} color={colors.primary} />
+                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.primary }}>
+                  Desktop preview
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveSnapshot}
+                disabled={snapSaving}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  marginBottom: 16,
+                  opacity: snapSaving ? 0.5 : 1,
+                }}
+              >
+                {snapSaving ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Feather name="archive" size={13} color={colors.primary} />
+                )}
+                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.primary }}>
+                  Save Snapshot
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={[styles.kpiRow, { flexDirection: isDesktop ? "row" : "column" }]}>
             <KpiCard title="Total Budget" value={formatCurrency(summary?.totalBudget ?? 0)} icon="target" color={colors.primary} />
