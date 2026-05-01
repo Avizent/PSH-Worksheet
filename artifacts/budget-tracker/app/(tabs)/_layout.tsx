@@ -78,6 +78,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "archivebox", selected: "archivebox.fill" }} />
         <Label>Snapshots</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="columns" hidden>
+        <Icon sf={{ default: "columns", selected: "columns" }} />
+        <Label>Columns</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="owners">
         <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
         <Label>Admin</Label>
@@ -352,6 +356,14 @@ function ClassicTabLayout() {
           title: "Snapshots",
           tabBarItemStyle: { display: "none" },
           tabBarIcon: ({ color }) => <Feather name="archive" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="columns"
+        options={{
+          title: "Columns",
+          tabBarItemStyle: { display: "none" },
+          tabBarIcon: ({ color }) => <Feather name="columns" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
