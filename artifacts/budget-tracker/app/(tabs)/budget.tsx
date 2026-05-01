@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { View, ScrollView, StyleSheet, Text, Platform, ActivityIndicator, RefreshControl, TextInput, Modal, TouchableOpacity } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
@@ -35,6 +36,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 const FY_YEAR = 2026;
+const FILTERS_STORAGE_KEY = "budget-filters-v1";
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const BUILTIN_SORT_ACCESSORS: Record<string, (r: BudgetLineRow) => string | number | null> = {
   lineItem: (r) => r.lineItem,
@@ -121,6 +123,37 @@ function BudgetContent() {
   const [filterChannel, setFilterChannel] = useState<string>("All");
   const [filterMonth, setFilterMonth] = useState<number>(0);
   const [filterOwner, setFilterOwner] = useState<string>(initialOwner);
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
+
+  const toggleExpanded = useCallback((id: number) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Load persisted filters once on mount (URL params take priority)
+  useEffect(() => {
+    AsyncStorage.getItem(FILTERS_STORAGE_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const saved = JSON.parse(raw) as { category?: string; channel?: string; month?: number };
+        if (initialCategory === "All" && saved.category && saved.category !== "All") {
+          setFilterCategory(saved.category);
+        }
+        if (saved.channel && saved.channel !== "All") setFilterChannel(saved.channel);
+        if (typeof saved.month === "number" && saved.month !== 0) setFilterMonth(saved.month);
+      } catch { /* ignore corrupt storage */ }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist filters whenever they change
+  useEffect(() => {
+    AsyncStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ category: filterCategory, channel: filterChannel, month: filterMonth }));
+  }, [filterCategory, filterChannel, filterMonth]);
+
   useEffect(() => {
     if (typeof params.owner === "string" && params.owner !== filterOwner) {
       setFilterOwner(params.owner);
@@ -481,33 +514,59 @@ function BudgetContent() {
                 </View>
                 {catItems.map((item) => {
                   const varianceColor = item.variance > 0 ? colors.success : item.variance < 0 ? colors.destructive : colors.foreground;
+                  const isExpanded = expandedIds.has(item.id);
                   return (
                     <View key={item.id} style={[styles.mobileCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+                      {/* Top row */}
                       <View style={styles.mobileCardTop}>
                         <View style={{ flex: 1, marginRight: 8 }}>
-                          <InlineText
-                            value={item.lineItem}
-                            onSave={(v) => handleUpdateField(item.id, "lineItem", v)}
-                            colors={colors}
-                            textStyle={{ fontSize: 14, fontFamily: "Inter_500Medium" }}
-                          />
+                          {isExpanded ? (
+                            <InlineText
+                              value={item.lineItem}
+                              onSave={(v) => handleUpdateField(item.id, "lineItem", v)}
+                              colors={colors}
+                              textStyle={{ fontSize: 14, fontFamily: "Inter_500Medium" }}
+                            />
+                          ) : (
+                            <Text style={[styles.mobileItemName, { color: colors.foreground }]} numberOfLines={2}>{item.lineItem}</Text>
+                          )}
                         </View>
-                        <TouchableOpacity onPress={() => confirmDelete(item.lineItem, () => handleDelete(item.id, item.lineItem))} hitSlop={8}>
-                          <Feather name="trash-2" size={16} color={colors.destructive} />
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.mobileMetaRow}>
-                        <PickerCell value={item.category} options={categoryOptions} onSelect={(v) => handleUpdateField(item.id, "category", v)} colors={colors} placeholder="Category" allowNew newLabel="+ New category…" onCreateNew={(v) => handleUpdateField(item.id, "category", v)} />
-                        <PickerCell value={item.owner} options={ownerOptions} onSelect={(v) => handleUpdateField(item.id, "owner", v)} colors={colors} placeholder="Owner" withDots freeTextFallback />
-                        <PickerCell value={item.channel} options={channelOptions} onSelect={(v) => handleUpdateField(item.id, "channel", v)} colors={colors} placeholder="Channel" />
-                        <StatusBadge status={item.costStatus} onCycle={() => handleUpdateField(item.id, "costStatus", nextStatus(item.costStatus))} colors={colors} />
-                        {item.channel && (
-                          <View style={[styles.channelBadge, { backgroundColor: colors.primary + "22", borderColor: colors.primary }]}>
-                            <Text style={[styles.channelBadgeText, { color: colors.primary }]}>{CHANNEL_LABELS[item.channel as ChannelValue] ?? item.channel}</Text>
+                        {isExpanded ? (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                            <TouchableOpacity onPress={() => confirmDelete(item.lineItem, () => handleDelete(item.id, item.lineItem))} hitSlop={8}>
+                              <Feather name="trash-2" size={16} color={colors.destructive} />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => toggleExpanded(item.id)} hitSlop={8}>
+                              <Feather name="chevron-up" size={18} color={colors.foreground} />
+                            </TouchableOpacity>
                           </View>
+                        ) : (
+                          <TouchableOpacity onPress={() => toggleExpanded(item.id)} hitSlop={8}>
+                            <Feather name="edit-2" size={15} color={colors.mutedForeground} />
+                          </TouchableOpacity>
                         )}
                       </View>
-                      <View style={styles.mobileCardBottom}>
+
+                      {/* Collapsed: compact meta summary */}
+                      {!isExpanded && (
+                        <Text style={[styles.mobileMetaSummary, { color: colors.mutedForeground }]} numberOfLines={1}>
+                          {item.category}{item.owner ? ` · ${item.owner}` : ""} · {item.costStatus}
+                          {item.channel ? ` · ${CHANNEL_LABELS[item.channel as ChannelValue] ?? item.channel}` : ""}
+                        </Text>
+                      )}
+
+                      {/* Expanded: full edit pickers */}
+                      {isExpanded && (
+                        <View style={styles.mobileMetaRow}>
+                          <PickerCell value={item.category} options={categoryOptions} onSelect={(v) => handleUpdateField(item.id, "category", v)} colors={colors} placeholder="Category" allowNew newLabel="+ New category…" onCreateNew={(v) => handleUpdateField(item.id, "category", v)} />
+                          <PickerCell value={item.owner} options={ownerOptions} onSelect={(v) => handleUpdateField(item.id, "owner", v)} colors={colors} placeholder="Owner" withDots freeTextFallback />
+                          <PickerCell value={item.channel} options={channelOptions} onSelect={(v) => handleUpdateField(item.id, "channel", v)} colors={colors} placeholder="Channel" />
+                          <StatusBadge status={item.costStatus} onCycle={() => handleUpdateField(item.id, "costStatus", nextStatus(item.costStatus))} colors={colors} />
+                        </View>
+                      )}
+
+                      {/* Metrics row */}
+                      <View style={[styles.mobileCardBottom, { marginTop: isExpanded ? 4 : 8 }]}>
                         {amountMode === "plan" ? (
                           <TouchableOpacity style={styles.mobileMetric} onPress={() => setMonthlyOpen({ id: item.id, lineItem: item.lineItem, mode: "plan" })} activeOpacity={0.6}>
                             <Text style={[styles.mobileMetricLabel, { color: colors.mutedForeground }]}>Plan ✎</Text>
@@ -540,7 +599,15 @@ function BudgetContent() {
                             {item.totalPlan > 0 ? ((item.variance / item.totalPlan) * 100).toFixed(1) + "%" : "-"}
                           </Text>
                         </View>
+                        {item.boardApprovedAmount != null && (
+                          <View style={styles.mobileMetric}>
+                            <Text style={[styles.mobileMetricLabel, { color: colors.mutedForeground }]}>Board '25</Text>
+                            <Text style={[styles.mobileMetricValue, { color: colors.mutedForeground }]}>{formatCurrency(item.boardApprovedAmount)}</Text>
+                          </View>
+                        )}
                       </View>
+
+                      {/* Projection row */}
                       {item.costStatus === "Fixed Cost" && (
                         <TouchableOpacity onPress={() => setEditingLine({ id: item.id, lineItem: item.lineItem, pct: item.projectionPct ?? 0 })} style={[styles.projectionRow, { borderTopColor: colors.border }]} activeOpacity={0.7}>
                           <Feather name="trending-up" size={13} color={colors.primary} />
@@ -622,10 +689,11 @@ const styles = StyleSheet.create({
   categoryName: { fontSize: 15, fontFamily: "Inter_700Bold" },
   categoryTotal: { fontSize: 13, fontFamily: "Inter_500Medium" },
   mobileCard: { borderWidth: 1, padding: 12 },
-  mobileCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  mobileItemName: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1, marginRight: 8 },
-  mobileMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 10 },
-  mobileCardBottom: { flexDirection: "row", justifyContent: "space-between" },
+  mobileCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  mobileItemName: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  mobileMetaSummary: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3, marginBottom: 10 },
+  mobileMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center", marginTop: 8, marginBottom: 6 },
+  mobileCardBottom: { flexDirection: "row", justifyContent: "space-between", flexWrap: "wrap", gap: 8 },
   mobileMetric: { alignItems: "center" },
   mobileMetricLabel: { fontSize: 11, fontFamily: "Inter_400Regular", marginBottom: 2 },
   mobileMetricValue: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
