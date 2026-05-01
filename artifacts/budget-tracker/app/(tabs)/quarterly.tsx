@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
-import { View, ScrollView, StyleSheet, Text, Platform, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, ScrollView, StyleSheet, Text, ActivityIndicator, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import Svg, { Rect, Text as SvgText, Line, G } from "react-native-svg";
+import Svg, { Rect, Text as SvgText, G } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { KpiCard } from "@/components/KpiCard";
@@ -64,15 +64,13 @@ function HorizontalBarChart({ data, width }: { data: { label: string; planned: n
   );
 }
 
-function QuarterlyContent() {
+export function QuarterlyBody() {
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
   const [selectedQ, setSelectedQ] = useState(Math.floor(new Date().getMonth() / 3));
 
   const { data: budgetLines, isLoading } = useListBudgetLinesWithMonthly({ year: 2026 });
-  const { data: alerts } = useListAlerts({ resolved: false });
-  const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
 
   const quarter = QUARTERS[selectedQ];
 
@@ -120,7 +118,7 @@ function QuarterlyContent() {
     );
   }
 
-  const content = (
+  return (
     <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={[styles.content, { paddingBottom: isDesktop ? 40 : 120 }]}>
       <View style={styles.headerRow}>
         <SectionHeader title="Quarterly View" subtitle={`Budget breakdown by quarter`} />
@@ -164,16 +162,24 @@ function QuarterlyContent() {
       </View>
     </ScrollView>
   );
+}
+
+function QuarterlyContent() {
+  const { mode } = useLayout();
+  const isDesktop = mode === "desktop";
+  const colors = useColors();
+  const { data: alerts } = useListAlerts({ resolved: false });
+  const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
 
   if (isDesktop) {
     return (
       <View style={[styles.desktopContainer, { backgroundColor: colors.background }]}>
         <DesktopSidebar alertCount={alertCount} />
-        <View style={{ flex: 1 }}>{content}</View>
+        <View style={{ flex: 1 }}><QuarterlyBody /></View>
       </View>
     );
   }
-  return content;
+  return <QuarterlyBody />;
 }
 
 export default function QuarterlyScreen() {

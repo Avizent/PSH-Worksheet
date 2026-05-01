@@ -34,7 +34,7 @@ function NativeTabLayout() {
         <Icon sf={{ default: "checklist", selected: "checklist" }} />
         <Label>Evt Mgmt</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="quarterly">
+      <NativeTabs.Trigger name="quarterly" hidden>
         <Icon sf={{ default: "chart.bar.xaxis", selected: "chart.bar.xaxis" }} />
         <Label>Quarterly</Label>
       </NativeTabs.Trigger>
@@ -48,7 +48,7 @@ function NativeTabLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="month-in-review">
         <Icon sf={{ default: "calendar.badge.clock", selected: "calendar.badge.clock" }} />
-        <Label>Month</Label>
+        <Label>Views</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="reports">
         <Icon sf={{ default: "chart.pie", selected: "chart.pie.fill" }} />
@@ -234,6 +234,7 @@ function ClassicTabLayout() {
         name="quarterly"
         options={{
           title: "Quarterly",
+          tabBarItemStyle: { display: "none" },
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="chart.bar.xaxis" tintColor={color} size={24} />
@@ -261,7 +262,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="month-in-review"
         options={{
-          title: "Month",
+          title: "Views",
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="calendar.badge.clock" tintColor={color} size={24} />

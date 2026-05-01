@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   ScrollView,
@@ -6,7 +6,7 @@ import {
   Text,
   ActivityIndicator,
   useWindowDimensions,
-  Platform,
+  TouchableOpacity,
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
@@ -16,6 +16,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { WebRefreshButton } from "@/components/WebRefreshButton";
 import { useListBudgetLinesWithMonthly, useListAlerts } from "@workspace/api-client-react";
 import { Feather } from "@expo/vector-icons";
+import { QuarterlyBody } from "./quarterly";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -106,7 +107,7 @@ function LineRow({ rank, lineItem, category, owner, planned, actual, variance, i
   );
 }
 
-function MirContent() {
+function MirBody() {
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
@@ -117,8 +118,6 @@ function MirContent() {
   const monthName = MONTH_NAMES[currentMonth - 1];
 
   const { data: budgetLines, isLoading, isError, refetch } = useListBudgetLinesWithMonthly({ year: 2026 });
-  const { data: alerts } = useListAlerts({ resolved: false });
-  const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
 
   const { kpis, overLines, underLines, top5 } = useMemo(() => {
     if (!budgetLines) return { kpis: null, overLines: [], underLines: [], top5: [] };
@@ -183,10 +182,9 @@ function MirContent() {
   }
 
   const varAccent = kpis && kpis.totalVariance > 0 ? "over" : kpis && kpis.totalVariance < 0 ? "under" : "neutral";
-
   const tableWidth = isDesktop ? Math.min(windowWidth - 240 - 96, 900) : windowWidth - 48;
 
-  const content = (
+  return (
     <View style={{ flex: 1 }}>
       <WebRefreshButton onRefresh={handleRefresh} refreshing={refreshing} />
       <ScrollView
@@ -199,7 +197,7 @@ function MirContent() {
         />
 
         {kpis && (
-          <View style={[styles.kpiRow, { flexDirection: isDesktop ? "row" : "row", flexWrap: "wrap" }]}>
+          <View style={[styles.kpiRow, { flexDirection: "row", flexWrap: "wrap" }]}>
             <KpiCard label="Planned" value={fmt(kpis.totalPlanned)} />
             <KpiCard label="Actual Spend" value={fmt(kpis.totalActual)} />
             <KpiCard
@@ -220,9 +218,7 @@ function MirContent() {
         <View style={{ marginTop: 24 }}>
           <View style={[styles.sectionLabel, { borderColor: colors.border }]}>
             <View style={[styles.sectionDot, { backgroundColor: "#ef4444" }]} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Over Budget
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Over Budget</Text>
             <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>
               {overLines.length} {overLines.length === 1 ? "line" : "lines"}
             </Text>
@@ -230,9 +226,7 @@ function MirContent() {
           {overLines.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="check-circle" size={20} color={colors.success ?? "#16a34a"} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                No lines are over budget this month
-              </Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No lines are over budget this month</Text>
             </View>
           ) : (
             <View style={[styles.tableCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -245,17 +239,7 @@ function MirContent() {
                   <Text style={[rowStyles.headerNum, { color: colors.mutedForeground }]}>Over by</Text>
                 </View>
                 {overLines.map((l, i) => (
-                  <LineRow
-                    key={l.id}
-                    rank={i + 1}
-                    lineItem={l.lineItem}
-                    category={l.category}
-                    owner={l.owner}
-                    planned={l.planned}
-                    actual={l.actual}
-                    variance={l.variance}
-                    isOver
-                  />
+                  <LineRow key={l.id} rank={i + 1} lineItem={l.lineItem} category={l.category} owner={l.owner} planned={l.planned} actual={l.actual} variance={l.variance} isOver />
                 ))}
               </View>
             </View>
@@ -265,9 +249,7 @@ function MirContent() {
         <View style={{ marginTop: 24 }}>
           <View style={[styles.sectionLabel, { borderColor: colors.border }]}>
             <View style={[styles.sectionDot, { backgroundColor: "#16a34a" }]} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Under Budget
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Under Budget</Text>
             <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>
               {underLines.length} {underLines.length === 1 ? "line" : "lines"}
             </Text>
@@ -275,9 +257,7 @@ function MirContent() {
           {underLines.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="info" size={20} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                No lines are under budget this month
-              </Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No lines are under budget this month</Text>
             </View>
           ) : (
             <View style={[styles.tableCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -290,17 +270,7 @@ function MirContent() {
                   <Text style={[rowStyles.headerNum, { color: colors.mutedForeground }]}>Unspent</Text>
                 </View>
                 {underLines.map((l, i) => (
-                  <LineRow
-                    key={l.id}
-                    rank={i + 1}
-                    lineItem={l.lineItem}
-                    category={l.category}
-                    owner={l.owner}
-                    planned={l.planned}
-                    actual={l.actual}
-                    variance={l.variance}
-                    isOver={false}
-                  />
+                  <LineRow key={l.id} rank={i + 1} lineItem={l.lineItem} category={l.category} owner={l.owner} planned={l.planned} actual={l.actual} variance={l.variance} isOver={false} />
                 ))}
               </View>
             </View>
@@ -311,9 +281,7 @@ function MirContent() {
           <View style={{ marginTop: 24 }}>
             <View style={[styles.sectionLabel, { borderColor: colors.border }]}>
               <View style={[styles.sectionDot, { backgroundColor: colors.primary }]} />
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                Top 5 Variances
-              </Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Top 5 Variances</Text>
               <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>by absolute value</Text>
             </View>
             <View style={[styles.tableCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -326,17 +294,7 @@ function MirContent() {
                   <Text style={[rowStyles.headerNum, { color: colors.mutedForeground }]}>Variance</Text>
                 </View>
                 {top5.map((l, i) => (
-                  <LineRow
-                    key={l.id}
-                    rank={i + 1}
-                    lineItem={l.lineItem}
-                    category={l.category}
-                    owner={l.owner}
-                    planned={l.planned}
-                    actual={l.actual}
-                    variance={l.variance}
-                    isOver={l.variance > 0}
-                  />
+                  <LineRow key={l.id} rank={i + 1} lineItem={l.lineItem} category={l.category} owner={l.owner} planned={l.planned} actual={l.actual} variance={l.variance} isOver={l.variance > 0} />
                 ))}
               </View>
             </View>
@@ -345,21 +303,85 @@ function MirContent() {
       </ScrollView>
     </View>
   );
+}
+
+type ViewMode = "month" | "quarterly";
+
+function ViewSwitcher({ active, onChange }: { active: ViewMode; onChange: (v: ViewMode) => void }) {
+  const colors = useColors();
+  return (
+    <View style={[switcherStyles.bar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      {(["month", "quarterly"] as ViewMode[]).map((v) => {
+        const isActive = active === v;
+        const label = v === "month" ? "Month in Review" : "Quarterly";
+        const icon: keyof typeof Feather.glyphMap = v === "month" ? "zap" : "bar-chart-2";
+        return (
+          <TouchableOpacity
+            key={v}
+            onPress={() => onChange(v)}
+            activeOpacity={0.8}
+            style={[
+              switcherStyles.btn,
+              isActive && { backgroundColor: colors.primary },
+            ]}
+          >
+            <Feather name={icon} size={13} color={isActive ? "#fff" : colors.mutedForeground} />
+            <Text style={[switcherStyles.label, { color: isActive ? "#fff" : colors.mutedForeground }]}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+export default function MonthInReviewScreen() {
+  const [activeView, setActiveView] = useState<ViewMode>("month");
+  const { mode } = useLayout();
+  const isDesktop = mode === "desktop";
+  const colors = useColors();
+  const { data: alerts } = useListAlerts({ resolved: false });
+  const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
+
+  const body = (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ViewSwitcher active={activeView} onChange={setActiveView} />
+      {activeView === "month" ? <MirBody /> : <QuarterlyBody />}
+    </View>
+  );
 
   if (isDesktop) {
     return (
       <View style={[styles.desktopContainer, { backgroundColor: colors.background }]}>
         <DesktopSidebar alertCount={alertCount} />
-        <View style={{ flex: 1 }}>{content}</View>
+        <View style={{ flex: 1 }}>{body}</View>
       </View>
     );
   }
-  return content;
+  return body;
 }
 
-export default function MonthInReviewScreen() {
-  return <MirContent />;
-}
+const switcherStyles = StyleSheet.create({
+  bar: {
+    flexDirection: "row",
+    gap: 6,
+    padding: 10,
+    borderBottomWidth: 1,
+  },
+  btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  label: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+});
 
 const kpiStyles = StyleSheet.create({
   card: {
