@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import Svg, { Rect, Text as SvgText, Line, G, Defs, Pattern, Path } from "react-native-svg";
+import Svg, { Rect, Text as SvgText, Line, G, Path } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 
 export type TimelineCategory = {
@@ -16,7 +16,6 @@ interface TimelineExpenditureChartProps {
   currentMonth: number;
   width: number;
   title?: string;
-  subtitle?: string;
   interactive?: boolean;
   expandedCategory?: string | null;
   onCategoryPress?: (category: string) => void;
@@ -53,7 +52,6 @@ export function TimelineExpenditureChart({
   currentMonth,
   width,
   title = "Annual Expenditure Timeline",
-  subtitle = "Spent to date vs. total expected \u00b7 tap a row to expand",
   interactive = false,
   expandedCategory = null,
   onCategoryPress,
@@ -79,32 +77,17 @@ export function TimelineExpenditureChart({
 
   const currentX = chartLeft + monthWidth * Math.min(Math.max(currentMonth - 0.5, 0), 12);
 
-  const displaySubtitle = interactive ? subtitle : "Spent to date vs. total expected";
+  const subtitle = interactive
+    ? "Spent to date vs. total expected \u00b7 tap a row to expand"
+    : "Spent to date vs. total expected";
 
   return (
     <View>
       <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
-      {displaySubtitle ? (
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{displaySubtitle}</Text>
-      ) : null}
+      <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
 
       <Svg width={width} height={height}>
-        <Defs>
-          <Pattern id="hatch-success" patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
-            <Rect width={6} height={6} fill={colors.success} opacity={0.18} />
-            <Line x1={0} y1={0} x2={0} y2={6} stroke={colors.success} strokeWidth={2} opacity={0.55} />
-          </Pattern>
-          <Pattern id="hatch-warning" patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
-            <Rect width={6} height={6} fill={colors.warning} opacity={0.2} />
-            <Line x1={0} y1={0} x2={0} y2={6} stroke={colors.warning} strokeWidth={2} opacity={0.6} />
-          </Pattern>
-          <Pattern id="hatch-destructive" patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
-            <Rect width={6} height={6} fill={colors.destructive} opacity={0.18} />
-            <Line x1={0} y1={0} x2={0} y2={6} stroke={colors.destructive} strokeWidth={2} opacity={0.55} />
-          </Pattern>
-        </Defs>
-
-        {/* Month axis */}
+        {/* Month axis labels */}
         {MONTH_LABELS.map((m, i) => {
           const x = chartLeft + monthWidth * i + monthWidth / 2;
           return (
@@ -114,7 +97,7 @@ export function TimelineExpenditureChart({
           );
         })}
 
-        {/* Vertical month gridlines */}
+        {/* Vertical gridlines */}
         {Array.from({ length: 13 }).map((_, i) => {
           const x = chartLeft + monthWidth * i;
           return (
@@ -122,7 +105,7 @@ export function TimelineExpenditureChart({
           );
         })}
 
-        {/* Rows */}
+        {/* Category rows */}
         {categories.map((c, i) => {
           const rowY = paddingTop + axisHeight + i * rowHeight;
           const barY = rowY + 8;
@@ -145,15 +128,7 @@ export function TimelineExpenditureChart({
           const hatchStart = xStart + solidW;
           const hatchW = Math.max(totalW - solidW, 0);
 
-          const hatchPatternId =
-            status.label === "Over Budget" || status.label === "Over Pace"
-              ? "url(#hatch-destructive)"
-              : status.label === "Monitor"
-                ? "url(#hatch-warning)"
-                : "url(#hatch-success)";
-
           const rawLabel = c.category.length > 16 ? c.category.slice(0, 16) + "\u2026" : c.category;
-
           const rowBg = isOpen ? colors.muted : "transparent";
 
           return (
@@ -161,10 +136,10 @@ export function TimelineExpenditureChart({
               key={`${c.category}-${i}`}
               onPress={interactive && onCategoryPress ? () => onCategoryPress(c.category) : undefined}
             >
-              {/* Hit area + optional highlight */}
+              {/* Row background hit area */}
               <Rect x={0} y={rowY} width={width} height={rowHeight} fill={rowBg} opacity={isOpen ? 0.6 : 1} />
 
-              {/* Chevron indicator */}
+              {/* Chevron indicator (desktop only) */}
               {interactive && (
                 <Path
                   d={isOpen
@@ -188,27 +163,27 @@ export function TimelineExpenditureChart({
                 {rawLabel}
               </SvgText>
 
-              {/* Reference grey bar */}
+              {/* Grey reference bar (full planned span) */}
               <Rect x={xStart} y={refY} width={totalW} height={refBarHeight} fill={colors.border} opacity={0.8} rx={2} />
 
-              {/* Solid spent-to-date bar */}
+              {/* Solid spent bar */}
               {solidW > 0 && (
                 <Rect x={solidStart} y={barY} width={solidW} height={mainBarHeight} fill={status.bg} rx={3} />
               )}
 
-              {/* Spent label */}
+              {/* Spent label inside bar */}
               {solidW > 36 && c.spent > 0 && (
                 <SvgText x={solidStart + solidW - 6} y={barY + mainBarHeight / 2 + 4} fontSize={10} fontWeight="700" fill={colors.primaryForeground} textAnchor="end">
                   {formatShortCurrency(c.spent)}
                 </SvgText>
               )}
 
-              {/* Hatched forecast bar */}
+              {/* Forecast bar — semi-transparent fill (avoids SVG Pattern/Defs) */}
               {hatchW > 0 && (
-                <Rect x={hatchStart} y={barY} width={hatchW} height={mainBarHeight} fill={hatchPatternId} rx={3} />
+                <Rect x={hatchStart} y={barY} width={hatchW} height={mainBarHeight} fill={status.bg} opacity={0.25} rx={3} />
               )}
 
-              {/* Total at end of span */}
+              {/* Planned total label */}
               {hatchW > 20 && (
                 <SvgText
                   x={Math.min(xEnd - 4, width - rightPadding - statusChipWidth - 4)}
@@ -242,29 +217,24 @@ export function TimelineExpenditureChart({
 
       {/* Legend */}
       <View style={styles.legend}>
-        <LegendDot color={colors.success} label="Under budget" />
-        <LegendDot color={colors.warning} label="Monitor" />
-        <LegendDot color={colors.destructive} label="Over budget" />
-        <LegendDot color={colors.border} label="Total planned" solid />
-        <LegendDot color={colors.primary} label="Today" bar />
+        <LegendItem colors={colors} type="solid" label="Spent to date" />
+        <LegendItem colors={colors} type="faded" label="Remaining forecast" />
+        <LegendItem colors={colors} type="ref" label="Total planned" />
+        <LegendItem colors={colors} type="today" label="Today" />
       </View>
     </View>
   );
 }
 
-function LegendDot({ color, label, solid, bar }: { color: string; label: string; solid?: boolean; bar?: boolean }) {
-  const colors = useColors();
+function LegendItem({ colors, type, label }: { colors: ReturnType<typeof useColors>; type: "solid" | "faded" | "ref" | "today"; label: string }) {
+  const bg = type === "ref" ? colors.border : type === "today" ? colors.primary : colors.success;
+  const opacity = type === "faded" ? 0.3 : 1;
   return (
     <View style={styles.legendItem}>
-      {bar ? (
-        <View style={{ width: 10, height: 12, backgroundColor: color, borderRadius: 1 }} />
-      ) : solid ? (
-        <View style={{ width: 14, height: 8, backgroundColor: color, borderRadius: 2 }} />
+      {type === "today" ? (
+        <View style={{ width: 2, height: 12, backgroundColor: bg, borderRadius: 1 }} />
       ) : (
-        <View style={styles.legendSplit}>
-          <View style={{ flex: 1, backgroundColor: color, borderTopLeftRadius: 2, borderBottomLeftRadius: 2 }} />
-          <View style={{ flex: 1, backgroundColor: color, opacity: 0.3, borderTopRightRadius: 2, borderBottomRightRadius: 2 }} />
-        </View>
+        <View style={{ width: 16, height: 8, backgroundColor: bg, opacity, borderRadius: 2 }} />
       )}
       <Text style={[styles.legendText, { color: colors.mutedForeground }]}>{label}</Text>
     </View>
@@ -276,6 +246,5 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 10 },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginTop: 8, paddingHorizontal: 4 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  legendSplit: { width: 22, height: 8, flexDirection: "row", overflow: "hidden", borderRadius: 2 },
   legendText: { fontSize: 11, fontFamily: "Inter_400Regular" },
 });
