@@ -284,26 +284,6 @@ function BudgetContent() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  if (isError && !budgetLines) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ErrorState
-          title="Failed to load budget lines"
-          message="We couldn't fetch budget data. Check your connection and try again."
-          onRetry={handleRefresh}
-        />
-      </View>
-    );
-  }
-
   const linesWithPct = (allLines || []).reduce<Record<number, number>>((acc, l) => { acc[l.id] = l.projectionPct ?? 0; return acc; }, {});
 
   const tableData: BudgetLineRow[] = (budgetLines || [])
@@ -385,6 +365,26 @@ function BudgetContent() {
     return arr;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableData, sortField, sortDir, customColumns]);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (isError && !budgetLines) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ErrorState
+          title="Failed to load budget lines"
+          message="We couldn't fetch budget data. Check your connection and try again."
+          onRetry={handleRefresh}
+        />
+      </View>
+    );
+  }
 
   const allCategories = [...new Set((budgetLines || []).map((d) => d.category))];
   const categories = [...new Set(sorted.map((d) => d.category))];
