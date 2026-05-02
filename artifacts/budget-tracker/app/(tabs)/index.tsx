@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { View, ScrollView, StyleSheet, Platform, ActivityIndicator, RefreshControl, useWindowDimensions, Text, TouchableOpacity, FlatList, Modal, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -20,7 +20,7 @@ import { ProjectionBarChart } from "@/components/ProjectionBarChart";
 import { EventsGantt } from "@/components/EventsGantt";
 import { TimelineExpenditureChart, type TimelineCategory } from "@/components/TimelineExpenditureChart";
 import { useToast } from "@/contexts/ToastContext";
-import Svg, { Rect, Text as SvgText, G } from "react-native-svg";
+import Svg, { Rect, Text as SvgText, G, Path as SvgPath } from "react-native-svg";
 import {
   useGetDashboardSummary,
   useListBudgetLinesWithMonthly,
@@ -54,10 +54,11 @@ function formatCurrency(val: number): string {
 
 const CHART_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
-function RemainingBudgetChart({ categories, width, title = "Remaining Budget by Category" }: { categories: { category: string; planned: number; actual: number }[]; width: number; title?: string }) {
+function RemainingBudgetChart({ categories, width, title = "Remaining Budget by Category", interactive = false, expandedCategory = null, onCategoryPress }: { categories: { category: string; planned: number; actual: number }[]; width: number; title?: string; interactive?: boolean; expandedCategory?: string | null; onCategoryPress?: (cat: string) => void }) {
   const colors = useColors();
   const barHeight = 24;
-  const labelWidth = 130;
+  const chevronW = interactive ? 16 : 0;
+  const labelWidth = 130 + chevronW;
   const chartWidth = width - labelWidth - 60;
   const rowHeight = barHeight + 12;
   const height = categories.length * rowHeight + 20;
@@ -65,16 +66,29 @@ function RemainingBudgetChart({ categories, width, title = "Remaining Budget by 
 
   return (
     <View>
-      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 12 }}>{title}</Text>
+      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, marginBottom: 2 }}>{title}</Text>
+      {interactive && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginBottom: 10 }}>\u00b7 tap a bar to expand</Text>}
+      {!interactive && <View style={{ marginBottom: 10 }} />}
       <Svg width={width} height={height}>
         {categories.map((c, i) => {
           const y = i * rowHeight + 5;
           const plannedW = (c.planned / maxVal) * chartWidth;
           const spentW = (c.actual / maxVal) * chartWidth;
           const remaining = c.planned - c.actual;
+          const isOpen = expandedCategory === c.category;
           return (
-            <G key={i}>
-              <SvgText x={0} y={y + barHeight / 2 + 4} fontSize={11} fill={colors.foreground}>{c.category.length > 16 ? c.category.slice(0, 16) + "\u2026" : c.category}</SvgText>
+            <G key={i} onPress={interactive && onCategoryPress ? () => onCategoryPress(c.category) : undefined}>
+              <Rect x={0} y={y - 2} width={width} height={rowHeight} fill={isOpen ? colors.muted : "transparent"} opacity={0.5} />
+              {interactive && (
+                <SvgPath
+                  d={isOpen
+                    ? `M ${chevronW / 2 - 4} ${y + barHeight / 2 - 3} l 8 0 l -4 6 Z`
+                    : `M ${chevronW / 2 - 3} ${y + barHeight / 2 - 4} l 0 8 l 6 -4 Z`}
+                  fill={colors.mutedForeground}
+                  opacity={0.7}
+                />
+              )}
+              <SvgText x={chevronW} y={y + barHeight / 2 + 4} fontSize={11} fill={isOpen ? colors.primary : colors.foreground}>{c.category.length > 16 ? c.category.slice(0, 16) + "\u2026" : c.category}</SvgText>
               <Rect x={labelWidth} y={y} width={Math.max(plannedW, 2)} height={barHeight} fill={colors.border} rx={4} />
               <Rect x={labelWidth} y={y} width={Math.max(spentW, 1)} height={barHeight} fill={remaining >= 0 ? colors.primary : colors.destructive} rx={4} />
               <SvgText x={labelWidth + Math.max(plannedW, 2) + 6} y={y + barHeight / 2 + 4} fontSize={10} fill={remaining >= 0 ? colors.success : colors.destructive}>
@@ -84,6 +98,36 @@ function RemainingBudgetChart({ categories, width, title = "Remaining Budget by 
           );
         })}
       </Svg>
+    </View>
+  );
+}
+
+type DrillLine = { id: number; lineItem: string; owner: string | null; planned: number; actual: number };
+
+function CategoryDrillTable({ lines, colors }: { lines: DrillLine[]; colors: ReturnType<typeof useColors> }) {
+  const sorted = [...lines].sort((a, b) => b.planned - a.planned);
+  return (
+    <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+      <View style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 4 }}>
+        <Text style={{ flex: 1, fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.5 }}>Line Item</Text>
+        <Text style={{ width: 80, fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.5 }}>Owner</Text>
+        <Text style={{ width: 80, fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, textAlign: "right", textTransform: "uppercase", letterSpacing: 0.5 }}>Planned</Text>
+        <Text style={{ width: 80, fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, textAlign: "right", textTransform: "uppercase", letterSpacing: 0.5 }}>Actual</Text>
+        <Text style={{ width: 80, fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, textAlign: "right", textTransform: "uppercase", letterSpacing: 0.5 }}>Remaining</Text>
+      </View>
+      {sorted.map((line) => {
+        const remaining = line.planned - line.actual;
+        const remColor = remaining >= 0 ? "#16a34a" : "#ef4444";
+        return (
+          <View key={line.id} style={{ flexDirection: "row", paddingVertical: 9, paddingHorizontal: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, alignItems: "center" }}>
+            <Text style={{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: colors.foreground }} numberOfLines={2}>{line.lineItem}</Text>
+            <Text style={{ width: 80, fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground }} numberOfLines={1}>{line.owner ?? "\u2014"}</Text>
+            <Text style={{ width: 80, fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "right" }}>{formatCurrency(line.planned)}</Text>
+            <Text style={{ width: 80, fontSize: 12, fontFamily: "Inter_400Regular", color: colors.foreground, textAlign: "right" }}>{formatCurrency(line.actual)}</Text>
+            <Text style={{ width: 80, fontSize: 12, fontFamily: "Inter_600SemiBold", color: remColor, textAlign: "right" }}>{formatCurrency(remaining)}</Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -126,6 +170,8 @@ function DashboardContent() {
   const [snapSaving, setSnapSaving] = useState(false);
   const [showSnapModal, setShowSnapModal] = useState(false);
   const [snapLabel, setSnapLabel] = useState("");
+  const [expandedTimelineCategory, setExpandedTimelineCategory] = useState<string | null>(null);
+  const [expandedRemainingCategory, setExpandedRemainingCategory] = useState<string | null>(null);
 
   const fireAutoOpen = useCallback(() => {
     if (Platform.OS === "web") {
@@ -242,6 +288,18 @@ function DashboardContent() {
 
   const hasData = tableData.length > 0;
   const activeAlerts = Array.isArray(alerts) ? alerts : [];
+
+  const linesByCategory = useMemo(() => {
+    const map = new Map<string, DrillLine[]>();
+    for (const line of linesArray) {
+      const planned = (Array.isArray(line.plans) ? line.plans : []).reduce((s: number, p: { plannedAmount?: number }) => s + (p.plannedAmount ?? 0), 0);
+      const actual = (Array.isArray(line.actuals) ? line.actuals : []).reduce((s: number, a: { actualAmount?: number }) => s + (a.actualAmount ?? 0), 0);
+      const existing = map.get(line.category) ?? [];
+      existing.push({ id: line.id, lineItem: line.lineItem, owner: line.owner ?? null, planned, actual });
+      map.set(line.category, existing);
+    }
+    return map;
+  }, [linesArray]);
 
   if (isLoading) {
     return (
@@ -497,11 +555,19 @@ function DashboardContent() {
                       {breakdownGroup === "channel" && channelData.length === 0 ? (
                         <Text style={{ fontSize: 13, color: colors.mutedForeground, padding: 20 }}>No channel data yet.</Text>
                       ) : (
-                        <RemainingBudgetChart
-                          categories={breakdownData.map(c => ({ category: c.label, planned: c.planned, actual: c.actual }))}
-                          width={chartHalfWidth}
-                          title={breakdownGroup === "category" ? "Remaining Budget by Category" : "Remaining Budget by Channel"}
-                        />
+                        <>
+                          <RemainingBudgetChart
+                            categories={breakdownData.map(c => ({ category: c.label, planned: c.planned, actual: c.actual }))}
+                            width={chartHalfWidth}
+                            title={breakdownGroup === "category" ? "Remaining Budget by Category" : "Remaining Budget by Channel"}
+                            interactive={breakdownGroup === "category"}
+                            expandedCategory={expandedRemainingCategory}
+                            onCategoryPress={(cat) => setExpandedRemainingCategory(prev => prev === cat ? null : cat)}
+                          />
+                          {expandedRemainingCategory && breakdownGroup === "category" && (
+                            <CategoryDrillTable lines={linesByCategory.get(expandedRemainingCategory) ?? []} colors={colors} />
+                          )}
+                        </>
                       )}
                     </View>
                   </View>
@@ -511,7 +577,13 @@ function DashboardContent() {
                         categories={timelineCategories}
                         currentMonth={currentMonth}
                         width={chartFullWidth}
+                        interactive={true}
+                        expandedCategory={expandedTimelineCategory}
+                        onCategoryPress={(cat) => setExpandedTimelineCategory(prev => prev === cat ? null : cat)}
                       />
+                      {expandedTimelineCategory && (
+                        <CategoryDrillTable lines={linesByCategory.get(expandedTimelineCategory) ?? []} colors={colors} />
+                      )}
                     </View>
                   )}
                   <View style={styles.extraSection}>

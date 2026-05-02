@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import Svg, { Rect, Text as SvgText, Line, G, Defs, Pattern, Path } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 
@@ -17,15 +17,18 @@ interface TimelineExpenditureChartProps {
   width: number;
   title?: string;
   subtitle?: string;
+  interactive?: boolean;
+  expandedCategory?: string | null;
+  onCategoryPress?: (category: string) => void;
 }
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function formatShortCurrency(val: number): string {
   const abs = Math.abs(val);
-  if (abs >= 1000000) return `£${(val / 1000000).toFixed(1)}M`;
-  if (abs >= 1000) return `£${Math.round(val / 1000)}k`;
-  return `£${Math.round(val)}`;
+  if (abs >= 1000000) return `\u00a3${(val / 1000000).toFixed(1)}M`;
+  if (abs >= 1000) return `\u00a3${Math.round(val / 1000)}k`;
+  return `\u00a3${Math.round(val)}`;
 }
 
 function statusFor(plannedYtd: number, spent: number, planned: number, colors: ReturnType<typeof useColors>) {
@@ -50,10 +53,15 @@ export function TimelineExpenditureChart({
   currentMonth,
   width,
   title = "Annual Expenditure Timeline",
-  subtitle = "Spent to date vs. total expected",
+  subtitle = "Spent to date vs. total expected \u00b7 tap a row to expand",
+  interactive = false,
+  expandedCategory = null,
+  onCategoryPress,
 }: TimelineExpenditureChartProps) {
   const colors = useColors();
-  const labelWidth = 140;
+
+  const chevronWidth = interactive ? 18 : 0;
+  const labelWidth = 140 + chevronWidth;
   const rightPadding = 16;
   const statusChipWidth = 86;
   const axisHeight = 26;
@@ -71,11 +79,13 @@ export function TimelineExpenditureChart({
 
   const currentX = chartLeft + monthWidth * Math.min(Math.max(currentMonth - 0.5, 0), 12);
 
+  const displaySubtitle = interactive ? subtitle : "Spent to date vs. total expected";
+
   return (
     <View>
       <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
-      {subtitle ? (
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
+      {displaySubtitle ? (
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{displaySubtitle}</Text>
       ) : null}
 
       <Svg width={width} height={height}>
@@ -98,32 +108,17 @@ export function TimelineExpenditureChart({
         {MONTH_LABELS.map((m, i) => {
           const x = chartLeft + monthWidth * i + monthWidth / 2;
           return (
-            <SvgText
-              key={m}
-              x={x}
-              y={paddingTop + 14}
-              fontSize={10}
-              fill={colors.mutedForeground}
-              textAnchor="middle"
-            >
+            <SvgText key={m} x={x} y={paddingTop + 14} fontSize={10} fill={colors.mutedForeground} textAnchor="middle">
               {m}
             </SvgText>
           );
         })}
+
         {/* Vertical month gridlines */}
         {Array.from({ length: 13 }).map((_, i) => {
           const x = chartLeft + monthWidth * i;
           return (
-            <Line
-              key={`grid-${i}`}
-              x1={x}
-              y1={paddingTop + axisHeight - 6}
-              x2={x}
-              y2={height - 4}
-              stroke={colors.border}
-              strokeWidth={0.5}
-              opacity={0.5}
-            />
+            <Line key={`grid-${i}`} x1={x} y1={paddingTop + axisHeight - 6} x2={x} y2={height - 4} stroke={colors.border} strokeWidth={0.5} opacity={0.5} />
           );
         })}
 
@@ -131,26 +126,19 @@ export function TimelineExpenditureChart({
         {categories.map((c, i) => {
           const rowY = paddingTop + axisHeight + i * rowHeight;
           const barY = rowY + 8;
+          const isOpen = expandedCategory === c.category;
 
           const xStart = monthToX(c.plannedStartMonth);
-          const xEnd = monthToX(c.plannedEndMonth + 1); // end of end month
+          const xEnd = monthToX(c.plannedEndMonth + 1);
           const totalW = Math.max(xEnd - xStart, 4);
 
-          // Reference grey bar (total planned span)
           const refY = barY + mainBarHeight + 4;
 
-          // Status is based on pace: spend vs planned-through-today (planned YTD
-          // proxy = total planned * (months elapsed in span / total span months))
           const spanMonths = Math.max(c.plannedEndMonth - c.plannedStartMonth + 1, 1);
-          const elapsedMonths = Math.max(
-            0,
-            Math.min(currentMonth, c.plannedEndMonth) - c.plannedStartMonth + 1
-          );
+          const elapsedMonths = Math.max(0, Math.min(currentMonth, c.plannedEndMonth) - c.plannedStartMonth + 1);
           const plannedYtd = c.planned * (elapsedMonths / spanMonths);
           const status = statusFor(plannedYtd, c.spent, c.planned, colors);
 
-          // Split the bar by *amount*: solid = spent / planned of the span;
-          // hatched = remainder (forecast to EOY).
           const spentRatio = c.planned > 0 ? Math.min(c.spent / c.planned, 1) : 0;
           const solidStart = xStart;
           const solidW = totalW * spentRatio;
@@ -164,70 +152,60 @@ export function TimelineExpenditureChart({
                 ? "url(#hatch-warning)"
                 : "url(#hatch-success)";
 
-          const label =
-            c.category.length > 18 ? c.category.slice(0, 18) + "\u2026" : c.category;
+          const rawLabel = c.category.length > 16 ? c.category.slice(0, 16) + "\u2026" : c.category;
+
+          const rowBg = isOpen ? colors.muted : "transparent";
 
           return (
-            <G key={`${c.category}-${i}`}>
+            <G
+              key={`${c.category}-${i}`}
+              onPress={interactive && onCategoryPress ? () => onCategoryPress(c.category) : undefined}
+            >
+              {/* Hit area + optional highlight */}
+              <Rect x={0} y={rowY} width={width} height={rowHeight} fill={rowBg} opacity={isOpen ? 0.6 : 1} />
+
+              {/* Chevron indicator */}
+              {interactive && (
+                <Path
+                  d={isOpen
+                    ? `M ${chevronWidth / 2 - 4} ${rowY + rowHeight / 2 - 3} l 8 0 l -4 6 Z`
+                    : `M ${chevronWidth / 2 - 3} ${rowY + rowHeight / 2 - 4} l 0 8 l 6 -4 Z`
+                  }
+                  fill={colors.mutedForeground}
+                  opacity={0.7}
+                />
+              )}
+
               {/* Category label */}
               <SvgText
                 x={labelWidth - 10}
                 y={barY + mainBarHeight / 2 + 4}
                 fontSize={11}
                 fontWeight="600"
-                fill={colors.foreground}
+                fill={isOpen ? colors.primary : colors.foreground}
                 textAnchor="end"
               >
-                {label}
+                {rawLabel}
               </SvgText>
 
               {/* Reference grey bar */}
-              <Rect
-                x={xStart}
-                y={refY}
-                width={totalW}
-                height={refBarHeight}
-                fill={colors.border}
-                opacity={0.8}
-                rx={2}
-              />
+              <Rect x={xStart} y={refY} width={totalW} height={refBarHeight} fill={colors.border} opacity={0.8} rx={2} />
 
               {/* Solid spent-to-date bar */}
               {solidW > 0 && (
-                <Rect
-                  x={solidStart}
-                  y={barY}
-                  width={solidW}
-                  height={mainBarHeight}
-                  fill={status.bg}
-                  rx={3}
-                />
+                <Rect x={solidStart} y={barY} width={solidW} height={mainBarHeight} fill={status.bg} rx={3} />
               )}
 
               {/* Spent label */}
               {solidW > 36 && c.spent > 0 && (
-                <SvgText
-                  x={solidStart + solidW - 6}
-                  y={barY + mainBarHeight / 2 + 4}
-                  fontSize={10}
-                  fontWeight="700"
-                  fill={colors.primaryForeground}
-                  textAnchor="end"
-                >
+                <SvgText x={solidStart + solidW - 6} y={barY + mainBarHeight / 2 + 4} fontSize={10} fontWeight="700" fill={colors.primaryForeground} textAnchor="end">
                   {formatShortCurrency(c.spent)}
                 </SvgText>
               )}
 
               {/* Hatched forecast bar */}
               {hatchW > 0 && (
-                <Rect
-                  x={hatchStart}
-                  y={barY}
-                  width={hatchW}
-                  height={mainBarHeight}
-                  fill={hatchPatternId}
-                  rx={3}
-                />
+                <Rect x={hatchStart} y={barY} width={hatchW} height={mainBarHeight} fill={hatchPatternId} rx={3} />
               )}
 
               {/* Total at end of span */}
@@ -244,63 +222,20 @@ export function TimelineExpenditureChart({
                 </SvgText>
               )}
 
-              {/* Status chip on the right */}
-              <Rect
-                x={width - rightPadding - statusChipWidth}
-                y={barY - 2}
-                width={statusChipWidth - 4}
-                height={mainBarHeight + 4}
-                fill={status.bg}
-                opacity={0.15}
-                rx={6}
-              />
-              <Rect
-                x={width - rightPadding - statusChipWidth}
-                y={barY - 2}
-                width={3}
-                height={mainBarHeight + 4}
-                fill={status.bg}
-                rx={1.5}
-              />
-              <SvgText
-                x={width - rightPadding - statusChipWidth + 10}
-                y={barY + mainBarHeight / 2 + 4}
-                fontSize={10}
-                fontWeight="700"
-                fill={status.fg}
-              >
+              {/* Status chip */}
+              <Rect x={width - rightPadding - statusChipWidth} y={barY - 2} width={statusChipWidth - 4} height={mainBarHeight + 4} fill={status.bg} opacity={0.15} rx={6} />
+              <Rect x={width - rightPadding - statusChipWidth} y={barY - 2} width={3} height={mainBarHeight + 4} fill={status.bg} rx={1.5} />
+              <SvgText x={width - rightPadding - statusChipWidth + 10} y={barY + mainBarHeight / 2 + 4} fontSize={10} fontWeight="700" fill={status.fg}>
                 {status.label}
               </SvgText>
             </G>
           );
         })}
 
-        {/* Current date marker (draw last, over everything) */}
-        <Line
-          x1={currentX}
-          y1={paddingTop + axisHeight - 6}
-          x2={currentX}
-          y2={height - 4}
-          stroke={colors.primary}
-          strokeWidth={2}
-          strokeDasharray="4,3"
-        />
-        <Rect
-          x={currentX - 18}
-          y={paddingTop}
-          width={36}
-          height={14}
-          fill={colors.primary}
-          rx={3}
-        />
-        <SvgText
-          x={currentX}
-          y={paddingTop + 10}
-          fontSize={9}
-          fontWeight="700"
-          fill={colors.primaryForeground}
-          textAnchor="middle"
-        >
+        {/* Current date marker */}
+        <Line x1={currentX} y1={paddingTop + axisHeight - 6} x2={currentX} y2={height - 4} stroke={colors.primary} strokeWidth={2} strokeDasharray="4,3" />
+        <Rect x={currentX - 18} y={paddingTop} width={36} height={14} fill={colors.primary} rx={3} />
+        <SvgText x={currentX} y={paddingTop + 10} fontSize={9} fontWeight="700" fill={colors.primaryForeground} textAnchor="middle">
           TODAY
         </SvgText>
       </Svg>
@@ -317,17 +252,7 @@ export function TimelineExpenditureChart({
   );
 }
 
-function LegendDot({
-  color,
-  label,
-  solid,
-  bar,
-}: {
-  color: string;
-  label: string;
-  solid?: boolean;
-  bar?: boolean;
-}) {
+function LegendDot({ color, label, solid, bar }: { color: string; label: string; solid?: boolean; bar?: boolean }) {
   const colors = useColors();
   return (
     <View style={styles.legendItem}>
