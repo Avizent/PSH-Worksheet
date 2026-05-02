@@ -15,15 +15,20 @@ export function LineChart({ data, width, height }: LineChartProps) {
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
-  const maxVal = Math.max(...data.flatMap(d => [d.cumPlanned, d.cumActual]), 1);
-  const niceMax = Math.ceil(maxVal / 100000) * 100000;
+  const maxVal = Math.max(...data.flatMap(d => [d.cumPlanned ?? 0, d.cumActual ?? 0]), 1);
+  const niceMax = Math.max(Math.ceil(maxVal / 100000) * 100000, 1);
 
-  const getX = (i: number) => padding.left + (i / (data.length - 1)) * chartW;
-  const getY = (val: number) => padding.top + chartH - (val / niceMax) * chartH;
+  const getX = (i: number) => data.length <= 1
+    ? padding.left + chartW / 2
+    : padding.left + (i / (data.length - 1)) * chartW;
+  const getY = (val: number | null | undefined) => {
+    const v = val ?? 0;
+    return padding.top + chartH - (v / niceMax) * chartH;
+  };
 
   const plannedPoints = data.map((d, i) => `${getX(i)},${getY(d.cumPlanned)}`).join(" ");
 
-  const actualData = data.filter(d => d.cumActual > 0);
+  const actualData = data.filter(d => (d.cumActual ?? 0) > 0);
   const actualPoints = actualData.map((d, i) => {
     const idx = data.indexOf(d);
     return `${getX(idx)},${getY(d.cumActual)}`;
