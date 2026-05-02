@@ -2,225 +2,78 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Marketing budget tracker for Hubert's VP of Marketing with dual-layout architecture: desktop-optimised web app and native iPhone experience.
+The Hubert Marketing Budget Tracker is a pnpm monorepo TypeScript application designed for Hubert's VP of Marketing. It provides a comprehensive solution for tracking and managing marketing budgets, offering both a desktop-optimized web application and a native iPhone experience.
 
-## Stack
+Key capabilities include:
+- Budget line item management with detailed financial tracking (planned vs. actuals).
+- Advanced analytics and reporting, including KPIs, charts, and variance analysis.
+- Projections engine and intelligent alert system for financial oversight.
+- CSV/Excel import functionality for actual spend data with matching and deduplication.
+- Event management with task tracking and reminders.
+- Robust board view with shareable tokens for stakeholders and export capabilities (PDF, Excel).
+- Versioning for reforecasts and an audit log for all changes.
+- Dual layout system for optimal user experience across desktop and mobile devices.
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
-- **Frontend**: Expo (React Native + React Native Web)
-- **State management**: React Query (@tanstack/react-query)
-- **File uploads**: multer (multipart/form-data), xlsx (Excel parsing)
+The project aims to provide a clear, real-time financial overview, improve budget adherence, and streamline reporting processes for the marketing department.
 
-## Architecture
+## User Preferences
+
+- I prefer clear, concise explanations.
+- I appreciate iterative development with regular updates.
+- I expect robust error handling and informative feedback.
+- I like a consistent and intuitive user interface across devices.
+- I prefer that you ask for confirmation before making any major structural changes or data modifications.
+- Ensure all new features are thoroughly tested and documented.
+
+## System Architecture
+
+The application is built as a pnpm workspace monorepo using Node.js 24 and TypeScript 5.9.
 
 ### Dual Layout System
-- **Desktop** (width >= 768px): Sidebar navigation + multi-column content area
-- **Mobile** (width < 768px): Bottom tab bar + stacked cards
-- Layout detection via `useLayout()` hook in `hooks/useLayout.ts`
+The application adapts its layout based on screen width:
+- **Desktop (width >= 768px)**: Features sidebar navigation and a multi-column content area.
+- **Mobile (width < 768px)**: Utilizes a bottom tab bar and stacked cards for navigation and content display.
+Layout detection is managed by a `useLayout()` hook.
 
-### Artifacts
-- `artifacts/api-server` — Express API server (port 8080, proxied at `/api`)
-- `artifacts/budget-tracker` — Expo app (port 25099, Expo dev domain)
-- `artifacts/mockup-sandbox` — Design sandbox
+### Core Technologies
+- **API Framework**: Express 5.
+- **Database**: PostgreSQL with Drizzle ORM for schema management and querying.
+- **Validation**: Zod for data schema validation.
+- **API Codegen**: Orval for generating API hooks and Zod schemas from an OpenAPI specification.
+- **Build Tool**: esbuild for CommonJS bundling.
+- **Frontend**: Expo (React Native + React Native Web) for cross-platform development.
+- **State Management**: React Query for data fetching, caching, and synchronization.
+- **File Uploads**: `multer` for multipart form data and `xlsx` for Excel parsing.
 
-### Database Schema (16 tables)
-- `users` — Auth-ready user table with role field
-- `budgetLines` — Budget line items with category, owner, region, cost status, `projectionPct` (real, default 0), `boardApprovedAmount` (real, nullable — Dec 2025 board sign-off amounts)
-- `monthlyPlans` — Monthly planned amounts per budget line
-- `monthlyActuals` — Monthly actual spend per budget line, `importId` FK to csvImports for rollback tracking
-- `alerts` — Budget alerts with severity levels (critical/warning/info), deduplication by type+budgetLineId+month+year
-- `events` — Marketing events with status tracking
-- `eventTasks` — Tasks linked to events (title, dueDate, assignee, status, priority, notes)
-- `taskReminders` — Reminders per task (daysBefore, label, firedAt, alertId FK)
-- `inAppAlerts` — In-app notification log when reminders fire (taskId, message, readAt)
-- `auditLogs` — Change audit trail (entityType, entityId, field, oldValue, newValue, action: create/update/delete/rollover)
-- `csvImports` — CSV/Excel import records (filename, status, row counts, `deletedAt` timestamp for soft-delete)
-- `csvImportRows` — Individual parsed CSV rows (raw data, match status, budget line assignment, row hash for idempotency)
-- `boardSettings` — Board visibility settings (sectionKey, label, visible toggle, sortOrder)
-- `shareTokens` — Shareable access tokens (token UUID, label, expiresAt, revoked flag)
-- `forecastVersions` — Forecast version records (versionNumber, name, year, isOriginal flag)
-- `forecastPlans` — Per-version monthly planned amounts (versionId, budgetLineId, month, year, plannedAmount)
+### UI/UX Decisions
+- **Theming**: Supports `light`, `dark`, and `system` themes, persisted using `AsyncStorage`. A `useTheme()` hook manages theme preference and provides the resolved color scheme. Theme toggles are available in the desktop sidebar and mobile dashboard.
+- **Error Handling**: Uses an `ErrorState` component for API query failures, a `WebRefreshButton` for web-specific refresh functionality, and a global `ToastProvider` for animated success, error, and info notifications on mutations.
+- **Alert UX**: Desktop displays `AlertCard` components with severity badges, while mobile uses `SwipeableAlertCard` with a swipe-to-resolve gesture.
+- **Chart Components**: SVG-based charts (`BarChart`, `LineChart`, `DonutChart`, `ProjectionBarChart`, `EventsGantt`, `RemainingBudgetChart`) provide cross-platform data visualization. Desktop uses tabbed chart panels, while mobile features a horizontally swipeable pager.
 
-### API Routes (mounted at `/api`)
-- `GET/POST /budget-lines` — CRUD budget lines
-- `PATCH /budget-lines/:id` — Update budget line (including projectionPct)
-- `GET /budget-lines/with-monthly` — Budget lines with monthly plan/actual data
-- `GET/POST /monthly-plans`, `GET/POST /monthly-actuals` — Monthly data
-- `GET /alerts`, `PATCH /alerts/:id/resolve` — Alert management
-- `POST /alerts/evaluate` — Trigger server-side alert evaluation (6 alert types)
-- `GET/POST /events` — Event management
-- `GET /events/:id/tasks` — List tasks for an event
-- `POST /events/:id/tasks` — Create task for an event
-- `PATCH /event-tasks/:id` — Update task (status, priority, dueDate, etc.)
-- `DELETE /event-tasks/:id` — Delete task
-- `GET /event-tasks/:id/reminders` — List reminders for a task
-- `POST /event-tasks/:id/reminders` — Add reminder (daysBefore, label)
-- `DELETE /task-reminders/:id` — Delete a reminder
-- `GET /in-app-alerts` — List in-app alerts (filters: eventId, unread)
-- `PATCH /in-app-alerts/:id/read` — Mark single alert read
-- `POST /in-app-alerts/mark-all-read` — Mark all (or event's) alerts read
-- `POST /events/:id/check-reminders` — Fire pending reminders for an event's tasks
-- `GET /dashboard/summary` — KPI dashboard aggregation
-- `GET /dashboard/charts` — Monthly + category chart data
-- `GET /projections` — Fixed cost forward projection with % adjustment
-- `GET /imports` — List CSV imports with summary counts
-- `POST /imports/upload` — Upload CSV or Excel (.xlsx/.xls), parse, match rows to budget lines
-- `GET /imports/:id` — Get import with all rows
-- `PATCH /imports/rows/:id/assign` — Assign unmatched row to a budget line
-- `POST /imports/:id/confirm` — Confirm import, create MonthlyActual records (idempotent by row hash, tracks importId)
-- `DELETE /imports/:id` — Soft-delete import (transactional: removes actuals if confirmed, marks as deleted)
-- `GET /analytics/owner-breakdown` — Budget/spend grouped by owner
-- `GET /analytics/regional-investment` — Budget/spend grouped by region
-- `GET /analytics/fixed-vs-variable` — Monthly fixed vs variable cost split
-- `GET /analytics/category-burndown` — Remaining budget per category over time
-- `GET /analytics/board-variance` — Current plan vs board-approved amounts variance
-- `GET /board/settings` — List board visibility settings
-- `PUT /board/settings` — Update board visibility settings (batch toggle)
-- `GET /board/tokens` — List share tokens
-- `POST /board/tokens` — Create share token
-- `PATCH /board/tokens/:id/revoke` — Revoke share token
-- `GET /board/view?token=...` — Get board view data (token-authenticated)
-- `GET /board/preview` — Get board preview data (VP Marketing, no token)
-- `GET /exports/pdf` — Export board view as downloadable HTML report
-- `GET /exports/excel` — Export actuals + projections as Excel spreadsheet
-- `GET /reforecast/versions` — List forecast versions (year filter)
-- `POST /reforecast/versions` — Create new forecast version with plan entries
-- `GET /reforecast/versions/:id` — Get version with all plan entries
-- `GET /reforecast/compare` — Compare two forecast versions side-by-side
-- `GET /audit-logs` — List audit log entries (filters: entityType, startDate, endDate, limit, offset)
-- `POST /admin/rollover` — Annual budget rollover (sourceYear → targetYear, idempotent)
-- `POST /seed` — Seed sample data (clears existing first)
-- `GET /snapshots` — List all saved snapshots (sorted newest-first, with totalBudget/totalSpent/lineCount/pinned)
-- `POST /snapshots` — Save a new snapshot (label optional, enforces 50-file limit)
-- `GET /snapshots/:id` — Get full snapshot body
-- `GET /snapshots/compare?a=:id&b=:id` — Diff two snapshots line-by-line
-- `POST /snapshots/:id/restore` — Restore snapshot (creates pre-restore backup first)
-- `DELETE /snapshots/:id` — Permanently delete a snapshot (returns 204)
-- `PATCH /snapshots/:id/pin` — Toggle snapshot pinned flag (body: { pinned: boolean })
+### Feature Specifications
+- **Database Schema**: Comprises 16 tables covering users, budget lines, monthly plans/actuals, alerts, events, tasks, reminders, audit logs, CSV imports, board settings, share tokens, and forecast versions.
+- **API Routes**: Over 50 RESTful endpoints covering CRUD operations for budget lines, monthly data, alerts, events, tasks, in-app notifications, dashboard summaries, projections, CSV imports, analytics, board settings, share tokens, exports, reforecasts, audit logs, and administrative functions (rollover, seed data, snapshots).
+- **CSV Import Flow**: Supports upload of CSV/Excel files, automatic matching to budget lines, manual assignment of unmatched rows, and idempotent confirmation to create `MonthlyActual` records.
+- **Alert Types**: Six distinct alert types are implemented: underspend, overspend, budget exhaustion, fixed cost variance, large payment, and unbooked event, each with specific triggers and severity.
+- **App Screens**: Includes Dashboard, Budget Lines, Quarterly View, Annual View, Monthly View, Reports, Alerts, Events, Reforecast, Audit Log, Import, and Board View screens.
+- **Auth Model**:
+    - **User Login**: Email/password authentication gates the entire app. Sessions are in-memory with a 24h TTL, stored client-side in AsyncStorage.
+    - **VP Session**: A separate flow for VP-level access, authenticated via an API key, providing a 24h session token for managing board settings, tokens, and accessing exports.
+    - **Board View**: Accessible via share tokens for public viewing, with exports supporting both VP and share token authentication.
 
-### CSV Import Flow
-1. Upload CSV with columns: Category, Line Item, Month, Year, Amount, Invoice Ref
-2. Server parses rows, matches to budget lines by normalised category+lineItem name
-3. Matched rows get green status; unmatched rows get amber status with "Assign" button
-4. User assigns unmatched rows to budget lines via searchable dropdown modal
-5. User confirms import → creates MonthlyActual records
-6. Row hash (SHA-256 of category|lineItem|month|year|amount|invoiceRef) prevents duplicate imports
-7. Re-confirming a confirmed import returns 0 created, N skipped
+### Technical Implementations
+- **Expo Web API Proxy**: Metro configuration includes middleware to proxy `/api/*` requests to the Express API server (port 8080) during development to avoid CORS issues. Native apps use an `EXPO_PUBLIC_DOMAIN` environment variable for direct API access.
+- **Production Web Build**: A `build.js` script handles generating mobile bundles and a static web export, adjusting `app.json` for web-specific settings and using `serve.js` for SPA fallback.
 
-### Alert Types (6)
-- `underspend` — Spending below 70% of plan in closed months (warning)
-- `overspend` — Spending above 110% of plan (critical)
-- `budget_exhaustion` — Less than 15% budget remaining (critical)
-- `fixed_cost_variance` — Fixed cost varies >5% month-over-month (warning)
-- `large_payment` — Planned payment >£200k within 60 days (warning)
-- `unbooked_event` — Event within 45 days still in "planned" status (warning)
+## External Dependencies
 
-### App Tabs (12 screens)
-- `index.tsx` — Dashboard with KPIs, charts (Plan vs Actual, Cumulative, Categories, Remaining Budget, Projections, Events)
-- `budget.tsx` — Budget Lines with category/month filters, Var % column, projection editing
-- `quarterly.tsx` — Quarterly View with Q1-Q4 picker, KPIs, horizontal bar chart, region table
-- `annual.tsx` — Annual View with By Category/Region tables (Var %), quarterly bar chart
-- `monthly.tsx` — Monthly View with spend trend line chart, month-by-month breakdown, quarterly roll-up
-- `reports.tsx` — Reports with 8 charts: 3 spend pie charts (Category/Region/Cost Type), 2 owner pie charts, quarterly bar, monthly trend, fixed-vs-variable stacked bar, category burn-down multi-line, board sign-off variance table
-- `alerts.tsx` — Alert management with resolve/swipe-to-resolve
-- `events.tsx` — Marketing events with status tracking
-- `reforecast.tsx` — Forecast versioning and comparison
-- `audit.tsx` — Audit log with filters
-- `import.tsx` — CSV import flow with delete confirmation, history management (newest-first, deleted badge)
-- `board.tsx` — Board view with share tokens
-
-### Chart Components (SVG-based, cross-platform)
-- `BarChart.tsx` — Plan vs Actual monthly comparison
-- `LineChart.tsx` — Cumulative spend over time
-- `DonutChart.tsx` — Category breakdown
-- `ProjectionBarChart.tsx` — Stacked actual + projected spend with plan markers
-- `EventsGantt.tsx` — Events timeline showing events across months
-- `RemainingBudgetChart` (inline in index.tsx) — Horizontal bar chart showing remaining budget by category
-- Desktop: tabbed chart panel (5 tabs: Plan vs Actual, Cumulative, Categories, Projections, Events)
-- Mobile: horizontally swipeable full-width chart pager with page dots (6 pages including Remaining)
-
-### Error Handling & Refresh UX
-- `ErrorState` component (`components/ErrorState.tsx`) — shown when API queries fail, with alert-triangle icon, error message, and "Try Again" retry button
-- `WebRefreshButton` component (`components/WebRefreshButton.tsx`) — floating circular refresh button visible only on web (since RefreshControl is native-only), positioned top-right on all main screens
-- `ToastProvider` (`contexts/ToastContext.tsx`) — global toast/snackbar notification system for mutation failures (seed, resolve alert, import, projection updates). Animated slide-in toasts with auto-dismiss after 4 seconds. Supports error, success, and info types.
-- All main tab screens (Dashboard, Alerts, Budget, Events, Import, Reports) check `isError` from React Query and show ErrorState when data fails to load
-- All mutations include `onError` callbacks that trigger toast notifications
-
-### Alert UX
-- Desktop: AlertCard with severity badges and resolve button
-- Mobile: SwipeableAlertCard with swipe-left-to-resolve gesture + "Swipe left to resolve" hint text
-
-### Theming
-- `constants/colors.ts` defines `light` and `dark` palettes (background, foreground, card, primary, secondary, muted, accent, destructive, success, warning, border, input + matching `*Foreground`)
-- `contexts/ThemeContext.tsx` exposes `useTheme()` with `preference: "light" | "dark" | "system"`, `resolvedScheme`, and `cyclePreference()`. Persisted to AsyncStorage key `"theme-preference"`. App root gates rendering on `isLoaded` to avoid first-paint flicker.
-- `useColors()` reads `resolvedScheme` from context and returns the active palette
-- Theme toggle UI: cycle button in `DesktopSidebar` footer (sun/moon/monitor) and a pill-shaped button at the top of the mobile dashboard
-
-### Expo Web API Proxy
-- Metro config includes middleware that proxies `/api/*` requests to the API server (port 8080)
-- This avoids CORS issues between the Expo dev domain and the Replit dev domain
-- Native apps use `EXPO_PUBLIC_DOMAIN` env var to reach the API directly
-
-### Production Web Build
-- `build.js` creates both mobile (iOS/Android) bundles and a static web export
-- Web export: `expo export --platform web` with `experiments.baseUrl` temporarily set to `/budget-tracker`
-- `app.json` is modified before web export and restored afterward (mobile builds unaffected)
-- `serve.js` serves web build files with SPA fallback (all unmatched routes → `index.html`)
-- Mobile manifest requests (with `expo-platform` header) continue to serve iOS/Android manifests
-
-## Key Commands
-
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
-
-## Project Phases
-
-1. **Foundation** (COMPLETE) — DB schema, API, app shell with dual layout
-2. **Intelligence Layer** (COMPLETE) — Charts (bar/line/donut), projections engine, 6-type alert engine, projection editing
-3. **Actuals Integration** (COMPLETE) — CSV import with auto-matching, manual assignment, idempotent confirmation
-4. **Board View** (COMPLETE) — Board visibility settings, shareable token links, iPhone-optimized board view, PDF/Excel exports, token-based export downloads
-5. **Admin & Governance** (COMPLETE) — Reforecast versioning (create/compare/view), audit log with filters, annual budget rollover with confirmation dialog
-
-### Data Source
-- Budget data sourced from the real FY26 marketing budget spreadsheet
-- 27 budget lines across 5 categories: Ads, Marketing and Sales Software, Other Costs, Marketing and PR, Events and Conferences
-- Data seeded automatically on server startup via `seedBudgetData.ts` (only if no budget lines exist)
-- Total planned budget: £2,296,441 | Actual spend: £657,272
-- Actuals cover Jan-Mar for most items, plus event-specific actuals for later months
-- 8 events seeded from the Events and Conferences category
-
-### Auth Model
-
-#### User Login (App Gate)
-- Email + password login screen gates the entire app (`app/login.tsx`)
-- Two allowed users seeded on server startup: `rcp@avizent.com` and `patricia.s.hyde@gmail.com`
-- No registration — users are seeded in `artifacts/api-server/src/lib/seedAuthUsers.ts`
-- Passwords stored as bcrypt hashes (cost factor 12) in `users.password_hash` column
-- Sessions: in-memory `userSessions` Map, 24h TTL, `x-user-session` header
-- Client stores session token in AsyncStorage (`lib/authSession.ts`)
-- `AuthProvider` context (`contexts/AuthContext.tsx`) provides `user`, `login`, `logout`, `isAuthenticated`
-- `AuthGate` component in `_layout.tsx` redirects unauthenticated users to `/login`
-- Endpoints: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
-
-#### VP Session (Board/Export Auth)
-- VP session flow: client calls `POST /auth/vp-login` with `x-api-key` header → receives a 24h session token
-- VP Management routes (`/board/settings`, `/board/tokens`, `/board/preview`, exports) require `x-vp-session` header with valid session token
-- Board members access `/board/view` and public board-view screen via share token URL param
-- Exports (`/exports/pdf`, `/exports/excel`) accept either VP session token or share token for auth
-- `VP_API_KEY` is a Replit secret (server-only, used only to verify VP login)
-- `EXPO_PUBLIC_VP_API_KEY` is a Replit secret used once at app startup to obtain a VP session token
-- Session tokens are stored in-memory on the server (ephemeral, 24h TTL)
-- `utils/vpSession.ts` stores session token client-side for use by export download functions
-
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+- **Database**: PostgreSQL
+- **ORM**: Drizzle ORM
+- **API Client Generation**: Orval (uses OpenAPI specification)
+- **Validation Library**: Zod
+- **File Uploads**: `multer`
+- **Excel Parsing**: `xlsx`
+- **React Native Storage**: `AsyncStorage`
+- **Charting Library**: React Query (`@tanstack/react-query`)
+- **Third-Party APIs**: No external third-party APIs are explicitly mentioned beyond the core database and internal services.
