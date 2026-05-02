@@ -22,14 +22,23 @@ function formatCurrency(val: number): string {
   return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
 }
 
+function varPct(actual: number, planned: number): string {
+  if (planned === 0) return "-";
+  const p = ((actual - planned) / planned) * 100;
+  return (p > 0 ? "+" : "") + p.toFixed(1) + "%";
+}
+
 interface BudgetLine {
   id: number;
   category: string;
   lineItem: string;
+  owner?: string | null;
   region: string;
   plans?: { month: number; plannedAmount: number }[];
   actuals?: { month: number; actualAmount: number }[];
 }
+
+type DrillLine = { id: number; lineItem: string; owner: string | null; category: string; planned: number; actual: number };
 
 function HorizontalBarChart({ data, width }: { data: { label: string; planned: number; actual: number }[]; width: number }) {
   const colors = useColors();
@@ -64,22 +73,60 @@ function HorizontalBarChart({ data, width }: { data: { label: string; planned: n
   );
 }
 
+function RegionDrillRows({ lines }: { lines: DrillLine[] }) {
+  const colors = useColors();
+  return (
+    <View style={[drillStyles.block, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+      <View style={[drillStyles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[drillStyles.th, { color: colors.mutedForeground, flex: 1, paddingLeft: 20 }]}>Line Item</Text>
+        <Text style={[drillStyles.th, { color: colors.mutedForeground, width: 100 }]}>Category</Text>
+        <Text style={[drillStyles.th, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>Planned</Text>
+        <Text style={[drillStyles.th, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>Actual</Text>
+        <Text style={[drillStyles.th, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>Variance</Text>
+        <Text style={[drillStyles.th, { color: colors.mutedForeground, width: 55, textAlign: "right" }]}>Var %</Text>
+      </View>
+      {lines.sort((a, b) => b.planned - a.planned).map((line) => {
+        const variance = line.actual - line.planned;
+        const isOver = variance > 0;
+        const varColor = isOver ? "#ef4444" : variance < 0 ? "#16a34a" : colors.mutedForeground;
+        return (
+          <View key={line.id} style={[drillStyles.row, { borderBottomColor: colors.border }]}>
+            <Text style={[drillStyles.td, { color: colors.foreground, flex: 1, paddingLeft: 20 }]} numberOfLines={2}>{line.lineItem}</Text>
+            <Text style={[drillStyles.td, { color: colors.mutedForeground, width: 100 }]} numberOfLines={1}>{line.category}</Text>
+            <Text style={[drillStyles.td, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>{formatCurrency(line.planned)}</Text>
+            <Text style={[drillStyles.td, { color: colors.foreground, width: 80, textAlign: "right" }]}>{formatCurrency(line.actual)}</Text>
+            <Text style={[drillStyles.td, { color: varColor, width: 80, textAlign: "right", fontFamily: "Inter_600SemiBold" }]}>
+              {isOver ? "+" : ""}{formatCurrency(variance)}
+            </Text>
+            <Text style={[drillStyles.td, { color: varColor, width: 55, textAlign: "right" }]}>{varPct(line.actual, line.planned)}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export function QuarterlyBody() {
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
   const [selectedQ, setSelectedQ] = useState(Math.floor(new Date().getMonth() / 3));
+  const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
 
   const { data: budgetLines, isLoading } = useListBudgetLinesWithMonthly({ year: 2026 });
 
   const quarter = QUARTERS[selectedQ];
 
-  const stats = useMemo(() => {
-    if (!budgetLines) return { planned: 0, actual: 0, remaining: 0, byCategory: [] as { label: string; planned: number; actual: number }[], byRegion: [] as { region: string; planned: number; actual: number; remaining: number }[] };
+  const { stats, linesByRegion } = useMemo(() => {
+    if (!budgetLines) return {
+      stats: { planned: 0, actual: 0, remaining: 0, byCategory: [] as { label: string; planned: number; actual: number }[], byRegion: [] as { region: string; planned: number; actual: number; remaining: number }[] },
+      linesByRegion: new Map<string, DrillLine[]>(),
+    };
     const lines = budgetLines as BudgetLine[];
     let totalPlanned = 0, totalActual = 0;
     const catMap = new Map<string, { planned: number; actual: number }>();
     const regMap = new Map<string, { planned: number; actual: number }>();
+    const regLines = new Map<string, DrillLine[]>();
 
     for (const bl of lines) {
       let linePlanned = 0, lineActual = 0;
@@ -91,24 +138,35 @@ export function QuarterlyBody() {
       totalActual += lineActual;
 
       const cat = catMap.get(bl.category) ?? { planned: 0, actual: 0 };
-      cat.planned += linePlanned;
-      cat.actual += lineActual;
+      cat.planned += linePlanned; cat.actual += lineActual;
       catMap.set(bl.category, cat);
 
-      const reg = regMap.get(bl.region || "Global") ?? { planned: 0, actual: 0 };
-      reg.planned += linePlanned;
-      reg.actual += lineActual;
-      regMap.set(bl.region || "Global", reg);
+      const regKey = bl.region || "Global";
+      const reg = regMap.get(regKey) ?? { planned: 0, actual: 0 };
+      reg.planned += linePlanned; reg.actual += lineActual;
+      regMap.set(regKey, reg);
+
+      if (linePlanned > 0 || lineActual > 0) {
+        const existing = regLines.get(regKey) ?? [];
+        existing.push({ id: bl.id, lineItem: bl.lineItem, owner: bl.owner ?? null, category: bl.category, planned: linePlanned, actual: lineActual });
+        regLines.set(regKey, existing);
+      }
     }
 
     return {
-      planned: totalPlanned,
-      actual: totalActual,
-      remaining: totalPlanned - totalActual,
-      byCategory: Array.from(catMap, ([label, v]) => ({ label, ...v })).sort((a, b) => b.planned - a.planned),
-      byRegion: Array.from(regMap, ([region, v]) => ({ region, ...v, remaining: v.planned - v.actual })).sort((a, b) => b.planned - a.planned),
+      stats: {
+        planned: totalPlanned,
+        actual: totalActual,
+        remaining: totalPlanned - totalActual,
+        byCategory: Array.from(catMap, ([label, v]) => ({ label, ...v })).sort((a, b) => b.planned - a.planned),
+        byRegion: Array.from(regMap, ([region, v]) => ({ region, ...v, remaining: v.planned - v.actual })).sort((a, b) => b.planned - a.planned),
+      },
+      linesByRegion: regLines,
     };
   }, [budgetLines, selectedQ]);
+
+  // Reset expanded region when quarter changes
+  React.useEffect(() => { setExpandedRegion(null); }, [selectedQ]);
 
   if (isLoading) {
     return (
@@ -142,22 +200,39 @@ export function QuarterlyBody() {
           <Text style={[styles.cardTitle, { color: colors.foreground }]}>Category Consumption</Text>
           <HorizontalBarChart data={stats.byCategory} width={isDesktop ? 480 : 340} />
         </View>
+
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, flex: isDesktop ? 1 : undefined }]}>
-          <Text style={[styles.cardTitle, { color: colors.foreground }]}>Region Breakdown</Text>
+          <Text style={[styles.cardTitle, { color: colors.foreground }]}>
+            Region Breakdown
+            {isDesktop && <Text style={[styles.cardHint, { color: colors.mutedForeground }]}> · tap a row to expand</Text>}
+          </Text>
           <View style={[styles.tableHeader, { borderBottomColor: colors.border }]}>
+            {isDesktop && <View style={{ width: 20 }} />}
             <Text style={[styles.thText, { color: colors.mutedForeground, flex: 1 }]}>Region</Text>
             <Text style={[styles.thText, { color: colors.mutedForeground, width: 90, textAlign: "right" }]}>Planned</Text>
             <Text style={[styles.thText, { color: colors.mutedForeground, width: 90, textAlign: "right" }]}>Actual</Text>
             <Text style={[styles.thText, { color: colors.mutedForeground, width: 90, textAlign: "right" }]}>Remaining</Text>
           </View>
-          {stats.byRegion.map((r) => (
-            <View key={r.region} style={[styles.tableRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.tdText, { color: colors.foreground, flex: 1 }]}>{r.region}</Text>
-              <Text style={[styles.tdText, { color: colors.foreground, width: 90, textAlign: "right" }]}>{formatCurrency(r.planned)}</Text>
-              <Text style={[styles.tdText, { color: colors.foreground, width: 90, textAlign: "right" }]}>{formatCurrency(r.actual)}</Text>
-              <Text style={[styles.tdText, { color: r.remaining >= 0 ? colors.success : colors.destructive, width: 90, textAlign: "right", fontFamily: "Inter_600SemiBold" }]}>{formatCurrency(r.remaining)}</Text>
-            </View>
-          ))}
+          {stats.byRegion.map((r) => {
+            const isOpen = expandedRegion === r.region;
+            const childLines = linesByRegion.get(r.region) ?? [];
+            const rowContent = (
+              <>
+                <View style={[styles.tableRow, { borderBottomColor: isOpen ? "transparent" : colors.border }]}>
+                  {isDesktop && <View style={{ width: 20, justifyContent: "center" }}><Feather name={isOpen ? "chevron-down" : "chevron-right"} size={13} color={colors.mutedForeground} /></View>}
+                  <Text style={[styles.tdText, { color: colors.foreground, flex: 1 }]}>{r.region}</Text>
+                  <Text style={[styles.tdText, { color: colors.foreground, width: 90, textAlign: "right" }]}>{formatCurrency(r.planned)}</Text>
+                  <Text style={[styles.tdText, { color: colors.foreground, width: 90, textAlign: "right" }]}>{formatCurrency(r.actual)}</Text>
+                  <Text style={[styles.tdText, { color: r.remaining >= 0 ? colors.success : colors.destructive, width: 90, textAlign: "right", fontFamily: "Inter_600SemiBold" }]}>{formatCurrency(r.remaining)}</Text>
+                </View>
+                {isOpen && <RegionDrillRows lines={childLines} />}
+              </>
+            );
+            if (isDesktop) {
+              return <TouchableOpacity key={r.region} onPress={() => setExpandedRegion(isOpen ? null : r.region)} activeOpacity={0.7}>{rowContent}</TouchableOpacity>;
+            }
+            return <View key={r.region}>{rowContent}</View>;
+          })}
         </View>
       </View>
     </ScrollView>
@@ -186,6 +261,14 @@ export default function QuarterlyScreen() {
   return <QuarterlyContent />;
 }
 
+const drillStyles = StyleSheet.create({
+  block: { borderBottomWidth: 1, paddingBottom: 4 },
+  header: { flexDirection: "row", paddingVertical: 7, borderBottomWidth: 1, alignItems: "center" },
+  row: { flexDirection: "row", paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "center" },
+  th: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  td: { fontSize: 12, fontFamily: "Inter_400Regular" },
+});
+
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   desktopContainer: { flex: 1, flexDirection: "row" },
@@ -198,8 +281,9 @@ const styles = StyleSheet.create({
   twoCol: { gap: 16 },
   card: { padding: 20, borderRadius: 12, borderWidth: 1 },
   cardTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 16 },
-  tableHeader: { flexDirection: "row", paddingVertical: 10, borderBottomWidth: 1 },
+  cardHint: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  tableHeader: { flexDirection: "row", paddingVertical: 10, borderBottomWidth: 1, alignItems: "center" },
   thText: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase" as const, letterSpacing: 0.5 },
-  tableRow: { flexDirection: "row", paddingVertical: 12, borderBottomWidth: 1 },
+  tableRow: { flexDirection: "row", paddingVertical: 12, borderBottomWidth: 1, alignItems: "center" },
   tdText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 });
