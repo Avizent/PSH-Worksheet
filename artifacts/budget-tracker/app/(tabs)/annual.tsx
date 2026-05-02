@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
-import { View, ScrollView, StyleSheet, Text, ActivityIndicator } from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, ScrollView, StyleSheet, Text, ActivityIndicator, TouchableOpacity } from "react-native";
 import Svg, { Rect, Text as SvgText, Line, G } from "react-native-svg";
+import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useLayout } from "@/hooks/useLayout";
 import { KpiCard } from "@/components/KpiCard";
@@ -14,9 +15,17 @@ function formatCurrency(val: number): string {
   return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
 }
 
+function varPct(actual: number, planned: number): string {
+  if (planned === 0) return "-";
+  const p = ((actual - planned) / planned) * 100;
+  return (p > 0 ? "+" : "") + p.toFixed(1) + "%";
+}
+
 interface BudgetLine {
   id: number;
+  lineItem: string;
   category: string;
+  owner?: string | null;
   region: string;
   plans?: { month: number; plannedAmount: number }[];
   actuals?: { month: number; actualAmount: number }[];
@@ -70,18 +79,24 @@ function AnnualContent() {
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary({ year: 2026 });
   const { data: budgetLines, isLoading: linesLoading } = useListBudgetLinesWithMonthly({ year: 2026 });
   const { data: alerts } = useListAlerts({ resolved: false });
   const alertCount = alerts?.filter((a) => !a.resolvedAt).length ?? 0;
 
-  const stats = useMemo(() => {
-    if (!budgetLines) return { byCategory: [] as { category: string; planned: number; actual: number; remaining: number; varPct: number }[], byRegion: [] as { region: string; planned: number; actual: number; remaining: number }[], quarterly: [] as { label: string; planned: number; actual: number }[] };
+  const { stats, linesByCategory } = useMemo(() => {
+    if (!budgetLines) return {
+      stats: { byCategory: [] as { category: string; planned: number; actual: number; remaining: number; varPct: number }[], byRegion: [] as { region: string; planned: number; actual: number; remaining: number }[], quarterly: [] as { label: string; planned: number; actual: number }[] },
+      linesByCategory: new Map<string, { id: number; lineItem: string; owner: string | null; planned: number; actual: number }[]>(),
+    };
+
     const lines = budgetLines as BudgetLine[];
     const catMap = new Map<string, { planned: number; actual: number }>();
     const regMap = new Map<string, { planned: number; actual: number }>();
     const qData = [0, 0, 0, 0].map(() => ({ planned: 0, actual: 0 }));
+    const catLines = new Map<string, { id: number; lineItem: string; owner: string | null; planned: number; actual: number }[]>();
 
     for (const bl of lines) {
       let catPlanned = 0, catActual = 0;
@@ -105,21 +120,28 @@ function AnnualContent() {
       reg.planned += catPlanned;
       reg.actual += catActual;
       regMap.set(bl.region || "Global", reg);
+
+      const existing = catLines.get(bl.category) ?? [];
+      existing.push({ id: bl.id, lineItem: bl.lineItem, owner: bl.owner ?? null, planned: catPlanned, actual: catActual });
+      catLines.set(bl.category, existing);
     }
 
     return {
-      byCategory: Array.from(catMap, ([category, v]) => ({
-        category,
-        ...v,
-        remaining: v.planned - v.actual,
-        varPct: v.planned > 0 ? ((v.planned - v.actual) / v.planned) * 100 : 0,
-      })).sort((a, b) => b.planned - a.planned),
-      byRegion: Array.from(regMap, ([region, v]) => ({
-        region,
-        ...v,
-        remaining: v.planned - v.actual,
-      })).sort((a, b) => b.planned - a.planned),
-      quarterly: qData.map((q, i) => ({ label: `Q${i + 1}`, ...q })),
+      stats: {
+        byCategory: Array.from(catMap, ([category, v]) => ({
+          category,
+          ...v,
+          remaining: v.planned - v.actual,
+          varPct: v.planned > 0 ? ((v.planned - v.actual) / v.planned) * 100 : 0,
+        })).sort((a, b) => b.planned - a.planned),
+        byRegion: Array.from(regMap, ([region, v]) => ({
+          region,
+          ...v,
+          remaining: v.planned - v.actual,
+        })).sort((a, b) => b.planned - a.planned),
+        quarterly: qData.map((q, i) => ({ label: `Q${i + 1}`, ...q })),
+      },
+      linesByCategory: catLines,
     };
   }, [budgetLines]);
 
@@ -146,26 +168,91 @@ function AnnualContent() {
       </View>
 
       <View style={[styles.twoCol, { flexDirection: isDesktop ? "row" : "column" }]}>
+        {/* By Category */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, flex: isDesktop ? 1.2 : undefined }]}>
-          <Text style={[styles.cardTitle, { color: colors.foreground }]}>By Category</Text>
+          <Text style={[styles.cardTitle, { color: colors.foreground }]}>
+            By Category
+            {isDesktop && (
+              <Text style={[styles.cardHint, { color: colors.mutedForeground }]}> · tap a row to expand</Text>
+            )}
+          </Text>
           <View style={[styles.tableHeader, { borderBottomColor: colors.border }]}>
+            {isDesktop && <View style={{ width: 20 }} />}
             <Text style={[styles.thText, { color: colors.mutedForeground, flex: 1 }]}>Category</Text>
             <Text style={[styles.thText, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>Planned</Text>
             <Text style={[styles.thText, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>Actual</Text>
             <Text style={[styles.thText, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>Remaining</Text>
             <Text style={[styles.thText, { color: colors.mutedForeground, width: 55, textAlign: "right" }]}>Var %</Text>
           </View>
-          {stats.byCategory.map((c) => (
-            <View key={c.category} style={[styles.tableRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.tdText, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>{c.category}</Text>
-              <Text style={[styles.tdText, { color: colors.foreground, width: 80, textAlign: "right" }]}>{formatCurrency(c.planned)}</Text>
-              <Text style={[styles.tdText, { color: colors.foreground, width: 80, textAlign: "right" }]}>{formatCurrency(c.actual)}</Text>
-              <Text style={[styles.tdText, { color: c.remaining >= 0 ? colors.success : colors.destructive, width: 80, textAlign: "right", fontFamily: "Inter_600SemiBold" }]}>{formatCurrency(c.remaining)}</Text>
-              <Text style={[styles.tdText, { color: colors.mutedForeground, width: 55, textAlign: "right" }]}>{c.varPct.toFixed(1)}%</Text>
-            </View>
-          ))}
+
+          {stats.byCategory.map((c) => {
+            const isOpen = expandedCategory === c.category;
+            const childLines = linesByCategory.get(c.category) ?? [];
+
+            const rowContent = (
+              <>
+                <View style={[styles.tableRow, { borderBottomColor: isOpen ? "transparent" : colors.border }]}>
+                  {isDesktop && (
+                    <View style={{ width: 20, justifyContent: "center" }}>
+                      <Feather name={isOpen ? "chevron-down" : "chevron-right"} size={13} color={colors.mutedForeground} />
+                    </View>
+                  )}
+                  <Text style={[styles.tdText, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>{c.category}</Text>
+                  <Text style={[styles.tdText, { color: colors.foreground, width: 80, textAlign: "right" }]}>{formatCurrency(c.planned)}</Text>
+                  <Text style={[styles.tdText, { color: colors.foreground, width: 80, textAlign: "right" }]}>{formatCurrency(c.actual)}</Text>
+                  <Text style={[styles.tdText, { color: c.remaining >= 0 ? colors.success : colors.destructive, width: 80, textAlign: "right", fontFamily: "Inter_600SemiBold" }]}>{formatCurrency(c.remaining)}</Text>
+                  <Text style={[styles.tdText, { color: colors.mutedForeground, width: 55, textAlign: "right" }]}>{c.varPct.toFixed(1)}%</Text>
+                </View>
+
+                {isOpen && (
+                  <View style={[styles.childBlock, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+                    <View style={[styles.childHeader, { borderBottomColor: colors.border }]}>
+                      <Text style={[styles.thText, { color: colors.mutedForeground, flex: 1, paddingLeft: 20 }]}>Line Item</Text>
+                      <Text style={[styles.thText, { color: colors.mutedForeground, width: 70, textAlign: "right" }]}>Owner</Text>
+                      <Text style={[styles.thText, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>Planned</Text>
+                      <Text style={[styles.thText, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>Actual</Text>
+                      <Text style={[styles.thText, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>Variance</Text>
+                      <Text style={[styles.thText, { color: colors.mutedForeground, width: 55, textAlign: "right" }]}>Var %</Text>
+                    </View>
+                    {childLines.sort((a, b) => b.planned - a.planned).map((line) => {
+                      const variance = line.actual - line.planned;
+                      const isOver = variance > 0;
+                      const varColor = isOver ? (colors.destructive ?? "#ef4444") : variance < 0 ? (colors.success ?? "#16a34a") : colors.mutedForeground;
+                      return (
+                        <View key={line.id} style={[styles.childRow, { borderBottomColor: colors.border }]}>
+                          <Text style={[styles.childText, { color: colors.foreground, flex: 1, paddingLeft: 20 }]} numberOfLines={2}>{line.lineItem}</Text>
+                          <Text style={[styles.childText, { color: colors.mutedForeground, width: 70, textAlign: "right" }]} numberOfLines={1}>{line.owner ?? "—"}</Text>
+                          <Text style={[styles.childText, { color: colors.mutedForeground, width: 80, textAlign: "right" }]}>{formatCurrency(line.planned)}</Text>
+                          <Text style={[styles.childText, { color: colors.foreground, width: 80, textAlign: "right" }]}>{formatCurrency(line.actual)}</Text>
+                          <Text style={[styles.childText, { color: varColor, width: 80, textAlign: "right", fontFamily: "Inter_600SemiBold" }]}>
+                            {isOver ? "+" : ""}{formatCurrency(variance)}
+                          </Text>
+                          <Text style={[styles.childText, { color: varColor, width: 55, textAlign: "right" }]}>{varPct(line.actual, line.planned)}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </>
+            );
+
+            if (isDesktop) {
+              return (
+                <TouchableOpacity
+                  key={c.category}
+                  onPress={() => setExpandedCategory(isOpen ? null : c.category)}
+                  activeOpacity={0.7}
+                >
+                  {rowContent}
+                </TouchableOpacity>
+              );
+            }
+
+            return <View key={c.category}>{rowContent}</View>;
+          })}
         </View>
 
+        {/* By Region */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, flex: isDesktop ? 1 : undefined }]}>
           <Text style={[styles.cardTitle, { color: colors.foreground }]}>By Region</Text>
           <View style={[styles.tableHeader, { borderBottomColor: colors.border }]}>
@@ -218,8 +305,13 @@ const styles = StyleSheet.create({
   twoCol: { gap: 16 },
   card: { padding: 20, borderRadius: 12, borderWidth: 1 },
   cardTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 16 },
-  tableHeader: { flexDirection: "row", paddingVertical: 10, borderBottomWidth: 1 },
+  cardHint: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  tableHeader: { flexDirection: "row", paddingVertical: 10, borderBottomWidth: 1, alignItems: "center" },
   thText: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase" as const, letterSpacing: 0.5 },
-  tableRow: { flexDirection: "row", paddingVertical: 12, borderBottomWidth: 1 },
+  tableRow: { flexDirection: "row", paddingVertical: 12, borderBottomWidth: 1, alignItems: "center" },
   tdText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  childBlock: { borderBottomWidth: 1, paddingBottom: 4 },
+  childHeader: { flexDirection: "row", paddingVertical: 7, borderBottomWidth: 1, alignItems: "center", paddingHorizontal: 0 },
+  childRow: { flexDirection: "row", paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "center" },
+  childText: { fontSize: 12, fontFamily: "Inter_400Regular" },
 });
