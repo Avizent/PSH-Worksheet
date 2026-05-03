@@ -157,7 +157,7 @@ export default function LoginScreen() {
         >
           <View style={styles.inner}>
             <View style={styles.logo}>
-              <Image source={require("@assets/Hubert_Button_1777847590097.png")} style={styles.logoImage} />
+              <Image source={require("../assets/images/hubert-button.png")} style={styles.logoImage} />
             </View>
 
             <Text style={styles.heading}>Welcome back</Text>
