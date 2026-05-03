@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -59,13 +60,19 @@ export default function LoginScreen() {
       alignSelf: "center",
     },
     logo: {
-      width: 52,
-      height: 52,
-      borderRadius: 14,
-      backgroundColor: colors.primary,
+      width: 92,
+      height: 92,
+      borderRadius: 20,
+      overflow: "hidden",
+      marginBottom: 28,
+      backgroundColor: colors.card,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 28,
+    },
+    logoImage: {
+      width: 92,
+      height: 92,
+      resizeMode: "contain",
     },
     heading: {
       fontSize: 26,
@@ -150,7 +157,7 @@ export default function LoginScreen() {
         >
           <View style={styles.inner}>
             <View style={styles.logo}>
-              <Feather name="bar-chart-2" size={26} color="#ffffff" />
+              <Image source={require("@assets/Hubert_Button_1777847590097.png")} style={styles.logoImage} />
             </View>
 
             <Text style={styles.heading}>Welcome back</Text>
