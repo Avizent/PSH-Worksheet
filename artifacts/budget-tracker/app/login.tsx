@@ -154,7 +154,7 @@ export default function LoginScreen() {
             </View>
 
             <Text style={styles.heading}>Welcome back</Text>
-            <Text style={styles.subheading}>Sign in to Hubert Budget Tracker</Text>
+            <Text style={styles.subheading}>Sign in to Marketing Budget Dashboard</Text>
 
             <Text style={styles.label}>Email address</Text>
             <View style={styles.inputWrapper}>
