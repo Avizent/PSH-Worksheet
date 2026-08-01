@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 
-type AdminKey = "owners" | "categories" | "columns" | "import" | "audit" | "reforecast" | "excel" | "snapshots";
+type AdminKey = "owners" | "categories" | "columns" | "import" | "audit" | "reforecast" | "excel" | "snapshots" | "exchange-rate";
 
 const ITEMS: { key: AdminKey; label: string; icon: keyof typeof Feather.glyphMap; route: Href }[] = [
   { key: "owners", label: "Owners", icon: "users", route: "/owners" },
@@ -15,6 +15,7 @@ const ITEMS: { key: AdminKey; label: string; icon: keyof typeof Feather.glyphMap
   { key: "reforecast", label: "Reforecast", icon: "refresh-cw", route: "/reforecast" },
   { key: "excel", label: "Excel", icon: "grid", route: "/excel" },
   { key: "snapshots", label: "Snapshots", icon: "archive", route: "/snapshots" },
+  { key: "exchange-rate", label: "Exchange Rate", icon: "repeat", route: "/exchange-rate" },
 ];
 
 interface AdminSubnavProps {

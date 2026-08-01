@@ -88,7 +88,7 @@ export default function AuditScreen() {
     }
   }, [dateFilter]);
 
-  const queryParams: Record<string, string | number> = {
+  const queryParams: Record<string, string | number | undefined> = {
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
     ...dateRange,

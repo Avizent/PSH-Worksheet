@@ -79,7 +79,7 @@ function NativeTabLayout() {
         <Label>Snapshots</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="columns" hidden>
-        <Icon sf={{ default: "columns", selected: "columns" }} />
+        <Icon sf={{ default: "tablecells", selected: "tablecells.fill" }} />
         <Label>Columns</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="owners">
@@ -87,7 +87,7 @@ function NativeTabLayout() {
         <Label>Admin</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="board">
-        <Icon sf={{ default: "rectangle.on.rectangle", selected: "rectangle.on.rectangle.fill" }} />
+        <Icon sf={{ default: "rectangle.on.rectangle", selected: "rectangle.fill.on.rectangle.fill" }} />
         <Label>Board</Label>
       </NativeTabs.Trigger>
     </NativeTabs>

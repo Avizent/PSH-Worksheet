@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, real, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, numeric, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 import { makeInsertSchema } from "../utils";
 import { budgetLinesTable } from "./budgetLines";
@@ -8,8 +8,8 @@ export const monthlyPlansTable = pgTable("monthly_plans", {
   budgetLineId: integer("budget_line_id").notNull().references(() => budgetLinesTable.id, { onDelete: "cascade" }),
   month: integer("month").notNull(),
   year: integer("year").notNull(),
-  plannedAmount: real("planned_amount").notNull().default(0),
-  boardAmount: real("board_amount"),
+  plannedAmount: numeric("planned_amount", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+  boardAmount: numeric("board_amount", { precision: 14, scale: 2, mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({

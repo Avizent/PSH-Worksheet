@@ -68,7 +68,7 @@ export function MonthlyAmountModal({ visible, title, subtitle, mode, year, entri
                 <View key={m} style={[styles.cell, { borderColor: colors.border }]}>
                   <Text style={[styles.cellLabel, { color: colors.mutedForeground }]}>{label}</Text>
                   <View style={styles.inputWrap}>
-                    <Text style={[styles.currency, { color: colors.mutedForeground }]}>\u00a3</Text>
+                    <Text style={[styles.currency, { color: colors.mutedForeground }]}>kr</Text>
                     <TextInput
                       value={values[m]}
                       onChangeText={(v) => setValues((s) => ({ ...s, [m]: v.replace(/[^0-9.\-]/g, "") }))}
@@ -86,7 +86,7 @@ export function MonthlyAmountModal({ visible, title, subtitle, mode, year, entri
           <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
             <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total</Text>
             <Text style={[styles.totalValue, { color: colors.foreground }]}>
-              \u00a3{total.toLocaleString("en-GB", { maximumFractionDigits: 0 })}
+              {total.toLocaleString("sv-SE", { maximumFractionDigits: 0 })} kr
             </Text>
           </View>
 

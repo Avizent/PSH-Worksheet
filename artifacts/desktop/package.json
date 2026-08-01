@@ -1,0 +1,47 @@
+{
+  "name": "@workspace/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node ./build.mjs",
+    "start": "pnpm run build && electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package": "pnpm run build && electron-builder"
+  },
+  "dependencies": {
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "^8.18.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0",
+    "esbuild": "^0.27.3"
+  },
+  "build": {
+    "appId": "com.avizent.pshworksheet",
+    "productName": "Marketing Budget Dashboard",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "src/setup/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/api-server",
+        "to": "api-server"
+      },
+      {
+        "from": "resources/budget-tracker-web",
+        "to": "budget-tracker-web"
+      }
+    ],
+    "mac": {
+      "target": ["dir", "dmg"],
+      "category": "public.app-category.finance"
+    }
+  }
+}

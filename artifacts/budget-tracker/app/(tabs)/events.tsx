@@ -10,6 +10,7 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { useRouter } from "expo-router";
 import { useListEvents, useListAlerts } from "@workspace/api-client-react";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "TBD";
@@ -17,15 +18,8 @@ function formatDate(dateStr: string | null): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function formatCurrency(val: number | null): string {
-  if (val == null) return "-";
-  if (Math.abs(val) >= 1000) {
-    return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  }
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
-
 function EventsContent() {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

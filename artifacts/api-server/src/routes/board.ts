@@ -25,6 +25,7 @@ import {
   ExportExcelQueryParams,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { resolveExportCurrency } from "../lib/exportCurrency";
 import { requireVpAuth, vpLogin, isValidVpSession } from "../middleware/vpAuth";
 import { writeAuditLog } from "../middleware/auditLog";
 import { isValidUserSession } from "./userAuth";
@@ -366,10 +367,12 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
   const hasToken = !!queryParsed.data?.token;
   const vpSession = req.headers["x-vp-session"] as string | undefined;
   const hasVpSession = !!vpSession && isValidVpSession(vpSession);
+  const userSession = req.headers["x-user-session"] as string | undefined;
+  const hasUserSession = !!userSession && isValidUserSession(userSession);
   if (hasToken) {
     const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }
-  } else if (!hasVpSession) {
+  } else if (!hasVpSession && !hasUserSession) {
     res.status(401).json({ error: "Authentication required" }); return;
   }
 
@@ -383,16 +386,16 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
   res.setHeader("Content-Disposition", 'attachment; filename="hubert-board-report.pdf"');
   doc.pipe(res);
 
-  const fmt = (v: number) => {
-    if (Math.abs(v) >= 1000000) return "\u00a3" + (v / 1000000).toFixed(2) + "M";
-    if (Math.abs(v) >= 1000) return "\u00a3" + (v / 1000).toFixed(1) + "k";
-    return "\u00a3" + v.toFixed(0);
-  };
+  const money = await resolveExportCurrency(req.query.currency);
+  const fmt = money.formatCompact;
 
   doc.fontSize(22).font("Helvetica-Bold").text("Hubert Marketing Budget", { align: "center" });
   doc.moveDown(0.3);
   doc.fontSize(11).font("Helvetica").fillColor("#6b7280")
     .text(`FY2026 Board Report \u2014 Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, { align: "center" });
+  if (money.conversionNote) {
+    doc.fontSize(8).font("Helvetica-Oblique").fillColor("#6b7280").text(money.conversionNote, { align: "center" });
+  }
   doc.moveDown(1);
   doc.fillColor("#1a1a2e");
 
@@ -560,11 +563,8 @@ router.get("/exports/reports-pdf", asyncHandler(async (req, res): Promise<void> 
     return { lineItem: bl.lineItem, category: bl.category, planned, actual, variance: actual - planned };
   }).filter(l => l.planned > 0 || l.actual > 0).sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
 
-  const fmt = (v: number) => {
-    if (Math.abs(v) >= 1000000) return "£" + (v / 1000000).toFixed(2) + "M";
-    if (Math.abs(v) >= 1000) return "£" + (v / 1000).toFixed(1) + "k";
-    return "£" + v.toFixed(0);
-  };
+  const money = await resolveExportCurrency(req.query.currency);
+  const fmt = money.formatCompact;
   const fmtPct = (a: number, p: number) => p > 0 ? ((a / p) * 100).toFixed(0) + "%" : "-";
   const varPct = (a: number, p: number) => p > 0 ? ((a - p) / p * 100).toFixed(1) + "%" : "-";
 
@@ -605,6 +605,9 @@ router.get("/exports/reports-pdf", asyncHandler(async (req, res): Promise<void> 
   doc.moveDown(0.3);
   doc.fontSize(11).font("Helvetica").fillColor("#6b7280")
     .text(`FY${year} Reports — Generated ${genDate}`, { align: "center" });
+  if (money.conversionNote) {
+    doc.fontSize(8).font("Helvetica-Oblique").fillColor("#6b7280").text(money.conversionNote, { align: "center" });
+  }
   doc.moveDown(1);
   doc.fillColor("#1a1a2e");
 
@@ -719,14 +722,21 @@ router.get("/exports/excel", asyncHandler(async (req, res): Promise<void> => {
   const hasToken = !!queryParsed.data?.token;
   const vpSession = req.headers["x-vp-session"] as string | undefined;
   const hasVpSession = !!vpSession && isValidVpSession(vpSession);
+  const userSession = req.headers["x-user-session"] as string | undefined;
+  const hasUserSession = !!userSession && isValidUserSession(userSession);
   if (hasToken) {
     const valid = await validateToken(queryParsed.data!.token!);
     if (!valid) { res.status(401).json({ error: "Invalid or expired token" }); return; }
-  } else if (!hasVpSession) {
+  } else if (!hasVpSession && !hasUserSession) {
     res.status(401).json({ error: "Authentication required" }); return;
   }
 
   const ExcelJS = (await import("exceljs")).default;
+  // Read from req.query directly: ExportExcelQueryParams doesn't declare
+  // `currency`, so the parsed object drops it. The board screen sends the same
+  // ?currency= to this route and to /exports/pdf, and until now only the PDF
+  // honoured it — the two downloads disagreed by the exchange rate.
+  const money = await resolveExportCurrency(req.query.currency);
   const workbook = new ExcelJS.Workbook();
 
   const budgetLines = await db.select().from(budgetLinesTable);
@@ -775,15 +785,24 @@ router.get("/exports/excel", asyncHandler(async (req, res): Promise<void> => {
       row.push(pv, av, proj);
     }
     row.push(totalPlan, totalActual, totalProjected, totalActual - totalPlan, totalProjected - totalPlan);
-    sheet.addRow(row);
+    // Columns 1-4 are text and column 5 is a percentage; everything from 6 on
+    // is money and has to be converted, same as the PDF sibling route.
+    sheet.addRow(row.map((cell, i) => (i >= 5 && typeof cell === "number" ? money.convert(cell) : cell)));
   }
 
   for (let i = 1; i <= sheet.columnCount; i++) {
     const col = sheet.getColumn(i);
     col.width = i <= 4 ? 18 : (i === 5 ? 12 : 11);
-    if (i > 4) {
-      col.numFmt = '#,##0';
+    if (i > 5) {
+      col.numFmt = money.numFmt;
+    } else if (i === 5) {
+      col.numFmt = "0.0";
     }
+  }
+
+  if (money.conversionNote) {
+    const note = sheet.addRow([money.conversionNote]);
+    note.font = { italic: true, size: 10 };
   }
 
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

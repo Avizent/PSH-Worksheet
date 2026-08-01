@@ -39,22 +39,15 @@ import {
   getGetDashboardChartsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { getSessionToken } from "@/lib/authSession";
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function formatCurrency(val: number): string {
-  if (Math.abs(val) >= 1000000) {
-    return "\u00a3" + (val / 1000000).toFixed(2) + "M";
-  }
-  if (Math.abs(val) >= 1000) {
-    return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  }
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
 
 const CHART_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
 function RemainingBudgetChart({ categories, width, title = "Remaining Budget by Category", interactive = false, expandedCategory = null, onCategoryPress }: { categories: { category: string; planned: number; actual: number }[]; width: number; title?: string; interactive?: boolean; expandedCategory?: string | null; onCategoryPress?: (cat: string) => void }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const barHeight = 24;
   const chevronW = interactive ? 16 : 0;
@@ -105,6 +98,7 @@ function RemainingBudgetChart({ categories, width, title = "Remaining Budget by 
 type DrillLine = { id: number; lineItem: string; owner: string | null; planned: number; actual: number };
 
 function CategoryDrillTable({ lines, colors }: { lines: DrillLine[]; colors: ReturnType<typeof useColors> }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const sorted = [...lines].sort((a, b) => b.planned - a.planned);
   return (
     <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
@@ -139,6 +133,7 @@ const SESSION_KEY = "hbt_auto_open_snapshot_saved";
 let nativeAutoOpenFired = false;
 
 function DashboardContent() {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const queryClient = useQueryClient();
@@ -190,18 +185,32 @@ function DashboardContent() {
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
+    // beforeunload handlers cannot await, so the session token is resolved up
+    // front and captured — reading it inside the handler would not finish
+    // before the page goes away, and the request would be rejected as 401.
+    let sessionToken: string | null = null;
+    let cancelled = false;
+    getSessionToken()
+      .then((t) => {
+        if (!cancelled) sessionToken = t;
+      })
+      .catch(() => {});
     const handler = () => {
+      if (!sessionToken) return;
       try {
         fetch("/api/snapshots", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-user-session": sessionToken },
           body: JSON.stringify({ label: "auto-close" }),
           keepalive: true,
         }).catch(() => {});
       } catch {}
     };
     window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("beforeunload", handler);
+    };
   }, []);
 
   const handleSaveSnapshot = useCallback(() => {

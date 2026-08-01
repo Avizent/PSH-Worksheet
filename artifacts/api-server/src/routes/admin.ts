@@ -10,10 +10,15 @@ import {
 import { AnnualRolloverBody } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { requireVpAuth } from "../middleware/vpAuth";
+import { requireAdmin } from "../middleware/requireAuth";
+import { getCurrentUserId } from "../middleware/requestContext";
 
 const router: IRouter = Router();
 
-router.post("/admin/rollover", requireVpAuth, asyncHandler(async (req, res): Promise<void> => {
+// Admin-only: rollover rewrites a whole year of plans across every line.
+// requireVpAuth accepts any signed-in user (and the VP key that ships in the
+// web bundle), which is not a strong enough gate for a bulk year-level write.
+router.post("/admin/rollover", requireAdmin, asyncHandler(async (req, res): Promise<void> => {
   const parsed = AnnualRolloverBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid body", details: parsed.error });
@@ -44,33 +49,32 @@ router.post("/admin/rollover", requireVpAuth, asyncHandler(async (req, res): Pro
   }));
 
   let monthlyPlansCreated = 0;
-  if (newPlans.length > 0) {
-    await db.insert(monthlyPlansTable).values(newPlans);
-    monthlyPlansCreated = newPlans.length;
-  }
 
-  const newActuals = budgetLines.flatMap(bl =>
-    Array.from({ length: 12 }, (_, i) => ({
-      budgetLineId: bl.id,
-      month: i + 1,
-      year: targetYear,
-      actualAmount: 0,
-    }))
-  );
+  // One transaction: a rollover that failed half-way used to leave the target
+  // year holding some lines' plans and not others, while still reporting an
+  // error — and the 409 guard above would then refuse to retry it, because
+  // plans "already exist" for that year.
+  await db.transaction(async (tx) => {
+    if (newPlans.length > 0) {
+      await tx.insert(monthlyPlansTable).values(newPlans);
+      monthlyPlansCreated = newPlans.length;
+    }
 
-  let monthlyActualsCreated = 0;
-  if (newActuals.length > 0) {
-    await db.insert(monthlyActualsTable).values(newActuals);
-    monthlyActualsCreated = newActuals.length;
-  }
+    // Deliberately no zero-value actuals. Rollover used to fabricate twelve
+    // per budget line, which achieved nothing — spend of zero is the absence
+    // of a row — and actively broke the next real import, because those
+    // placeholder rows occupied every (line, month, year) slot the unique
+    // index allows, so the first genuine actual for the year collided.
 
-  await db.insert(auditLogsTable).values({
-    action: "rollover",
-    entityType: "annual_rollover",
-    entityId: 0,
-    field: "year",
-    oldValue: String(sourceYear),
-    newValue: String(targetYear),
+    await tx.insert(auditLogsTable).values({
+      action: "rollover",
+      entityType: "annual_rollover",
+      entityId: 0,
+      field: "year",
+      oldValue: String(sourceYear),
+      newValue: String(targetYear),
+      userId: getCurrentUserId(),
+    });
   });
 
   res.json({
@@ -78,7 +82,7 @@ router.post("/admin/rollover", requireVpAuth, asyncHandler(async (req, res): Pro
     targetYear,
     budgetLinesCopied: budgetLines.length,
     monthlyPlansCreated,
-    monthlyActualsCreated,
+    monthlyActualsCreated: 0,
   });
 }));
 

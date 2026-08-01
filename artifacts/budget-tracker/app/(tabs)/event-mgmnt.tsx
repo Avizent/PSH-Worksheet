@@ -47,9 +47,28 @@ import {
 } from "@workspace/api-zod";
 import type { z } from "zod";
 
-type MarketingEvent = z.infer<typeof ListEventsResponseItem>;
-type EventTask = z.infer<typeof ListEventTasksResponseItem>;
-type InAppAlert = z.infer<typeof ListInAppAlertsResponseItem>;
+// The zod schemas use `coerce.date()`, so z.infer types timestamps as Date -
+// but these values arrive over JSON as ISO strings and are only ever fed to
+// formatDate/daysUntil, which accept either. Widen the date fields so the
+// declared types match what actually comes back from the API.
+type JsonDates<T, K extends keyof T> = Omit<T, K> & {
+  [P in K]: T[P] extends Date ? Date | string
+    : T[P] extends Date | null | undefined ? Date | string | null | undefined
+    : T[P];
+};
+
+type MarketingEvent = JsonDates<
+  z.infer<typeof ListEventsResponseItem>,
+  "eventDate" | "createdAt" | "updatedAt"
+>;
+type EventTask = JsonDates<
+  z.infer<typeof ListEventTasksResponseItem>,
+  "dueDate" | "createdAt" | "updatedAt"
+>;
+type InAppAlert = JsonDates<
+  z.infer<typeof ListInAppAlertsResponseItem>,
+  "readAt" | "createdAt"
+>;
 
 function formatDate(dateVal: Date | string | null | undefined): string {
   if (!dateVal) return "TBD";

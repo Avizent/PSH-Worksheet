@@ -8,12 +8,7 @@ import { KpiCard } from "@/components/KpiCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { useGetDashboardSummary, useListBudgetLinesWithMonthly, useListAlerts } from "@workspace/api-client-react";
-
-function formatCurrency(val: number): string {
-  if (Math.abs(val) >= 1000000) return "\u00a3" + (val / 1000000).toFixed(1) + "M";
-  if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 function varPct(actual: number, planned: number): string {
   if (planned === 0) return "-";
@@ -34,6 +29,7 @@ interface BudgetLine {
 type DrillLine = { id: number; lineItem: string; owner: string | null; planned: number; actual: number };
 
 function QuarterlyBarChart({ data, width, height }: { data: { label: string; planned: number; actual: number }[]; width: number; height: number }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -77,6 +73,7 @@ function QuarterlyBarChart({ data, width, height }: { data: { label: string; pla
 }
 
 function DrillRows({ lines }: { lines: DrillLine[] }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   return (
     <View style={[drillStyles.block, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
@@ -110,6 +107,7 @@ function DrillRows({ lines }: { lines: DrillLine[] }) {
 }
 
 function AnnualContent() {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

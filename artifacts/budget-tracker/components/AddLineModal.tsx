@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView, ActivityIndicator } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import type { ChannelValue } from "@/components/BudgetTable";
 
 const COST_STATUSES = ["Fixed Cost", "Variable", "Planned", "Booked"];
-const CHANNEL_OPTIONS: { value: string; label: string }[] = [
+const CHANNEL_OPTIONS: { value: "" | ChannelValue; label: string }[] = [
   { value: "", label: "None" },
   { value: "partner", label: "Partner" },
   { value: "reseller", label: "Reseller" },
@@ -19,7 +20,7 @@ interface Props {
   owners: Owner[];
   saving?: boolean;
   onClose: () => void;
-  onSubmit: (data: { lineItem: string; category: string; owner?: string; costStatus: string; region?: string; channel?: string | null }) => void;
+  onSubmit: (data: { lineItem: string; category: string; owner?: string; costStatus: string; region?: string; channel?: ChannelValue | null }) => void;
 }
 
 export function AddLineModal({ visible, categories, owners, saving, onClose, onSubmit }: Props) {
@@ -30,7 +31,7 @@ export function AddLineModal({ visible, categories, owners, saving, onClose, onS
   const [owner, setOwner] = useState<string>("");
   const [costStatus, setCostStatus] = useState("Variable");
   const [region, setRegion] = useState("");
-  const [channel, setChannel] = useState<string>("");
+  const [channel, setChannel] = useState<"" | ChannelValue>("");
   const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -119,8 +120,10 @@ function Field({ label, children, colors }: { label: string; children: React.Rea
   );
 }
 
-interface ChipOption { value: string; label: string; color?: string }
-function ChipPicker({ options, value, onChange, colors }: { options: ChipOption[]; value: string; onChange: (v: string) => void; colors: ReturnType<typeof useColors> }) {
+interface ChipOption<V extends string = string> { value: V; label: string; color?: string }
+// Generic over the option value so callers with a narrowed union (e.g. the
+// channel enum) keep their type through onChange.
+function ChipPicker<V extends string>({ options, value, onChange, colors }: { options: ChipOption<V>[]; value: V; onChange: (v: V) => void; colors: ReturnType<typeof useColors> }) {
   return (
     <View style={styles.chipRow}>
       {options.map((opt) => {

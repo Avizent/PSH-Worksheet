@@ -1,6 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { UseMutationResult, UseQueryResult, QueryKey } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "./custom-fetch";
+
+// These types mirror the actual /api/snapshots responses in
+// artifacts/api-server/src/routes/snapshots.ts. Keep them in step with that
+// file - the screen reads every field below.
 
 export interface SnapshotMeta {
   id: string;
@@ -13,14 +16,14 @@ export interface SnapshotMeta {
   pinned: boolean;
 }
 
-export interface CreateSnapshotBody {
-  label?: string;
-}
-
 export interface RestoreSnapshotResult {
   success: boolean;
   restoredFrom: string;
   preRestoreSnapshot: SnapshotMeta | null;
+}
+
+export interface CreateSnapshotBody {
+  label?: string;
 }
 
 export interface SnapshotDiffChange {
@@ -53,137 +56,121 @@ export interface SnapshotDiff {
   summary: SnapshotDiffSummary;
 }
 
-export const getListSnapshotsQueryKey = (): readonly [string] => ["/api/snapshots"] as const;
+export const getListSnapshotsQueryKey = () => ["snapshots"] as const;
+export const getCompareSnapshotsQueryKey = (a: string, b: string) =>
+  ["snapshots", "compare", a, b] as const;
 
-export const getCompareSnapshotsQueryKey = (a: string, b: string): readonly [string, string, string] =>
-  ["/api/snapshots/compare", a, b] as const;
+// --- QUERIES ---
 
-export function useListSnapshots(options?: {
-  query?: Partial<Parameters<typeof useQuery>[0]>;
-}): UseQueryResult<SnapshotMeta[]> & { queryKey: QueryKey } {
+export function useListSnapshots() {
   const queryKey = getListSnapshotsQueryKey();
-  const query = useQuery<SnapshotMeta[]>({
+  const options = queryOptions({
     queryKey,
-    queryFn: ({ signal }) => customFetch<SnapshotMeta[]>("/api/snapshots", { signal }),
-    ...options?.query,
+    queryFn: async ({ signal }): Promise<SnapshotMeta[]> =>
+      customFetch<SnapshotMeta[]>("/api/snapshots", { signal }),
   });
+  const query = useQuery(options);
   return { ...query, queryKey };
 }
 
-export function useCreateSnapshot(options?: {
-  mutation?: Partial<Parameters<typeof useMutation>[0]>;
-}): UseMutationResult<SnapshotMeta, Error, CreateSnapshotBody> {
+/** Server expects ?a=<before>&b=<after>. */
+export function useCompareSnapshots(a: string, b: string) {
+  const queryKey = getCompareSnapshotsQueryKey(a, b);
+  const options = queryOptions({
+    queryKey,
+    queryFn: async ({ signal }): Promise<SnapshotDiff> =>
+      customFetch<SnapshotDiff>(
+        `/api/snapshots/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`,
+        { signal },
+      ),
+    enabled: Boolean(a && b),
+  });
+  const query = useQuery(options);
+  return { ...query, queryKey };
+}
+
+// --- MUTATIONS ---
+
+function useInvalidateSnapshots() {
   const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
+}
+
+export function useCreateSnapshot() {
+  const invalidate = useInvalidateSnapshots();
   return useMutation<SnapshotMeta, Error, CreateSnapshotBody>({
-    mutationFn: (body: CreateSnapshotBody) =>
+    mutationFn: async (body): Promise<SnapshotMeta> =>
       customFetch<SnapshotMeta>("/api/snapshots", {
         method: "POST",
         body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
-    },
-    ...options?.mutation,
+    onSuccess: () => invalidate(),
   });
 }
 
-export function useRestoreSnapshot(options?: {
-  mutation?: Partial<Parameters<typeof useMutation>[0]>;
-}): UseMutationResult<RestoreSnapshotResult, Error, string> {
-  const queryClient = useQueryClient();
+export function useRestoreSnapshot() {
+  const invalidate = useInvalidateSnapshots();
   return useMutation<RestoreSnapshotResult, Error, string>({
-    mutationFn: (id: string) =>
-      customFetch<RestoreSnapshotResult>(`/api/snapshots/${encodeURIComponent(id)}/restore`, {
-        method: "POST",
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
-    },
-    ...options?.mutation,
+    mutationFn: async (id): Promise<RestoreSnapshotResult> =>
+      customFetch<RestoreSnapshotResult>(
+        `/api/snapshots/${encodeURIComponent(id)}/restore`,
+        { method: "POST" },
+      ),
+    onSuccess: () => invalidate(),
   });
 }
 
-export function useImportSnapshot(options?: {
-  mutation?: Partial<Parameters<typeof useMutation>[0]>;
-}): UseMutationResult<SnapshotMeta, Error, Record<string, unknown>> {
-  const queryClient = useQueryClient();
+export function useImportSnapshot() {
+  const invalidate = useInvalidateSnapshots();
   return useMutation<SnapshotMeta, Error, Record<string, unknown>>({
-    mutationFn: (snapshotJson: Record<string, unknown>) =>
+    mutationFn: async (snapshotJson): Promise<SnapshotMeta> =>
       customFetch<SnapshotMeta>("/api/snapshots/import", {
         method: "POST",
         body: JSON.stringify(snapshotJson),
+        headers: { "Content-Type": "application/json" },
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
-    },
-    ...options?.mutation,
+    onSuccess: () => invalidate(),
   });
 }
 
-export function useDeleteSnapshot(options?: {
-  mutation?: Partial<Parameters<typeof useMutation>[0]>;
-}): UseMutationResult<void, Error, { id: string }> {
-  const queryClient = useQueryClient();
+/** Server responds 204 No Content. */
+export function useDeleteSnapshot() {
+  const invalidate = useInvalidateSnapshots();
   return useMutation<void, Error, { id: string }>({
-    mutationFn: ({ id }) =>
-      customFetch<void>(`/api/snapshots/${encodeURIComponent(id)}`, {
+    mutationFn: async ({ id }): Promise<void> => {
+      await customFetch<void>(`/api/snapshots/${encodeURIComponent(id)}`, {
         method: "DELETE",
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
+      });
     },
-    ...options?.mutation,
+    onSuccess: () => invalidate(),
   });
 }
 
-export function usePinSnapshot(options?: {
-  mutation?: Partial<Parameters<typeof useMutation>[0]>;
-}): UseMutationResult<SnapshotMeta, Error, { id: string; data: { pinned: boolean } }> {
-  const queryClient = useQueryClient();
+/** PATCH /api/snapshots/:id/pin */
+export function usePinSnapshot() {
+  const invalidate = useInvalidateSnapshots();
   return useMutation<SnapshotMeta, Error, { id: string; data: { pinned: boolean } }>({
-    mutationFn: ({ id, data }) =>
+    mutationFn: async ({ id, data }): Promise<SnapshotMeta> =>
       customFetch<SnapshotMeta>(`/api/snapshots/${encodeURIComponent(id)}/pin`, {
         method: "PATCH",
         body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
-    },
-    ...options?.mutation,
+    onSuccess: () => invalidate(),
   });
 }
 
-export function useCompareSnapshots(
-  a: string,
-  b: string,
-  options?: { query?: Partial<Parameters<typeof useQuery>[0]> },
-): UseQueryResult<SnapshotDiff> & { queryKey: QueryKey } {
-  const queryKey = getCompareSnapshotsQueryKey(a, b);
-  const query = useQuery<SnapshotDiff>({
-    queryKey,
-    queryFn: ({ signal }) =>
-      customFetch<SnapshotDiff>(`/api/snapshots/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`, {
-        signal,
-      }),
-    enabled: Boolean(a && b),
-    ...options?.query,
-  });
-  return { ...query, queryKey };
-}
-
-export function useRenameSnapshot(options?: {
-  mutation?: Partial<Parameters<typeof useMutation>[0]>;
-}): UseMutationResult<SnapshotMeta, Error, { id: string; label: string }> {
-  const queryClient = useQueryClient();
+/** PATCH /api/snapshots/:id with a new label. */
+export function useRenameSnapshot() {
+  const invalidate = useInvalidateSnapshots();
   return useMutation<SnapshotMeta, Error, { id: string; label: string }>({
-    mutationFn: ({ id, label }) =>
+    mutationFn: async ({ id, label }): Promise<SnapshotMeta> =>
       customFetch<SnapshotMeta>(`/api/snapshots/${encodeURIComponent(id)}`, {
         method: "PATCH",
         body: JSON.stringify({ label }),
+        headers: { "Content-Type": "application/json" },
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getListSnapshotsQueryKey() });
-    },
-    ...options?.mutation,
+    onSuccess: () => invalidate(),
   });
 }

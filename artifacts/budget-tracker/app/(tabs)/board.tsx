@@ -36,16 +36,12 @@ import {
   getGetBoardPreviewQueryKey,
 } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function formatCurrency(val: number): string {
-  if (Math.abs(val) >= 1000000) return "\u00a3" + (val / 1000000).toFixed(2) + "M";
-  if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
-
 function BoardContent() {
+  const { formatCompact: formatCurrency, currency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
@@ -146,12 +142,15 @@ function BoardContent() {
 
   const downloadExport = async (endpoint: string, filename: string) => {
     const baseUrl = getApiUrl();
-    const url = `${baseUrl}/api/exports/${endpoint}`;
+    const url = `${baseUrl}/api/exports/${endpoint}?currency=${currency}`;
     try {
       const { getVpSessionToken } = await import("@/utils/vpSession");
+      const { getSessionToken } = await import("@/lib/authSession");
       const sessionToken = getVpSessionToken();
+      const userToken = await getSessionToken();
       const headers: Record<string, string> = {};
       if (sessionToken) headers["x-vp-session"] = sessionToken;
+      if (userToken) headers["x-user-session"] = userToken;
       const res = await fetch(url, { headers });
       if (!res.ok) throw new Error("Export failed");
       if (Platform.OS === "web") {
@@ -203,11 +202,11 @@ function BoardContent() {
     }));
     const chartCumulative = preview.charts.monthly.map((m: { monthLabel: string; cumPlanned: number; cumActual: number }) => ({
       label: m.monthLabel,
-      plan: m.cumPlanned,
-      actual: m.cumActual,
+      cumPlanned: m.cumPlanned,
+      cumActual: m.cumActual,
     }));
     const chartCategories = preview.charts.categories.map((c: { category: string; actual: number }) => ({
-      label: c.category,
+      category: c.category,
       value: c.actual,
     }));
 
@@ -248,10 +247,10 @@ function BoardContent() {
 
         {(visibleSections.has("kpi_total_budget") || visibleSections.has("kpi_spent_ytd") || visibleSections.has("kpi_remaining") || visibleSections.has("kpi_fixed_run_rate")) && (
           <View style={[styles.kpiRow, { flexDirection: isDesktop ? "row" : "column" }]}>
-            {visibleSections.has("kpi_total_budget") && <KpiCard icon="target" label="TOTAL BUDGET" value={formatCurrency(s.totalBudget)} />}
-            {visibleSections.has("kpi_spent_ytd") && <KpiCard icon="credit-card" label="SPENT YTD" value={formatCurrency(s.spentYtd)} />}
-            {visibleSections.has("kpi_remaining") && <KpiCard icon="check-circle" label="REMAINING" value={formatCurrency(s.remaining)} />}
-            {visibleSections.has("kpi_fixed_run_rate") && <KpiCard icon="repeat" label="FIXED RUN RATE" value={formatCurrency(s.fixedRunRate) + "/mo"} />}
+            {visibleSections.has("kpi_total_budget") && <KpiCard icon="target" title="TOTAL BUDGET" value={formatCurrency(s.totalBudget)} />}
+            {visibleSections.has("kpi_spent_ytd") && <KpiCard icon="credit-card" title="SPENT YTD" value={formatCurrency(s.spentYtd)} />}
+            {visibleSections.has("kpi_remaining") && <KpiCard icon="check-circle" title="REMAINING" value={formatCurrency(s.remaining)} />}
+            {visibleSections.has("kpi_fixed_run_rate") && <KpiCard icon="repeat" title="FIXED RUN RATE" value={formatCurrency(s.fixedRunRate) + "/mo"} />}
           </View>
         )}
 

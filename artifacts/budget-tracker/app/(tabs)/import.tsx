@@ -40,6 +40,8 @@ import {
   getListAlertsQueryKey,
 } from "@workspace/api-client-react";
 import { getApiUrl } from "@/utils/getApiUrl";
+import { apiFetch } from "@/lib/apiFetch";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 type ImportRow = {
   id: number;
@@ -77,14 +79,10 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function formatAmount(val: number | null | undefined): string {
-  if (val == null) return "-";
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
-
 const MONTH_LABELS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function ImportContent() {
+  const { format: formatAmount } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
@@ -130,7 +128,7 @@ function ImportContent() {
       formData.append("file", file);
 
       const baseUrl = getApiUrl();
-      const response = await fetch(`${baseUrl}/api/imports/upload`, {
+      const response = await apiFetch(`${baseUrl}/api/imports/upload`, {
         method: "POST",
         body: formData,
       });
@@ -268,7 +266,7 @@ function ImportContent() {
     setClearingAll(true);
     try {
       const baseUrl = getApiUrl();
-      const res = await fetch(`${baseUrl}/api/imports/clear-all`, { method: "POST" });
+      const res = await apiFetch(`${baseUrl}/api/imports/clear-all`, { method: "POST" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         alert("Clear failed: " + (err.error || res.statusText));

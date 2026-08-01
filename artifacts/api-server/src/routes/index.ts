@@ -26,6 +26,7 @@ import eventTasksRouter from "./event-tasks";
 import taskRemindersRouter from "./task-reminders";
 import inAppAlertsRouter from "./in-app-alerts";
 import budgetLineColumnsRouter from "./budget-line-columns";
+import exchangeRateRouter from "./exchange-rate";
 
 const router: IRouter = Router();
 
@@ -56,5 +57,6 @@ router.use(eventTasksRouter);
 router.use(taskRemindersRouter);
 router.use(inAppAlertsRouter);
 router.use(budgetLineColumnsRouter);
+router.use(exchangeRateRouter);
 
 export default router;

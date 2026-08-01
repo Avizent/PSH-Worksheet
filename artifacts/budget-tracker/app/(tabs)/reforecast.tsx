@@ -25,21 +25,15 @@ import {
   useListBudgetLinesWithMonthly,
   useListAlerts,
   getListForecastVersionsQueryKey,
+  getGetForecastVersionQueryKey,
+  getCompareForecastVersionsQueryKey,
   type ListForecastVersionsQueryResult,
+  type ForecastVersion,
   type GetForecastVersionQueryResult,
   type CompareForecastVersionsQueryResult,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-
-interface ForecastVersion {
-  id: number;
-  name: string;
-  description?: string | null;
-  versionNumber: number;
-  year: number;
-  isOriginal: boolean;
-  createdAt: Date;
-}
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface ForecastPlan {
   budgetLineId: number;
@@ -71,12 +65,8 @@ interface BudgetLineWithMonthly {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const CURRENT_MONTH = new Date().getMonth() + 1;
 
-function formatCurrency(val: number): string {
-  if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
-
 export default function ReforecastScreen() {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode, width } = useLayout();
   const isDesktop = mode === "desktop";
@@ -101,13 +91,24 @@ export default function ReforecastScreen() {
   const activeVersion = versions?.find((v) => v.id === activeVersionId);
 
   const { data: versionDetail } = useGetForecastVersion(activeVersionId ?? 0, {
-    query: { enabled: !!activeVersionId },
+    query: {
+      enabled: !!activeVersionId,
+      queryKey: getGetForecastVersionQueryKey(activeVersionId ?? 0),
+    },
   });
 
   const compareBaseId = originalVersion?.id;
   const { data: comparison } = useCompareForecastVersions(
     { baseVersionId: compareBaseId ?? 0, compareVersionId: activeVersionId ?? 0 },
-    { query: { enabled: !!compareBaseId && !!activeVersionId && compareBaseId !== activeVersionId } },
+    {
+      query: {
+        enabled: !!compareBaseId && !!activeVersionId && compareBaseId !== activeVersionId,
+        queryKey: getCompareForecastVersionsQueryKey({
+          baseVersionId: compareBaseId ?? 0,
+          compareVersionId: activeVersionId ?? 0,
+        }),
+      },
+    },
   );
 
   const createMutation = useCreateForecastVersion();
@@ -227,7 +228,7 @@ export default function ReforecastScreen() {
 
       {versions && versions.length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-          {(versions as ForecastVersion[]).map((v) => (
+          {versions.map((v) => (
             <TouchableOpacity
               key={v.id}
               onPress={() => setSelectedVersionId(v.id)}

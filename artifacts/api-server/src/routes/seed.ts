@@ -3,11 +3,14 @@ import { db, budgetLinesTable, monthlyPlansTable, monthlyActualsTable, alertsTab
 import { csvImportRowsTable, csvImportsTable, forecastPlansTable, forecastVersionsTable, shareTokensTable, boardSettingsTable, auditLogsTable } from "@workspace/db";
 import { SeedDataResponse } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { requireAdmin } from "../middleware/requireAuth";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-router.post("/seed", asyncHandler(async (_req, res): Promise<void> => {
+// Admin-only: this deletes every row in twelve tables (including audit_logs)
+// and re-seeds from the bundled fixture. Nothing in the app calls it.
+router.post("/seed", requireAdmin, asyncHandler(async (_req, res): Promise<void> => {
   logger.info("Manual seed triggered — clearing all data and re-seeding...");
 
   await db.delete(forecastPlansTable);

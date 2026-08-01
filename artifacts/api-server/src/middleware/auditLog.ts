@@ -1,4 +1,5 @@
 import { db, auditLogsTable } from "@workspace/db";
+import { getCurrentUserId } from "./requestContext";
 
 interface AuditEntry {
   action: string;
@@ -19,7 +20,9 @@ export async function writeAuditLog(entry: AuditEntry): Promise<void> {
       field: entry.field,
       oldValue: entry.oldValue ?? null,
       newValue: entry.newValue ?? null,
-      userId: entry.userId ?? null,
+      // Falls back to the signed-in user for the current request, so callers
+      // that don't pass one still produce an attributable record.
+      userId: entry.userId ?? getCurrentUserId(),
     });
   } catch (err) {
     console.error("Failed to write audit log:", err);

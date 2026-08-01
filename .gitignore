@@ -48,5 +48,12 @@ Thumbs.db
 .cache/
 .local/
 
-# Runtime snapshot files
+# Runtime snapshot files (contain real budget data, never committed)
 artifacts/api-server/snapshots/*.json
+artifacts/desktop/snapshots/*.json
+
+# Desktop packaging staging/output
+artifacts/desktop/resources
+artifacts/desktop/release
+artifacts/budget-tracker/static-build
+scripts/backups/

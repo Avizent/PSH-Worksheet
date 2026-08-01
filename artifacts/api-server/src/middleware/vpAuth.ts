@@ -1,5 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import crypto from "crypto";
+import { isValidUserSession } from "../routes/userAuth";
 
 interface VpSession {
   token: string;
@@ -46,11 +47,27 @@ export function isValidVpSession(token: string): boolean {
   return true;
 }
 
+/**
+ * Accepts either a VP session (API-key login, used by external board members)
+ * or a normal signed-in user session.
+ *
+ * The VP key path only ever worked in the hosted Replit deployment, where
+ * EXPO_PUBLIC_VP_API_KEY was baked into the web bundle at build time. The
+ * desktop build has no such key, so requiring it exclusively left board
+ * settings, share links, exports, rollover and reforecast permanently 401ing
+ * for the signed-in budget holder. Same dual-auth check already used by
+ * /snapshots/compare/pdf.
+ */
 export function requireVpAuth(req: Request, res: Response, next: NextFunction): void {
-  const sessionToken = req.headers["x-vp-session"] as string | undefined;
-  if (sessionToken && isValidVpSession(sessionToken)) {
+  const vpSession = req.headers["x-vp-session"] as string | undefined;
+  if (vpSession && isValidVpSession(vpSession)) {
     next();
     return;
   }
-  res.status(401).json({ error: "Unauthorized: valid VP session required" });
+  const userSession = req.headers["x-user-session"] as string | undefined;
+  if (userSession && isValidUserSession(userSession)) {
+    next();
+    return;
+  }
+  res.status(401).json({ error: "Unauthorized: sign in or provide a valid VP session" });
 }

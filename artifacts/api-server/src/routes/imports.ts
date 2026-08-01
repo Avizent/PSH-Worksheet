@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { eq, and, inArray, isNull } from "drizzle-orm";
+import { eq, and, inArray, isNull, sql } from "drizzle-orm";
 import multer, { MulterError } from "multer";
 import crypto from "crypto";
 import XLSX from "xlsx";
@@ -29,6 +29,7 @@ import {
   AssignImportRowParams,
 } from "@workspace/api-zod";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { requireAdmin } from "../middleware/requireAuth";
 import { writeAuditLog } from "../middleware/auditLog";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -257,11 +258,16 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
   };
 
   const rowInserts: RowInsert[] = [];
+  const planUpserts: { budgetLineId: number; month: number; year: number; plannedAmount: number }[] = [];
   let matched = 0;
   let unmatched = 0;
   let errors = 0;
 
   const currentYear = new Date().getFullYear();
+
+  // Opt in per upload with the `createMissingLines` form field.
+  const allowCreate = String((req.body as Record<string, unknown> | undefined)?.["createMissingLines"] ?? "")
+    .toLowerCase() === "true";
 
   async function findOrCreateBudgetLine(rawCategory: string | null, rawLineItem: string | null, extraFields?: {
     owner?: string; region?: string; costStatus?: string; boardApproved?: number;
@@ -275,7 +281,16 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
     if (!line) {
       line = linesByNormName.get(normalise(rawLineItem));
     }
-    if (!line) {
+    // Creating budget lines from an upload is opt-in and off by default.
+    //
+    // It used to be unconditional, and it is how a load of *actuals* silently
+    // invented 13 budget lines that shadowed the real ones — the money ended up
+    // split across two rows that look identical in the UI, so every affected
+    // line reported the wrong remaining figure. The baseline is meant to be
+    // read-only (see CLAUDE.md); rows that match nothing are reported for
+    // review instead, and /excel/import remains the deliberate path for adding
+    // lines, where the user confirms each new row.
+    if (!line && allowCreate) {
       const autoKey = normalise(rawCategory || "Uncategorized") + "|" + normalise(rawLineItem);
       line = autoCreatedLines.get(autoKey);
       if (!line) {
@@ -330,7 +345,11 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
         rowInserts.push({
           importId: importRecord.id, rowIndex, rawCategory, rawLineItem,
           rawMonth: null, rawYear: null, rawAmount: null, rawInvoiceRef: null,
-          status: "error", budgetLineId: null, errorMessage: "Missing line item name", rowHash: null,
+          status: "error", budgetLineId: null,
+          errorMessage: rawLineItem?.trim()
+            ? "No budget line matches this category and line item. Add the line first, or re-upload with 'create missing lines' enabled."
+            : "Missing line item name",
+          rowHash: null,
         });
         continue;
       }
@@ -340,7 +359,11 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
           const valStr = String(cols[mc.colIdx] || "").replace(/[£$,]/g, "");
           const val = parseFloat(valStr);
           if (isNaN(val)) continue;
-          await db.insert(monthlyPlansTable).values({
+          // Collected and written once after the loop. These used to be
+          // awaited one statement at a time inside a nested loop — twelve
+          // round trips per row — and with no conflict handling, so
+          // re-uploading the same file hit the unique index and 500'd.
+          planUpserts.push({
             budgetLineId: budgetLine.id,
             month: mc.monthNum,
             year: currentYear,
@@ -421,6 +444,16 @@ router.post("/imports/upload", upload.single("file"), handleMulterError, asyncHa
         });
       }
     }
+  }
+
+  if (planUpserts.length > 0) {
+    await db
+      .insert(monthlyPlansTable)
+      .values(planUpserts)
+      .onConflictDoUpdate({
+        target: [monthlyPlansTable.budgetLineId, monthlyPlansTable.month, monthlyPlansTable.year],
+        set: { plannedAmount: sql`excluded.planned_amount` },
+      });
   }
 
   if (rowInserts.length > 0) {
@@ -588,36 +621,80 @@ router.post("/imports/:id/confirm", asyncHandler(async (req, res): Promise<void>
 
   let created = 0;
   let skippedDuplicate = 0;
+  let skippedConflict = 0;
 
+  /**
+   * monthly_actuals holds one row per (budget line, month, year). Two invoices
+   * for the same line in the same month therefore collided with the unique
+   * index: the insert threw part-way through the loop, leaving the earlier
+   * rows of the import already written and the import still marked pending.
+   *
+   * Invoices within this file are now combined into one figure per slot, which
+   * is what the one-row-per-month model means. A slot already owned by a
+   * *different* import is left alone and reported instead: merging into it
+   * would silently attach this import's money to another import's row, and
+   * deleting that import would then roll back spend it never brought in.
+   */
+  const bySlot = new Map<string, { budgetLineId: number; month: number; year: number; amount: number; hash: string | null }>();
   for (const row of matchedRows) {
     if (!row.budgetLineId || row.rawMonth == null || row.rawYear == null || row.rawAmount == null) {
       continue;
     }
-
     if (row.rowHash && existingHashes.has(row.rowHash)) {
       skippedDuplicate++;
       continue;
     }
+    if (row.rowHash) existingHashes.add(row.rowHash);
 
-    await db.insert(monthlyActualsTable).values({
-      budgetLineId: row.budgetLineId,
-      month: row.rawMonth,
-      year: row.rawYear,
-      actualAmount: row.rawAmount,
-      invoiceRef: row.rowHash,
-      importId: imp.id,
-    });
-
-    if (row.rowHash) {
-      existingHashes.add(row.rowHash);
+    const key = `${row.budgetLineId}|${row.rawMonth}|${row.rawYear}`;
+    const acc = bySlot.get(key);
+    if (acc) {
+      acc.amount += Number(row.rawAmount);
+    } else {
+      bySlot.set(key, {
+        budgetLineId: row.budgetLineId,
+        month: row.rawMonth,
+        year: row.rawYear,
+        amount: Number(row.rawAmount),
+        hash: row.rowHash,
+      });
     }
-    created++;
   }
 
+  const slots = [...bySlot.values()];
   const unmatchedRows = await db.select().from(csvImportRowsTable)
     .where(and(eq(csvImportRowsTable.importId, imp.id), eq(csvImportRowsTable.status, "unmatched")));
 
-  await db.update(csvImportsTable).set({ status: "confirmed" }).where(eq(csvImportsTable.id, imp.id));
+  await db.transaction(async (tx) => {
+    for (const slot of slots) {
+      const [clash] = await tx
+        .select({ id: monthlyActualsTable.id })
+        .from(monthlyActualsTable)
+        .where(and(
+          eq(monthlyActualsTable.budgetLineId, slot.budgetLineId),
+          eq(monthlyActualsTable.month, slot.month),
+          eq(monthlyActualsTable.year, slot.year),
+        ))
+        .limit(1);
+
+      if (clash) {
+        skippedConflict++;
+        continue;
+      }
+
+      await tx.insert(monthlyActualsTable).values({
+        budgetLineId: slot.budgetLineId,
+        month: slot.month,
+        year: slot.year,
+        actualAmount: slot.amount,
+        invoiceRef: slot.hash,
+        importId: imp.id,
+      });
+      created++;
+    }
+
+    await tx.update(csvImportsTable).set({ status: "confirmed" }).where(eq(csvImportsTable.id, imp.id));
+  });
 
   await writeAuditLog({
     action: "update",
@@ -631,7 +708,7 @@ router.post("/imports/:id/confirm", asyncHandler(async (req, res): Promise<void>
   res.json(ConfirmImportResponse.parse({
     importId: imp.id,
     created,
-    skippedDuplicate,
+    skippedDuplicate: skippedDuplicate + skippedConflict,
     skippedUnmatched: unmatchedRows.length,
   }));
 }));
@@ -701,7 +778,8 @@ router.delete("/imports/:id", asyncHandler(async (req, res): Promise<void> => {
   res.json({ success: true, id: imp.id, previousStatus });
 }));
 
-router.post("/imports/clear-all", asyncHandler(async (_req, res): Promise<void> => {
+// Admin-only: wipes twelve tables, audit_logs included, in one transaction.
+router.post("/imports/clear-all", requireAdmin, asyncHandler(async (_req, res): Promise<void> => {
   await db.transaction(async (tx) => {
     const d = {
       forecastPlans: (await tx.delete(forecastPlansTable).returning()).length,

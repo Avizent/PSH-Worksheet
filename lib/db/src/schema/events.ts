@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, numeric, timestamp } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 import { makeInsertSchema } from "../utils";
 import { budgetLinesTable } from "./budgetLines";
@@ -8,7 +8,7 @@ export const eventsTable = pgTable("events", {
   name: text("name").notNull(),
   eventDate: timestamp("event_date", { withTimezone: true }),
   status: text("status").notNull().default("Planned"),
-  estimatedCost: real("estimated_cost"),
+  estimatedCost: numeric("estimated_cost", { precision: 14, scale: 2, mode: "number" }),
   budgetLineId: integer("budget_line_id").references(() => budgetLinesTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

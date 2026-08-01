@@ -17,18 +17,12 @@ import { WebRefreshButton } from "@/components/WebRefreshButton";
 import { useListBudgetLinesWithMonthly, useListAlerts } from "@workspace/api-client-react";
 import { Feather } from "@expo/vector-icons";
 import { QuarterlyBody } from "./quarterly";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-
-function fmt(v: number): string {
-  const abs = Math.abs(v);
-  if (abs >= 1_000_000) return "\u00a3" + (v / 1_000_000).toFixed(2) + "M";
-  if (abs >= 1_000) return "\u00a3" + (v / 1_000).toFixed(1) + "k";
-  return "\u00a3" + v.toFixed(0);
-}
 
 function fmtPct(actual: number, planned: number): string {
   if (planned === 0) return "-";
@@ -84,6 +78,7 @@ interface LineRowProps {
 }
 
 function LineRow({ rank, lineItem, category, owner, planned, actual, variance, isOver }: LineRowProps) {
+  const { formatCompact: fmt } = useCurrency();
   const colors = useColors();
   const varColor = isOver
     ? colors.destructive ?? "#ef4444"
@@ -108,6 +103,7 @@ function LineRow({ rank, lineItem, category, owner, planned, actual, variance, i
 }
 
 function MirBody() {
+  const { formatCompact: fmt } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

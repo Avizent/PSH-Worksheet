@@ -22,14 +22,9 @@ import { DonutChart } from "@/components/DonutChart";
 import { ProjectionBarChart } from "@/components/ProjectionBarChart";
 import { SectionHeader } from "@/components/SectionHeader";
 import { getApiUrl } from "@/utils/getApiUrl";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function formatCurrency(val: number): string {
-  if (Math.abs(val) >= 1000000) return "\u00a3" + (val / 1000000).toFixed(2) + "M";
-  if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
 
 type BoardData = {
   summary: {
@@ -65,6 +60,7 @@ export default function BoardViewScreen() {
 }
 
 function BoardViewContent() {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -144,8 +140,8 @@ function BoardViewContent() {
   const s = data.summary;
 
   const chartMonthly = data.charts.monthly.map(m => ({ label: m.monthLabel, planned: m.planned, actual: m.actual }));
-  const chartCumulative = data.charts.monthly.map(m => ({ label: m.monthLabel, plan: m.cumPlanned, actual: m.cumActual }));
-  const chartCategories = data.charts.categories.map(c => ({ label: c.category, value: c.actual }));
+  const chartCumulative = data.charts.monthly.map(m => ({ label: m.monthLabel, cumPlanned: m.cumPlanned, cumActual: m.cumActual }));
+  const chartCategories = data.charts.categories.map(c => ({ category: c.category, value: c.actual }));
   const formatChannelLabel = (ch: string) => ch === "unassigned" ? "Unassigned" : ch.charAt(0).toUpperCase() + ch.slice(1);
   const chartChannels = (data.charts.channels ?? []).map(c => ({ label: formatChannelLabel(c.channel), planned: c.planned, actual: c.actual }));
   const projectionMonthly = MONTH_LABELS.map((label, i) => {

@@ -13,7 +13,7 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
 import { useColors } from "@/hooks/useColors";
@@ -38,10 +38,11 @@ import {
 } from "@workspace/api-client-react/snapshots";
 import { useQueryClient } from "@tanstack/react-query";
 import { getApiUrl } from "@/utils/getApiUrl";
+import { apiFetch } from "@/lib/apiFetch";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const PROTECTED_LABELS = ["pre-import", "pre-restore"];
 
-const fmt = (n: number) => "£" + Math.round(n).toLocaleString("en-GB");
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
@@ -93,6 +94,7 @@ interface SnapshotRowProps {
 }
 
 function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, onDelete, compareSlot, compareMode, onPin, pinning }: SnapshotRowProps) {
+  const { formatCompact: fmt } = useCurrency();
   const colors = useColors();
   const isProtected = PROTECTED_LABELS.includes(snap.label);
 
@@ -221,6 +223,7 @@ function DetailPanel({
   pinning,
   renaming,
 }: DetailPanelProps) {
+  const { formatCompact: fmt } = useCurrency();
   const colors = useColors();
   const [editMode, setEditMode] = useState(false);
   const [editLabel, setEditLabel] = useState(snap.label);
@@ -423,6 +426,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Diff line row ────────────────────────────────────────────────────────────
 
 function DiffLineRow({ line }: { line: SnapshotDiffLine }) {
+  const { formatCompact: fmt } = useCurrency();
   const colors = useColors();
   const [expanded, setExpanded] = useState(false);
 
@@ -495,9 +499,9 @@ function DiffLineRow({ line }: { line: SnapshotDiffLine }) {
               {planChanges.map((c) => (
                 <View key={c.field} style={styles.diffChangeRow}>
                   <Text style={[styles.diffChangeField, { color: colors.mutedForeground }]}>{c.field.replace("plan:", "")}</Text>
-                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{"£" + Number(c.from ?? 0).toLocaleString("en-GB")}</Text>
+                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{fmt(Number(c.from ?? 0))}</Text>
                   <Feather name="arrow-right" size={10} color={colors.mutedForeground} />
-                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{"£" + Number(c.to ?? 0).toLocaleString("en-GB")}</Text>
+                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{fmt(Number(c.to ?? 0))}</Text>
                 </View>
               ))}
             </View>
@@ -508,9 +512,9 @@ function DiffLineRow({ line }: { line: SnapshotDiffLine }) {
               {actualChanges.map((c) => (
                 <View key={c.field} style={styles.diffChangeRow}>
                   <Text style={[styles.diffChangeField, { color: colors.mutedForeground }]}>{c.field.replace("actual:", "")}</Text>
-                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{"£" + Number(c.from ?? 0).toLocaleString("en-GB")}</Text>
+                  <Text style={[styles.diffChangeVal, { color: "#dc2626" }]}>{fmt(Number(c.from ?? 0))}</Text>
                   <Feather name="arrow-right" size={10} color={colors.mutedForeground} />
-                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{"£" + Number(c.to ?? 0).toLocaleString("en-GB")}</Text>
+                  <Text style={[styles.diffChangeVal, { color: "#16a34a" }]}>{fmt(Number(c.to ?? 0))}</Text>
                 </View>
               ))}
             </View>
@@ -531,6 +535,7 @@ interface ComparePanelProps {
 }
 
 function ComparePanel({ aId, bId, snapshots, onClose }: ComparePanelProps) {
+  const { currency } = useCurrency();
   const colors = useColors();
   const [showUnchanged, setShowUnchanged] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -542,11 +547,11 @@ function ComparePanel({ aId, bId, snapshots, onClose }: ComparePanelProps) {
     setPdfLoading(true);
     try {
       const { getVpSessionToken } = await import("@/utils/vpSession");
-      const { getAuthSessionToken } = await import("@/lib/authSession");
+      const { getSessionToken } = await import("@/lib/authSession");
       const vpToken = getVpSessionToken();
-      const userToken = getAuthSessionToken?.();
+      const userToken = await getSessionToken();
       const baseUrl = getApiUrl();
-      const params = new URLSearchParams({ a: aId, b: bId });
+      const params = new URLSearchParams({ a: aId, b: bId, currency });
       if (pdfIncludeUnchanged) params.set("includeUnchanged", "true");
       const url = `${baseUrl}/api/snapshots/compare/pdf?${params.toString()}`;
       const headers: Record<string, string> = {};
@@ -883,7 +888,7 @@ export default function SnapshotsScreen() {
     try {
       const url = `${getApiUrl()}/api/snapshots/${encodeURIComponent(id)}`;
       if (Platform.OS === "web") {
-        const res = await fetch(url);
+        const res = await apiFetch(url);
         if (!res.ok) throw new Error("Download failed");
         const json = await res.json();
         const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
@@ -896,7 +901,7 @@ export default function SnapshotsScreen() {
         document.body.removeChild(anchor);
         URL.revokeObjectURL(href);
       } else {
-        const res = await fetch(url);
+        const res = await apiFetch(url);
         if (!res.ok) throw new Error("Download failed");
         const json = await res.json();
         const fileUri = `${FileSystem.cacheDirectory}${id}.json`;
@@ -982,7 +987,6 @@ export default function SnapshotsScreen() {
     <View style={styles.listPane}>
       <View style={styles.topBar}>
         <SectionHeader
-          icon="camera"
           title="Snapshots"
           subtitle={`${snapshots.length} snapshot${snapshots.length !== 1 ? "s" : ""} saved`}
         />
@@ -1292,7 +1296,7 @@ export default function SnapshotsScreen() {
 
   if (isDesktop) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.desktopContainer, { backgroundColor: colors.background }]}>
         <DesktopSidebar />
         <ScrollView
           style={{ flex: 1 }}
@@ -1352,6 +1356,10 @@ export default function SnapshotsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  // Sidebar sits beside the content, matching every other screen. Without
+  // flexDirection: "row" they stack vertically and the sidebar (whose nav
+  // scrolls with flex: 1) consumes the full height, hiding the content.
+  desktopContainer: { flex: 1, flexDirection: "row" },
   desktopScroll: { padding: 24, paddingBottom: 80, minHeight: "100%" },
   mobileScroll: { padding: 16, paddingBottom: 80 },
   desktopSplit: { flexDirection: "row", gap: 24, alignItems: "flex-start", marginTop: 16 },

@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import Svg, { Path, Text as SvgText } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface DonutChartProps {
   data: Array<{ category: string; value: number }>;
@@ -23,6 +24,7 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
 }
 
 export function DonutChart({ data, size }: DonutChartProps) {
+  const { formatCompact } = useCurrency();
   const colors = useColors();
   const cx = size / 2;
   const cy = size / 2;
@@ -69,7 +71,7 @@ export function DonutChart({ data, size }: DonutChartProps) {
             );
           })}
           <SvgText x={cx} y={cy - 6} fontSize={16} fontWeight="bold" fill={colors.foreground} textAnchor="middle">
-            {total >= 1000000 ? `£${(total / 1000000).toFixed(1)}M` : `£${(total / 1000).toFixed(0)}k`}
+            {formatCompact(total)}
           </SvgText>
           <SvgText x={cx} y={cy + 12} fontSize={11} fill={colors.mutedForeground} textAnchor="middle">
             Total Plan

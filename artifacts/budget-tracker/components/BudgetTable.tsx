@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Platform, TextInput, TouchableOpaci
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { InlineText, PickerCell, StatusBadge, nextStatus, type PickerOption } from "@/components/InlineEdits";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 export interface BudgetLineRow {
   id: number;
@@ -57,11 +58,6 @@ interface BudgetTableProps {
   customColumns?: CustomColumnDef[];
 }
 
-function formatCurrency(val: number): string {
-  if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
-
 function SortHeader({ label, field, sortField, sortDir, onSort, style, colors }: {
   label: string; field: SortField; sortField: SortField | null; sortDir: SortDir;
   onSort: (f: SortField) => void; style?: any; colors: ReturnType<typeof useColors>;
@@ -100,6 +96,7 @@ function InlineProjectionInput({ lineId, value, onSave, colors }: { lineId: numb
 }
 
 export function BudgetTable({ data, showProjection, onProjectionChange, sortField = null, sortDir = null, onSort, categories = [], owners = [], amountColumnMode = "plan", onUpdateField, onOpenMonthly, onDelete, readOnly, customColumns = [] }: BudgetTableProps) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const interactive = !readOnly && !!onUpdateField && !!onOpenMonthly && !!onDelete && !!onSort;
 
@@ -181,7 +178,7 @@ export function BudgetTable({ data, showProjection, onProjectionChange, sortFiel
                   let display = "—";
                   if (raw != null && raw !== "") {
                     display = isNum
-                      ? "\u00a3" + Number(raw).toLocaleString("en-GB", { maximumFractionDigits: 0 })
+                      ? formatCurrency(Number(raw))
                       : String(raw);
                   }
                   return (

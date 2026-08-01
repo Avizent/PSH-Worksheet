@@ -1,6 +1,19 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { getApiUrl } from "@/utils/getApiUrl";
 import { saveSessionToken, getSessionToken, clearSessionToken } from "@/lib/authSession";
+import { setDefaultHeaders } from "@workspace/api-client-react";
+
+/**
+ * The generated API hooks share one default-header bag. Without this the
+ * signed-in user's session never reaches the server on those calls, so every
+ * auth-gated route (board settings, share links, exports, rollover,
+ * reforecast) returns 401 even though the user is logged in.
+ */
+function applySessionHeader(token: string | null): void {
+  // setDefaultHeaders merges, so clear by overwriting with an empty
+  // value (falsy server-side) rather than passing an empty object.
+  setDefaultHeaders({ "x-user-session": token ?? "" });
+}
 
 interface AuthUser {
   email: string;
@@ -26,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const token = await getSessionToken();
       if (!token) {
+        applySessionHeader(null);
         setUser(null);
         return;
       }
@@ -34,9 +48,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (res.ok) {
         const data = await res.json();
+        applySessionHeader(token);
         setUser({ email: data.email, name: data.name });
       } else {
         await clearSessionToken();
+        applySessionHeader(null);
         setUser(null);
       }
     } catch {
@@ -63,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: false, error: data.error ?? "Login failed" };
         }
         await saveSessionToken(data.token);
+        applySessionHeader(data.token);
         setUser({ email: data.email, name: data.name });
         return { success: true };
       } catch {
@@ -83,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {}
     await clearSessionToken();
+    applySessionHeader(null);
     setUser(null);
   }, [apiUrl]);
 

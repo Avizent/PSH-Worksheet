@@ -1,8 +1,7 @@
-import { describe, it, expect, afterAll } from "vitest";
-import request from "supertest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "fs";
 import path from "path";
-import app from "../app";
+import { req, loginForTests, cleanupTestUser } from "./helpers/testClient";
 
 const SNAPSHOTS_DIR = path.resolve(process.cwd(), "snapshots");
 const TEST_IDS: string[] = [];
@@ -84,7 +83,12 @@ function makeSnapshot(
   };
 }
 
+beforeAll(async () => {
+  await loginForTests();
+});
+
 afterAll(async () => {
+  await cleanupTestUser();
   for (const id of TEST_IDS) {
     const file = path.join(SNAPSHOTS_DIR, `${id}.json`);
     if (fs.existsSync(file)) fs.unlinkSync(file);
@@ -95,32 +99,32 @@ afterAll(async () => {
 
 describe("GET /api/snapshots/compare — error cases", () => {
   it("returns 400 when both a and b params are missing", async () => {
-    const res = await request(app).get("/api/snapshots/compare");
+    const res = await req().get("/api/snapshots/compare");
     expect(res.status).toBe(400);
     expect(res.body.error).toBeTruthy();
   });
 
   it("returns 400 when only param a is provided", async () => {
-    const res = await request(app).get("/api/snapshots/compare?a=some-id");
+    const res = await req().get("/api/snapshots/compare?a=some-id");
     expect(res.status).toBe(400);
     expect(res.body.error).toBeTruthy();
   });
 
   it("returns 400 when only param b is provided", async () => {
-    const res = await request(app).get("/api/snapshots/compare?b=some-id");
+    const res = await req().get("/api/snapshots/compare?b=some-id");
     expect(res.status).toBe(400);
     expect(res.body.error).toBeTruthy();
   });
 
   it("returns 400 for an invalid snapshot ID containing path traversal in a", async () => {
-    const res = await request(app).get("/api/snapshots/compare?a=../../etc/passwd&b=valid-id");
+    const res = await req().get("/api/snapshots/compare?a=../../etc/passwd&b=valid-id");
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/invalid/i);
   });
 
   it("returns 400 for an invalid snapshot ID containing path traversal in b", async () => {
     writeTestSnapshot("valid-snap-for-traversal-test", makeSnapshot("valid-snap-for-traversal-test", "valid", []));
-    const res = await request(app).get(
+    const res = await req().get(
       "/api/snapshots/compare?a=valid-snap-for-traversal-test&b=../../etc/passwd",
     );
     expect(res.status).toBe(400);
@@ -129,7 +133,7 @@ describe("GET /api/snapshots/compare — error cases", () => {
 
   it("returns 404 when snapshot A does not exist", async () => {
     writeTestSnapshot("exists-for-404-test", makeSnapshot("exists-for-404-test", "exists", []));
-    const res = await request(app).get(
+    const res = await req().get(
       "/api/snapshots/compare?a=does-not-exist-snap-a&b=exists-for-404-test",
     );
     expect(res.status).toBe(404);
@@ -138,7 +142,7 @@ describe("GET /api/snapshots/compare — error cases", () => {
 
   it("returns 404 when snapshot B does not exist", async () => {
     writeTestSnapshot("exists-for-404b-test", makeSnapshot("exists-for-404b-test", "exists", []));
-    const res = await request(app).get(
+    const res = await req().get(
       "/api/snapshots/compare?a=exists-for-404b-test&b=does-not-exist-snap-b",
     );
     expect(res.status).toBe(404);
@@ -152,7 +156,7 @@ describe("GET /api/snapshots/compare — diff logic", () => {
     writeTestSnapshot("compare-identical-a", makeSnapshot("compare-identical-a", "baseline", [line]));
     writeTestSnapshot("compare-identical-b", makeSnapshot("compare-identical-b", "baseline", [line]));
 
-    const res = await request(app).get(
+    const res = await req().get(
       "/api/snapshots/compare?a=compare-identical-a&b=compare-identical-b",
     );
     expect(res.status).toBe(200);
@@ -171,7 +175,7 @@ describe("GET /api/snapshots/compare — diff logic", () => {
     writeTestSnapshot("compare-added-a", makeSnapshot("compare-added-a", "before", [existing]));
     writeTestSnapshot("compare-added-b", makeSnapshot("compare-added-b", "after", [existing, newLine]));
 
-    const res = await request(app).get(
+    const res = await req().get(
       "/api/snapshots/compare?a=compare-added-a&b=compare-added-b",
     );
     expect(res.status).toBe(200);
@@ -194,7 +198,7 @@ describe("GET /api/snapshots/compare — diff logic", () => {
     writeTestSnapshot("compare-removed-a", makeSnapshot("compare-removed-a", "before", [remaining, removed]));
     writeTestSnapshot("compare-removed-b", makeSnapshot("compare-removed-b", "after", [remaining]));
 
-    const res = await request(app).get(
+    const res = await req().get(
       "/api/snapshots/compare?a=compare-removed-a&b=compare-removed-b",
     );
     expect(res.status).toBe(200);
@@ -212,7 +216,7 @@ describe("GET /api/snapshots/compare — diff logic", () => {
     writeTestSnapshot("compare-plan-a", makeSnapshot("compare-plan-a", "before", [lineA]));
     writeTestSnapshot("compare-plan-b", makeSnapshot("compare-plan-b", "after", [lineB]));
 
-    const res = await request(app).get(
+    const res = await req().get(
       "/api/snapshots/compare?a=compare-plan-a&b=compare-plan-b",
     );
     expect(res.status).toBe(200);
@@ -237,7 +241,7 @@ describe("GET /api/snapshots/compare — diff logic", () => {
     writeTestSnapshot("compare-actual-a", makeSnapshot("compare-actual-a", "before", [lineA]));
     writeTestSnapshot("compare-actual-b", makeSnapshot("compare-actual-b", "after", [lineB]));
 
-    const res = await request(app).get(
+    const res = await req().get(
       "/api/snapshots/compare?a=compare-actual-a&b=compare-actual-b",
     );
     expect(res.status).toBe(200);
@@ -266,7 +270,7 @@ describe("GET /api/snapshots/compare — diff logic", () => {
       makeSnapshot("compare-meta-b", "snap-b-label", []),
     );
 
-    const res = await request(app).get(
+    const res = await req().get(
       "/api/snapshots/compare?a=compare-meta-a&b=compare-meta-b",
     );
     expect(res.status).toBe(200);

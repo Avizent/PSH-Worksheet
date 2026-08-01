@@ -18,12 +18,15 @@ import { AdminSubnav } from "@/components/AdminSubnav";
 import { SectionHeader } from "@/components/SectionHeader";
 import { useToast } from "@/contexts/ToastContext";
 import { getApiUrl } from "@/utils/getApiUrl";
+import { apiFetch } from "@/lib/apiFetch";
+import { getSessionToken } from "@/lib/authSession";
 import { useListAlerts } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListBudgetLinesWithMonthlyQueryKey,
   getGetDashboardSummaryQueryKey,
 } from "@workspace/api-client-react";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface ValidationError {
   column: string;
@@ -86,6 +89,7 @@ type ImportState =
   | { phase: "done"; result: ImportResult };
 
 export default function ExcelScreen() {
+  const { currency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
@@ -117,10 +121,10 @@ export default function ExcelScreen() {
     setExportLoading(true);
     try {
       const baseUrl = getApiUrl();
-      const url = `${baseUrl}/api/excel/export`;
+      const url = `${baseUrl}/api/excel/export?currency=${currency}`;
 
       if (Platform.OS === "web") {
-        const res = await fetch(url);
+        const res = await apiFetch(url);
         if (!res.ok) throw new Error("Export failed");
         const blob = await res.blob();
         const today = new Date().toISOString().slice(0, 10);
@@ -140,7 +144,11 @@ export default function ExcelScreen() {
         const today = new Date().toISOString().slice(0, 10);
         const filename = `budget_export_${today}.xlsx`;
         const localUri = `${FileSystem.cacheDirectory}${filename}`;
-        await FileSystem.downloadAsync(url, localUri);
+        // downloadAsync issues its own request, so it needs the session too.
+        const sessionToken = await getSessionToken();
+        await FileSystem.downloadAsync(url, localUri, {
+          headers: sessionToken ? { "x-user-session": sessionToken } : {},
+        });
         await Sharing.shareAsync(localUri, {
           mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           dialogTitle: "Save or share budget export",
@@ -196,7 +204,7 @@ export default function ExcelScreen() {
       formData.append("file", file);
       if (sheetName) formData.append("sheetName", sheetName);
       const baseUrl = getApiUrl();
-      const res = await fetch(`${baseUrl}/api/excel/validate`, {
+      const res = await apiFetch(`${baseUrl}/api/excel/validate`, {
         method: "POST",
         body: formData,
       });
@@ -275,7 +283,7 @@ export default function ExcelScreen() {
       formData.append("acceptedNewRows", JSON.stringify(acceptedNewRows));
       formData.append("acceptedNewColumns", JSON.stringify(acceptedNewColumns));
       const baseUrl = getApiUrl();
-      const res = await fetch(`${baseUrl}/api/excel/import`, {
+      const res = await apiFetch(`${baseUrl}/api/excel/import`, {
         method: "POST",
         body: formData,
       });

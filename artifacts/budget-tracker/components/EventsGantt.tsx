@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import Svg, { Rect, Text as SvgText, Line, G } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface EventItem {
   name: string;
@@ -19,6 +20,7 @@ interface EventsGanttProps {
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function EventsGantt({ events, width, height }: EventsGanttProps) {
+  const { formatCompact } = useCurrency();
   const colors = useColors();
   const padding = { top: 30, right: 20, bottom: 30, left: 120 };
   const chartW = width - padding.left - padding.right;
@@ -57,7 +59,7 @@ export function EventsGantt({ events, width, height }: EventsGanttProps) {
           const x = padding.left + (evt.month - 1) * colW + 2;
           const barW = Math.max(colW - 4, 8);
           const fill = statusColor(evt.status);
-          const budgetLabel = evt.budget >= 1000 ? `£${(evt.budget / 1000).toFixed(0)}k` : `£${evt.budget}`;
+          const budgetLabel = formatCompact(evt.budget);
 
           return (
             <G key={i}>

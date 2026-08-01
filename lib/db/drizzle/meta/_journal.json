@@ -29,6 +29,34 @@
       "when": 1776500000000,
       "tag": "0003_channel_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785515629842,
+      "tag": "0004_careful_morg",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785612689949,
+      "tag": "0005_oval_sunset_bain",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785612919113,
+      "tag": "0006_young_lizard",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785623460246,
+      "tag": "0007_absurd_weapon_omega",
+      "breakpoints": true
     }
   ]
 }

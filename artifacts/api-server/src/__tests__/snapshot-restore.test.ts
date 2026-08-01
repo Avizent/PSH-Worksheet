@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import request from "supertest";
 import fs from "fs";
 import path from "path";
-import app from "../app";
+import { req, loginForTests, cleanupTestUser } from "./helpers/testClient";
 import {
   db,
   budgetLinesTable,
@@ -179,6 +178,7 @@ async function restoreDbState(state: SavedDbState): Promise<void> {
 }
 
 beforeAll(async () => {
+  await loginForTests();
   const [budgetLines, monthlyPlans, monthlyActuals, owners, categories] = await Promise.all([
     db.select().from(budgetLinesTable),
     db.select().from(monthlyPlansTable),
@@ -190,6 +190,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await cleanupTestUser();
   if (fs.existsSync(SNAPSHOTS_DIR)) {
     for (const file of fs.readdirSync(SNAPSHOTS_DIR)) {
       const id = file.replace(/\.json$/, "");
@@ -205,19 +206,19 @@ afterAll(async () => {
 
 describe("POST /api/snapshots/:id/restore — error cases", () => {
   it("returns 400 for an ID with invalid characters (special chars)", async () => {
-    const res = await request(app).post("/api/snapshots/invalid%40id%21here/restore");
+    const res = await req().post("/api/snapshots/invalid%40id%21here/restore");
     expect(res.status).toBe(400);
     expect(res.body.error).toBeTruthy();
   });
 
   it("returns 400 for an ID containing non-word characters", async () => {
-    const res = await request(app).post("/api/snapshots/bad!id@here/restore");
+    const res = await req().post("/api/snapshots/bad!id@here/restore");
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/invalid/i);
   });
 
   it("returns 404 when the snapshot does not exist", async () => {
-    const res = await request(app).post("/api/snapshots/snapshot-that-does-not-exist/restore");
+    const res = await req().post("/api/snapshots/snapshot-that-does-not-exist/restore");
     expect(res.status).toBe(404);
     expect(res.body.error).toMatch(/not found/i);
   });
@@ -244,7 +245,7 @@ describe("POST /api/snapshots/:id/restore — restores budget lines", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.restoredFrom).toBe(snapId);
@@ -266,7 +267,7 @@ describe("POST /api/snapshots/:id/restore — restores budget lines", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
 
     const linesAfter = await db.select().from(budgetLinesTable);
@@ -297,7 +298,7 @@ describe("POST /api/snapshots/:id/restore — restores monthly plans", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
 
     const linesAfter = await db.select().from(budgetLinesTable);
@@ -323,7 +324,7 @@ describe("POST /api/snapshots/:id/restore — restores monthly plans", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
 
     expect(await db.select().from(monthlyPlansTable)).toHaveLength(0);
@@ -351,7 +352,7 @@ describe("POST /api/snapshots/:id/restore — restores monthly actuals", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
 
     const actualsAfter = await db.select().from(monthlyActualsTable);
@@ -371,7 +372,7 @@ describe("POST /api/snapshots/:id/restore — restores monthly actuals", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
 
     expect(await db.select().from(monthlyActualsTable)).toHaveLength(0);
@@ -393,7 +394,7 @@ describe("POST /api/snapshots/:id/restore — pre-restore backup", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
     expect(res.body.preRestoreSnapshot).toBeDefined();
     expect(res.body.preRestoreSnapshot.id).toBeTruthy();
@@ -413,7 +414,7 @@ describe("POST /api/snapshots/:id/restore — pre-restore backup", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.restoredFrom).toBe(snapId);
@@ -450,7 +451,7 @@ describe("POST /api/snapshots/:id/restore — full fidelity", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
 
     const linesAfter = await db.select().from(budgetLinesTable);
@@ -483,7 +484,7 @@ describe("POST /api/snapshots/:id/restore — full fidelity", () => {
       }),
     );
 
-    const res = await request(app).post(`/api/snapshots/${snapId}/restore`);
+    const res = await req().post(`/api/snapshots/${snapId}/restore`);
     expect(res.status).toBe(200);
 
     const linesAfter = await db.select().from(budgetLinesTable);

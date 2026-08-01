@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import Svg, { Rect, Text as SvgText, Line, G, Path } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 export type TimelineCategory = {
   category: string;
@@ -22,13 +23,6 @@ interface TimelineExpenditureChartProps {
 }
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function formatShortCurrency(val: number): string {
-  const abs = Math.abs(val);
-  if (abs >= 1000000) return `\u00a3${(val / 1000000).toFixed(1)}M`;
-  if (abs >= 1000) return `\u00a3${Math.round(val / 1000)}k`;
-  return `\u00a3${Math.round(val)}`;
-}
 
 function statusFor(plannedYtd: number, spent: number, planned: number, colors: ReturnType<typeof useColors>) {
   if (planned <= 0) {
@@ -56,6 +50,7 @@ export function TimelineExpenditureChart({
   expandedCategory = null,
   onCategoryPress,
 }: TimelineExpenditureChartProps) {
+  const { formatCompact: formatShortCurrency } = useCurrency();
   const colors = useColors();
 
   const chevronWidth = interactive ? 18 : 0;

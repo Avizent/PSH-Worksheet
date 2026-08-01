@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import request from "supertest";
-import app from "../app";
+import { req, loginForTests, cleanupTestUser } from "./helpers/testClient";
 import {
   db,
   monthlyActualsTable,
@@ -21,6 +20,7 @@ let testBudgetLineItem: string;
 let testCategory: string;
 
 beforeAll(async () => {
+  await loginForTests();
   const lines = await db.select().from(budgetLinesTable).limit(1);
   if (lines.length === 0) {
     throw new Error("No budget lines in DB — seed data first");
@@ -31,17 +31,18 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await cleanupTestUser();
   const { pool } = await import("@workspace/db");
   await pool.end();
 });
 
 async function getDashboardSpent(year: number): Promise<number> {
-  const res = await request(app).get(`/api/dashboard/summary?year=${year}`);
+  const res = await req().get(`/api/dashboard/summary?year=${year}`);
   return res.body.spentYtd;
 }
 
 async function uploadAndConfirm(csvBody: string) {
-  const uploadRes = await request(app)
+  const uploadRes = await req()
     .post("/api/imports/upload")
     .attach("file", Buffer.from(csvBody), "test.csv");
   expect(uploadRes.status).toBe(201);
@@ -51,14 +52,14 @@ async function uploadAndConfirm(csvBody: string) {
 
   for (const row of rows) {
     if (row.status === "unmatched") {
-      const assignRes = await request(app)
+      const assignRes = await req()
         .patch(`/api/imports/rows/${row.id}/assign`)
         .send({ budgetLineId: testBudgetLineId });
       expect(assignRes.status).toBe(200);
     }
   }
 
-  const confirmRes = await request(app).post(`/api/imports/${importId}/confirm`);
+  const confirmRes = await req().post(`/api/imports/${importId}/confirm`);
   expect(confirmRes.status).toBe(200);
   expect(confirmRes.body.created).toBeGreaterThan(0);
 
@@ -93,7 +94,7 @@ describe("Import delete rolls back actuals (importId path)", () => {
   });
 
   it("deletes the import and removes all actuals", async () => {
-    const deleteRes = await request(app).delete(`/api/imports/${importId}`);
+    const deleteRes = await req().delete(`/api/imports/${importId}`);
     expect(deleteRes.status).toBe(200);
     expect(deleteRes.body.success).toBe(true);
     expect(deleteRes.body.previousStatus).toBe("confirmed");
@@ -155,7 +156,7 @@ describe("Import delete rolls back actuals (hash fallback path)", () => {
   });
 
   it("deletes the import and removes legacy actuals via hash fallback", async () => {
-    const deleteRes = await request(app).delete(`/api/imports/${importId}`);
+    const deleteRes = await req().delete(`/api/imports/${importId}`);
     expect(deleteRes.status).toBe(200);
     expect(deleteRes.body.success).toBe(true);
 
@@ -205,7 +206,7 @@ describe("Import delete rolls back actuals (mixed state — some with importId, 
   });
 
   it("deletes the import and removes ALL actuals (both FK and hash-matched)", async () => {
-    const deleteRes = await request(app).delete(`/api/imports/${importId}`);
+    const deleteRes = await req().delete(`/api/imports/${importId}`);
     expect(deleteRes.status).toBe(200);
 
     const remaining = await db.select().from(monthlyActualsTable)
@@ -238,20 +239,20 @@ describe("Delete of duplicate import does not remove the original import's actua
     importAId = resultA.importId;
     expect(resultA.created).toBe(2);
 
-    const uploadB = await request(app)
+    const uploadB = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "dup.csv");
     expect(uploadB.status).toBe(201);
     importBId = uploadB.body.id;
 
-    const confirmB = await request(app).post(`/api/imports/${importBId}/confirm`);
+    const confirmB = await req().post(`/api/imports/${importBId}/confirm`);
     expect(confirmB.status).toBe(200);
     expect(confirmB.body.created).toBe(0);
     expect(confirmB.body.skippedDuplicate).toBe(2);
   });
 
   it("deleting import B does NOT remove import A's actuals", async () => {
-    const deleteRes = await request(app).delete(`/api/imports/${importBId}`);
+    const deleteRes = await req().delete(`/api/imports/${importBId}`);
     expect(deleteRes.status).toBe(200);
 
     const actuals = await db.select().from(monthlyActualsTable)
@@ -265,7 +266,7 @@ describe("Delete of duplicate import does not remove the original import's actua
   });
 
   it("deleting import A removes its actuals", async () => {
-    const deleteRes = await request(app).delete(`/api/imports/${importAId}`);
+    const deleteRes = await req().delete(`/api/imports/${importAId}`);
     expect(deleteRes.status).toBe(200);
 
     const actuals = await db.select().from(monthlyActualsTable)
@@ -286,7 +287,7 @@ describe("Delete of non-confirmed import does not touch actuals", () => {
       `${testCategory},${testBudgetLineItem},Jun,2097,999,INV-NOCONFIRM`,
     ]);
 
-    const uploadRes = await request(app)
+    const uploadRes = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "noconfirm.csv");
     expect(uploadRes.status).toBe(201);
@@ -297,7 +298,7 @@ describe("Delete of non-confirmed import does not touch actuals", () => {
       .select({ count: sql<number>`COUNT(*)` })
       .from(monthlyActualsTable);
 
-    const deleteRes = await request(app).delete(`/api/imports/${importId}`);
+    const deleteRes = await req().delete(`/api/imports/${importId}`);
     expect(deleteRes.status).toBe(200);
     expect(deleteRes.body.previousStatus).not.toBe("confirmed");
 

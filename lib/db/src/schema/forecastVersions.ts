@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, real, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 import { makeInsertSchema } from "../utils";
 import { budgetLinesTable } from "./budgetLines";
@@ -19,7 +19,7 @@ export const forecastPlansTable = pgTable("forecast_plans", {
   budgetLineId: integer("budget_line_id").notNull().references(() => budgetLinesTable.id, { onDelete: "cascade" }),
   month: integer("month").notNull(),
   year: integer("year").notNull(),
-  plannedAmount: real("planned_amount").notNull().default(0),
+  plannedAmount: numeric("planned_amount", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
 });
 
 export const insertForecastVersionSchema = makeInsertSchema(forecastVersionsTable);

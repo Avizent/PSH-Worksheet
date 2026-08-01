@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import Svg, { Rect, Text as SvgText, Line, G } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface ProjectionBarChartProps {
   data: Array<{ label: string; actual: number; projected: number; planned: number }>;
@@ -10,6 +11,7 @@ interface ProjectionBarChartProps {
 }
 
 export function ProjectionBarChart({ data, width, height }: ProjectionBarChartProps) {
+  const { formatCompact } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -34,7 +36,7 @@ export function ProjectionBarChart({ data, width, height }: ProjectionBarChartPr
             <G key={i}>
               <Line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke={colors.border} strokeWidth={1} strokeDasharray="4,4" />
               <SvgText x={padding.left - 8} y={y + 4} fontSize={10} fill={colors.mutedForeground} textAnchor="end">
-                {val >= 1000 ? `£${(val / 1000).toFixed(0)}k` : `£${val}`}
+                {formatCompact(val)}
               </SvgText>
             </G>
           );

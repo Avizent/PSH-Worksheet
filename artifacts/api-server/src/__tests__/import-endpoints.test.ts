@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import request from "supertest";
-import app from "../app";
+import { req, loginForTests, cleanupTestUser } from "./helpers/testClient";
 import {
   db,
   monthlyActualsTable,
@@ -27,6 +26,7 @@ let testBudgetLineItem: string;
 let testCategory: string;
 
 beforeAll(async () => {
+  await loginForTests();
   const lines = await db.select().from(budgetLinesTable).limit(1);
   if (lines.length === 0) {
     throw new Error("No budget lines in DB — seed data first");
@@ -37,20 +37,21 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await cleanupTestUser();
   const { pool } = await import("@workspace/db");
   await pool.end();
 });
 
 describe("CSV upload validation", () => {
   it("rejects upload with no file attached", async () => {
-    const res = await request(app).post("/api/imports/upload");
+    const res = await req().post("/api/imports/upload");
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/no file/i);
   });
 
   it("rejects CSV with only a header row (no data rows)", async () => {
     const csv = TEST_CSV_HEADER;
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "header-only.csv");
     expect(res.status).toBe(400);
@@ -59,7 +60,7 @@ describe("CSV upload validation", () => {
 
   it("rejects CSV missing the Amount column", async () => {
     const csv = "Category,Line Item,Month,Year,InvoiceRef\nFoo,Bar,Jan,2090,INV-1";
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "no-amount.csv");
     expect(res.status).toBe(400);
@@ -68,7 +69,7 @@ describe("CSV upload validation", () => {
 
   it("rejects a file exceeding the 5MB limit", async () => {
     const bigBuffer = Buffer.alloc(6 * 1024 * 1024, "x");
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", bigBuffer, "huge.csv");
     expect(res.status).toBe(413);
@@ -79,7 +80,7 @@ describe("CSV upload validation", () => {
     const csv = buildCsv([
       `${testCategory},${testBudgetLineItem},Jan,2090,NOT_A_NUMBER,INV-BAD-AMT`,
     ]);
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "bad-amount.csv");
     expect(res.status).toBe(201);
@@ -88,14 +89,14 @@ describe("CSV upload validation", () => {
     expect(errorRows).toHaveLength(1);
     expect(errorRows[0].errorMessage).toMatch(/amount/i);
 
-    await request(app).delete(`/api/imports/${res.body.id}`);
+    await req().delete(`/api/imports/${res.body.id}`);
   });
 
   it("marks rows with invalid months as errors", async () => {
     const csv = buildCsv([
       `${testCategory},${testBudgetLineItem},InvalidMonth,2090,500,INV-BAD-MON`,
     ]);
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "bad-month.csv");
     expect(res.status).toBe(201);
@@ -104,19 +105,19 @@ describe("CSV upload validation", () => {
     expect(errorRows).toHaveLength(1);
     expect(errorRows[0].errorMessage).toMatch(/month/i);
 
-    await request(app).delete(`/api/imports/${res.body.id}`);
+    await req().delete(`/api/imports/${res.body.id}`);
   });
 
   it("accepts CSV with alternative Amount column name 'Actual'", async () => {
     const csv = "Category,Line Item,Month,Year,Actual,InvoiceRef\n" +
       `${testCategory},${testBudgetLineItem},Mar,2090,750,INV-ALT-COL`;
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "alt-col.csv");
     expect(res.status).toBe(201);
     expect(res.body.rows).toHaveLength(1);
 
-    await request(app).delete(`/api/imports/${res.body.id}`);
+    await req().delete(`/api/imports/${res.body.id}`);
   });
 
   it("handles mixed valid and invalid rows correctly", async () => {
@@ -125,7 +126,7 @@ describe("CSV upload validation", () => {
       `${testCategory},${testBudgetLineItem},,2090,200,INV-MIX-NOMONTH`,
       `${testCategory},${testBudgetLineItem},Mar,2090,,INV-MIX-NOAMT`,
     ]);
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "mixed.csv");
     expect(res.status).toBe(201);
@@ -135,7 +136,7 @@ describe("CSV upload validation", () => {
     expect(matched).toHaveLength(1);
     expect(errors).toHaveLength(2);
 
-    await request(app).delete(`/api/imports/${res.body.id}`);
+    await req().delete(`/api/imports/${res.body.id}`);
   });
 });
 
@@ -145,7 +146,7 @@ describe("Row assignment (PATCH /imports/rows/:id/assign)", () => {
 
   beforeAll(async () => {
     const csv = "Month,Year,Amount,InvoiceRef\nJan,2091,500,INV-ASSIGN-1";
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "unmatched.csv");
     expect(res.status).toBe(201);
@@ -156,11 +157,11 @@ describe("Row assignment (PATCH /imports/rows/:id/assign)", () => {
   });
 
   afterAll(async () => {
-    await request(app).delete(`/api/imports/${importId}`);
+    await req().delete(`/api/imports/${importId}`);
   });
 
   it("assigns an unmatched row to a budget line", async () => {
-    const res = await request(app)
+    const res = await req()
       .patch(`/api/imports/rows/${unmatchedRowId}/assign`)
       .send({ budgetLineId: testBudgetLineId });
     expect(res.status).toBe(200);
@@ -169,7 +170,7 @@ describe("Row assignment (PATCH /imports/rows/:id/assign)", () => {
   });
 
   it("rejects assigning a row that is already matched", async () => {
-    const res = await request(app)
+    const res = await req()
       .patch(`/api/imports/rows/${unmatchedRowId}/assign`)
       .send({ budgetLineId: testBudgetLineId });
     expect(res.status).toBe(404);
@@ -178,37 +179,37 @@ describe("Row assignment (PATCH /imports/rows/:id/assign)", () => {
 
   it("rejects assignment with a non-existent budget line", async () => {
     const csv = "Month,Year,Amount,InvoiceRef\nFeb,2091,600,INV-ASSIGN-2";
-    const uploadRes = await request(app)
+    const uploadRes = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "unmatched2.csv");
     const rowId = uploadRes.body.rows[0].id;
 
-    const res = await request(app)
+    const res = await req()
       .patch(`/api/imports/rows/${rowId}/assign`)
       .send({ budgetLineId: 999999 });
     expect(res.status).toBe(404);
     expect(res.body.error).toMatch(/budget line not found/i);
 
-    await request(app).delete(`/api/imports/${uploadRes.body.id}`);
+    await req().delete(`/api/imports/${uploadRes.body.id}`);
   });
 
   it("rejects assignment with missing budgetLineId in body", async () => {
     const csv = "Month,Year,Amount,InvoiceRef\nMar,2091,700,INV-ASSIGN-3";
-    const uploadRes = await request(app)
+    const uploadRes = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "unmatched3.csv");
     const rowId = uploadRes.body.rows[0].id;
 
-    const res = await request(app)
+    const res = await req()
       .patch(`/api/imports/rows/${rowId}/assign`)
       .send({});
     expect(res.status).toBe(400);
 
-    await request(app).delete(`/api/imports/${uploadRes.body.id}`);
+    await req().delete(`/api/imports/${uploadRes.body.id}`);
   });
 
   it("rejects assignment with invalid row id", async () => {
-    const res = await request(app)
+    const res = await req()
       .patch("/api/imports/rows/abc/assign")
       .send({ budgetLineId: testBudgetLineId });
     expect(res.status).toBe(400);
@@ -216,7 +217,7 @@ describe("Row assignment (PATCH /imports/rows/:id/assign)", () => {
 
   it("updates import status from needs_review to ready when last unmatched row is assigned", async () => {
     const csv = "Month,Year,Amount,InvoiceRef\nApr,2091,800,INV-ASSIGN-4";
-    const uploadRes = await request(app)
+    const uploadRes = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "unmatched4.csv");
     expect(uploadRes.status).toBe(201);
@@ -224,15 +225,15 @@ describe("Row assignment (PATCH /imports/rows/:id/assign)", () => {
     expect(uploadRes.body.status).toBe("needs_review");
 
     const rowId = uploadRes.body.rows[0].id;
-    await request(app)
+    await req()
       .patch(`/api/imports/rows/${rowId}/assign`)
       .send({ budgetLineId: testBudgetLineId });
 
-    const getRes = await request(app).get(`/api/imports/${upImportId}`);
+    const getRes = await req().get(`/api/imports/${upImportId}`);
     expect(getRes.status).toBe(200);
     expect(getRes.body.status).toBe("ready");
 
-    await request(app).delete(`/api/imports/${upImportId}`);
+    await req().delete(`/api/imports/${upImportId}`);
   });
 });
 
@@ -246,20 +247,20 @@ describe("Confirm idempotency (confirming twice skips duplicates)", () => {
       `${testCategory},${testBudgetLineItem},Feb,${TEST_YEAR},2500,INV-IDEMPOTENT-2`,
     ]);
 
-    const uploadRes = await request(app)
+    const uploadRes = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "idempotent.csv");
     expect(uploadRes.status).toBe(201);
     importId = uploadRes.body.id;
 
-    const confirmRes = await request(app).post(`/api/imports/${importId}/confirm`);
+    const confirmRes = await req().post(`/api/imports/${importId}/confirm`);
     expect(confirmRes.status).toBe(200);
     expect(confirmRes.body.created).toBe(2);
     expect(confirmRes.body.skippedDuplicate).toBe(0);
   });
 
   it("second confirm returns zero created and reports all as skipped", async () => {
-    const confirmRes = await request(app).post(`/api/imports/${importId}/confirm`);
+    const confirmRes = await req().post(`/api/imports/${importId}/confirm`);
     expect(confirmRes.status).toBe(200);
     expect(confirmRes.body.created).toBe(0);
     expect(confirmRes.body.skippedDuplicate).toBeGreaterThan(0);
@@ -270,7 +271,7 @@ describe("Confirm idempotency (confirming twice skips duplicates)", () => {
       .where(eq(monthlyActualsTable.importId, importId));
     expect(actuals).toHaveLength(2);
 
-    await request(app).delete(`/api/imports/${importId}`);
+    await req().delete(`/api/imports/${importId}`);
   });
 });
 
@@ -284,32 +285,32 @@ describe("Confirm with cross-import duplicate detection", () => {
       `${testCategory},${testBudgetLineItem},May,${TEST_YEAR},3000,INV-XDUP-1`,
     ]);
 
-    const uploadA = await request(app)
+    const uploadA = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "xdup-a.csv");
     importAId = uploadA.body.id;
-    const confirmA = await request(app).post(`/api/imports/${importAId}/confirm`);
+    const confirmA = await req().post(`/api/imports/${importAId}/confirm`);
     expect(confirmA.body.created).toBe(1);
 
-    const uploadB = await request(app)
+    const uploadB = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "xdup-b.csv");
     importBId = uploadB.body.id;
-    const confirmB = await request(app).post(`/api/imports/${importBId}/confirm`);
+    const confirmB = await req().post(`/api/imports/${importBId}/confirm`);
     expect(confirmB.body.created).toBe(0);
     expect(confirmB.body.skippedDuplicate).toBe(1);
   });
 
   afterAll(async () => {
-    await request(app).delete(`/api/imports/${importBId}`);
-    await request(app).delete(`/api/imports/${importAId}`);
+    await req().delete(`/api/imports/${importBId}`);
+    await req().delete(`/api/imports/${importAId}`);
   });
 });
 
 describe("Edge case: empty CSV body (header only)", () => {
   it("returns 400 for CSV with no data rows", async () => {
     const csv = TEST_CSV_HEADER + "\n";
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "empty.csv");
     expect(res.status).toBe(400);
@@ -325,7 +326,7 @@ describe("Edge case: all rows unmatched", () => {
       "UnknownCategory,UnknownItem,Jan,2094,100,INV-NOMATCH-1",
       "UnknownCategory,UnknownItem,Feb,2094,200,INV-NOMATCH-2",
     ]);
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "all-unmatched.csv");
     expect(res.status).toBe(201);
@@ -339,14 +340,14 @@ describe("Edge case: all rows unmatched", () => {
   });
 
   it("confirming with all-unmatched rows creates zero actuals", async () => {
-    const confirmRes = await request(app).post(`/api/imports/${importId}/confirm`);
+    const confirmRes = await req().post(`/api/imports/${importId}/confirm`);
     expect(confirmRes.status).toBe(200);
     expect(confirmRes.body.created).toBe(0);
     expect(confirmRes.body.skippedUnmatched).toBe(2);
   });
 
   afterAll(async () => {
-    await request(app).delete(`/api/imports/${importId}`);
+    await req().delete(`/api/imports/${importId}`);
   });
 });
 
@@ -356,7 +357,7 @@ describe("Edge case: all rows have errors", () => {
       `${testCategory},${testBudgetLineItem},,2094,,INV-ALLERR-1`,
       `${testCategory},${testBudgetLineItem},BadMonth,2094,abc,INV-ALLERR-2`,
     ]);
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "all-errors.csv");
     expect(res.status).toBe(201);
@@ -366,7 +367,7 @@ describe("Edge case: all rows have errors", () => {
     expect(res.body.errorRows).toBe(2);
     expect(res.body.matchedRows).toBe(0);
 
-    await request(app).delete(`/api/imports/${res.body.id}`);
+    await req().delete(`/api/imports/${res.body.id}`);
   });
 });
 
@@ -377,18 +378,18 @@ describe("GET /imports/:id", () => {
     const csv = buildCsv([
       `${testCategory},${testBudgetLineItem},Jan,2089,100,INV-GETONE`,
     ]);
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "get-test.csv");
     importId = res.body.id;
   });
 
   afterAll(async () => {
-    await request(app).delete(`/api/imports/${importId}`);
+    await req().delete(`/api/imports/${importId}`);
   });
 
   it("returns the import with its rows", async () => {
-    const res = await request(app).get(`/api/imports/${importId}`);
+    const res = await req().get(`/api/imports/${importId}`);
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(importId);
     expect(res.body.rows).toHaveLength(1);
@@ -396,19 +397,19 @@ describe("GET /imports/:id", () => {
   });
 
   it("returns 404 for a non-existent import id", async () => {
-    const res = await request(app).get("/api/imports/999999");
+    const res = await req().get("/api/imports/999999");
     expect(res.status).toBe(404);
   });
 
   it("returns 400 for an invalid import id", async () => {
-    const res = await request(app).get("/api/imports/abc");
+    const res = await req().get("/api/imports/abc");
     expect(res.status).toBe(400);
   });
 });
 
 describe("Confirm edge cases", () => {
   it("returns 404 when confirming a non-existent import", async () => {
-    const res = await request(app).post("/api/imports/999999/confirm");
+    const res = await req().post("/api/imports/999999/confirm");
     expect(res.status).toBe(404);
   });
 
@@ -416,14 +417,14 @@ describe("Confirm edge cases", () => {
     const csv = buildCsv([
       `${testCategory},${testBudgetLineItem},Jun,2088,100,INV-DEL-CONFIRM`,
     ]);
-    const uploadRes = await request(app)
+    const uploadRes = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "del-confirm.csv");
     const id = uploadRes.body.id;
 
-    await request(app).delete(`/api/imports/${id}`);
+    await req().delete(`/api/imports/${id}`);
 
-    const confirmRes = await request(app).post(`/api/imports/${id}/confirm`);
+    const confirmRes = await req().post(`/api/imports/${id}/confirm`);
     expect(confirmRes.status).toBe(400);
     expect(confirmRes.body.error).toMatch(/deleted/i);
   });
@@ -431,7 +432,7 @@ describe("Confirm edge cases", () => {
 
 describe("Delete edge cases", () => {
   it("returns 404 when deleting a non-existent import", async () => {
-    const res = await request(app).delete("/api/imports/999999");
+    const res = await req().delete("/api/imports/999999");
     expect(res.status).toBe(404);
   });
 
@@ -439,15 +440,15 @@ describe("Delete edge cases", () => {
     const csv = buildCsv([
       `${testCategory},${testBudgetLineItem},Jul,2088,100,INV-DOUBLE-DEL`,
     ]);
-    const uploadRes = await request(app)
+    const uploadRes = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "double-del.csv");
     const id = uploadRes.body.id;
 
-    const firstDel = await request(app).delete(`/api/imports/${id}`);
+    const firstDel = await req().delete(`/api/imports/${id}`);
     expect(firstDel.status).toBe(200);
 
-    const secondDel = await request(app).delete(`/api/imports/${id}`);
+    const secondDel = await req().delete(`/api/imports/${id}`);
     expect(secondDel.status).toBe(400);
     expect(secondDel.body.error).toMatch(/already deleted/i);
   });
@@ -457,7 +458,7 @@ describe("CSV with quoted fields and special characters", () => {
   it("correctly parses quoted fields containing commas", async () => {
     const csv = 'Category,Line Item,Month,Year,Amount,InvoiceRef\n' +
       `"${testCategory}","${testBudgetLineItem}",Jan,2087,"1,500.00",INV-QUOTED`;
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "quoted.csv");
     expect(res.status).toBe(201);
@@ -466,7 +467,7 @@ describe("CSV with quoted fields and special characters", () => {
     expect(matchedRows).toHaveLength(1);
     expect(matchedRows[0].rawAmount).toBe(1500);
 
-    await request(app).delete(`/api/imports/${res.body.id}`);
+    await req().delete(`/api/imports/${res.body.id}`);
   });
 
   it("handles currency symbols in amounts", async () => {
@@ -474,7 +475,7 @@ describe("CSV with quoted fields and special characters", () => {
       `${testCategory},${testBudgetLineItem},Feb,2087,$2500,INV-DOLLAR`,
       `${testCategory},${testBudgetLineItem},Mar,2087,£3500,INV-POUND`,
     ]);
-    const res = await request(app)
+    const res = await req()
       .post("/api/imports/upload")
       .attach("file", Buffer.from(csv), "currency.csv");
     expect(res.status).toBe(201);
@@ -484,13 +485,13 @@ describe("CSV with quoted fields and special characters", () => {
     expect(matchedRows[0].rawAmount).toBe(2500);
     expect(matchedRows[1].rawAmount).toBe(3500);
 
-    await request(app).delete(`/api/imports/${res.body.id}`);
+    await req().delete(`/api/imports/${res.body.id}`);
   });
 });
 
 describe("GET /imports list endpoint", () => {
   it("returns an array of imports", async () => {
-    const res = await request(app).get("/api/imports");
+    const res = await req().get("/api/imports");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });

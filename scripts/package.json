@@ -5,7 +5,15 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "build-desktop": "tsx ./src/build-desktop.ts",
+    "reseed-fy26": "tsx ./src/reseed-fy26.ts",
+    "reconcile-dupes": "tsx ./src/reconcile-duplicate-lines.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "catalog:",

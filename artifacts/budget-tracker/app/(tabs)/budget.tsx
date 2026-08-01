@@ -34,6 +34,7 @@ import {
   getListAlertsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const FY_YEAR = 2026;
 const FILTERS_STORAGE_KEY = "budget-filters-v1";
@@ -50,11 +51,6 @@ const BUILTIN_SORT_ACCESSORS: Record<string, (r: BudgetLineRow) => string | numb
   boardApproved: (r) => r.boardApprovedAmount ?? null,
 };
 const NULL_LAST_SORT_FIELDS = new Set(["boardApproved"]);
-
-function formatCurrency(val: number): string {
-  if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
 
 function ProjectionEditor({ lineId, lineItem, currentPct, onClose, onSaved, onError }: { lineId: number; lineItem: string; currentPct: number; onClose: () => void; onSaved: () => void; onError: () => void }) {
   const colors = useColors();
@@ -94,6 +90,7 @@ function ProjectionEditor({ lineId, lineItem, currentPct, onClose, onSaved, onEr
 }
 
 function BudgetContent() {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
@@ -212,13 +209,13 @@ function BudgetContent() {
   const handleUpdateField = (id: number, field: "lineItem" | "category" | "owner" | "channel" | "costStatus", value: string) => {
     // Send empty string for owner/channel clearing (server normalizes "" to null);
     // for other fields, send the value as-is.
-    const data: { lineItem?: string; category?: string; owner?: string; channel?: string | null; costStatus?: string } = {};
+    const data: { lineItem?: string; category?: string; owner?: string; channel?: ChannelValue | null; costStatus?: string } = {};
     if (field === "owner") {
       data.owner = value.trim();
     } else if (field === "channel") {
       // Channel is a strict enum on the server; send null to clear.
       const trimmed = value.trim();
-      data.channel = trimmed === "" ? null : trimmed;
+      data.channel = trimmed === "" ? null : (trimmed as ChannelValue);
     } else {
       data[field] = value;
     }
@@ -252,7 +249,7 @@ function BudgetContent() {
     });
   };
 
-  const handleCreate = (data: { lineItem: string; category: string; owner?: string; costStatus: string; region?: string; channel?: string | null }) => {
+  const handleCreate = (data: { lineItem: string; category: string; owner?: string; costStatus: string; region?: string; channel?: ChannelValue | null }) => {
     createMutation.mutate({ data }, {
       onSuccess: () => { invalidateAll(); setAddOpen(false); toast.show(`Added "${data.lineItem}"`, { kind: "success" }); },
       onError: () => toast.show("Failed to add line", { kind: "error" }),

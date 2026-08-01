@@ -72,16 +72,6 @@ const SEED_LINES: SeedLine[] = [
     actuals: [0, 0, 0, 25000, 0, 0, 0, 0, 0, 0, 0, 0],
     boardApproved: 25000,
   },
-  {
-    category: "Ads",
-    lineItem: "PR",
-    owner: "",
-    region: "",
-    costStatus: "",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [0, 27000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    boardApproved: 27000,
-  },
 
   // ── Marketing and Sales Software ───────────────────────────────────────────
   {
@@ -206,16 +196,6 @@ const SEED_LINES: SeedLine[] = [
     actuals: [0, 0, 10000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     boardApproved: 120000,
   },
-  {
-    category: "Other Costs",
-    lineItem: "Website fixes",
-    owner: "PH",
-    region: "",
-    costStatus: "",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    boardApproved: 0,
-  },
 
   // ── Marketing and PR ───────────────────────────────────────────────────────
   {
@@ -266,56 +246,6 @@ const SEED_LINES: SeedLine[] = [
     costStatus: "Variable",
     plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    boardApproved: 0,
-  },
-  {
-    category: "Marketing and PR",
-    lineItem: "Marcaria.com hubert.ai domain",
-    owner: "",
-    region: "",
-    costStatus: "",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [0, 0, 0, 0, 249, 0, 0, 0, 0, 0, 0, 0],
-    boardApproved: 249,
-  },
-  {
-    category: "Marketing and PR",
-    lineItem: "LinkedIn Sales Navigator",
-    owner: "",
-    region: "",
-    costStatus: "",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [858, 858, 858, 858, 858, 858, 858, 858, 858, 858, 858, 858],
-    boardApproved: 10296,
-  },
-  {
-    category: "Marketing and PR",
-    lineItem: "Award entry",
-    owner: "",
-    region: "",
-    costStatus: "",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [0, 0, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    boardApproved: 2000,
-  },
-  {
-    category: "Marketing and PR",
-    lineItem: "Video - Case Study",
-    owner: "",
-    region: "",
-    costStatus: "",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [0, 118600, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    boardApproved: 118600,
-  },
-  {
-    category: "Marketing and PR",
-    lineItem: "G2/Capterra/Reddit",
-    owner: "",
-    region: "",
-    costStatus: "",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     boardApproved: 0,
   },
 
@@ -452,16 +382,6 @@ const SEED_LINES: SeedLine[] = [
   },
   {
     category: "Events and Conferences",
-    lineItem: "Merch",
-    owner: "",
-    region: "",
-    costStatus: "Booked",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [0, 14500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    boardApproved: 14500,
-  },
-  {
-    category: "Events and Conferences",
     lineItem: "StaffingPro Virtual July",
     owner: "",
     region: "",
@@ -469,26 +389,6 @@ const SEED_LINES: SeedLine[] = [
     plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     actuals: [0, 0, 0, 0, 0, 0, 32000, 0, 0, 0, 0, 0],
     boardApproved: 32000,
-  },
-  {
-    category: "Events and Conferences",
-    lineItem: "StaffingPro Germany Oct",
-    owner: "",
-    region: "",
-    costStatus: "",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 83000, 0, 0],
-    boardApproved: 83000,
-  },
-  {
-    category: "Events and Conferences",
-    lineItem: "Early Careers Event 19th march",
-    owner: "",
-    region: "",
-    costStatus: "",
-    plans:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    actuals: [0, 0, 110000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    boardApproved: 110000,
   },
 ];
 
@@ -598,10 +498,30 @@ export async function seedBudgetDataForce() {
 }
 
 /**
- * Idempotent migration: adds any SEED_LINES that are missing from the DB
- * without touching existing records. Safe to run on every startup.
+ * One-off backfill: adds any SEED_LINES missing from the DB.
+ *
+ * NOT safe to run on every startup, despite what this comment used to claim.
+ * "Missing" is decided by the key `lineItem|owner|region`, and owner and region
+ * are freely editable by the budget holder. Reassigning a line's owner, or
+ * deleting a line outright, makes its seed key look absent — so the next
+ * restart silently re-inserted the seed line, with 12 hardcoded plan rows and
+ * hardcoded actuals, inflating the totals. Deletions were undone on the next
+ * boot and the damage compounded with each restart-after-edit.
+ *
+ * It is no longer called at boot (see index.ts). It stays exported for the
+ * one situation it was written for — backfilling a database that predates a
+ * seed-line addition — and must be opted into explicitly.
  */
 export async function runStartupMigration(): Promise<void> {
+  if (process.env["ALLOW_SEED_BACKFILL"] !== "1") {
+    logger.warn(
+      "runStartupMigration() called without ALLOW_SEED_BACKFILL=1 — skipping. " +
+        "This re-inserts seed lines whose owner/region were edited, so it must be a deliberate, " +
+        "one-off action taken with a fresh snapshot in hand.",
+    );
+    return;
+  }
+
   const existing = await db.select({ lineItem: budgetLinesTable.lineItem, owner: budgetLinesTable.owner, region: budgetLinesTable.region }).from(budgetLinesTable);
 
   // Build a set of keys that already exist: "lineItem|owner|region"

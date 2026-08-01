@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, real, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, numeric, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 import { makeInsertSchema } from "../utils";
 import { budgetLinesTable } from "./budgetLines";
@@ -9,7 +9,7 @@ export const monthlyActualsTable = pgTable("monthly_actuals", {
   budgetLineId: integer("budget_line_id").notNull().references(() => budgetLinesTable.id, { onDelete: "cascade" }),
   month: integer("month").notNull(),
   year: integer("year").notNull(),
-  actualAmount: real("actual_amount").notNull().default(0),
+  actualAmount: numeric("actual_amount", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
   invoiceRef: text("invoice_ref"),
   importId: integer("import_id").references(() => csvImportsTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

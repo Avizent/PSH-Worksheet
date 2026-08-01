@@ -1,15 +1,18 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, usePathname, type Href } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
+import { CurrencyToggle } from "@/components/CurrencyToggle";
 
 interface NavItem {
   key: string;
   label: string;
   icon: keyof typeof Feather.glyphMap;
   route: Href;
+  /** Shown but not selectable. Used for features that are parked, not removed. */
+  disabled?: boolean;
 }
 
 const MAIN_ITEMS: NavItem[] = [
@@ -23,7 +26,8 @@ const MAIN_ITEMS: NavItem[] = [
   { key: "alerts", label: "Alerts", icon: "bell", route: "/alerts" },
   { key: "events", label: "Events", icon: "calendar", route: "/events" },
   { key: "event-mgmnt", label: "Event Mgmnt", icon: "clipboard", route: "/event-mgmnt" },
-  { key: "board", label: "Board View", icon: "monitor", route: "/board" },
+  // Parked: director-facing access is on hold pending the PowerPoint export.
+  { key: "board", label: "Board View", icon: "monitor", route: "/board", disabled: true },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [
@@ -35,6 +39,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { key: "reforecast", label: "Reforecast", icon: "refresh-cw", route: "/reforecast" },
   { key: "excel", label: "Excel", icon: "grid", route: "/excel" },
   { key: "snapshots", label: "Snapshots", icon: "archive", route: "/snapshots" },
+  { key: "exchange-rate", label: "Exchange Rate", icon: "repeat", route: "/exchange-rate" },
 ];
 
 interface DesktopSidebarProps {
@@ -68,18 +73,24 @@ export function DesktopSidebar({ alertCount = 0 }: DesktopSidebarProps) {
         <Text style={[styles.logoSubtext, { color: colors.mutedForeground }]}>Marketing Budget</Text>
       </View>
 
-      <View style={styles.nav}>
+      <ScrollView style={styles.nav} contentContainerStyle={styles.navContent}>
         {MAIN_ITEMS.map((item) => {
-          const isActive = activeKey === item.key;
+          const isActive = activeKey === item.key && !item.disabled;
           return (
             <TouchableOpacity
               key={item.key}
-              onPress={() => router.push(item.route)}
+              onPress={() => {
+                if (item.disabled) return;
+                router.push(item.route);
+              }}
+              disabled={item.disabled}
+              accessibilityState={{ disabled: item.disabled }}
               style={[
                 styles.navItem,
                 isActive && { backgroundColor: colors.primary + "10" },
+                item.disabled && styles.navItemDisabled,
               ]}
-              activeOpacity={0.7}
+              activeOpacity={item.disabled ? 1 : 0.7}
             >
               <Feather
                 name={item.icon}
@@ -137,9 +148,10 @@ export function DesktopSidebar({ alertCount = 0 }: DesktopSidebarProps) {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
+        <CurrencyToggle />
         <TouchableOpacity
           onPress={cyclePreference}
           style={[styles.themeToggle, { borderColor: colors.border }]}
@@ -192,7 +204,10 @@ const styles = StyleSheet.create({
   },
   nav: {
     flex: 1,
+  },
+  navContent: {
     paddingHorizontal: 12,
+    paddingBottom: 8,
   },
   adminDivider: {
     borderTopWidth: 1,
@@ -213,6 +228,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     marginBottom: 2,
+  },
+  navItemDisabled: {
+    // Apple HIG treats a disabled control as visible but clearly inert, rather
+    // than hidden — the item stays where the user expects to find it.
+    opacity: 0.35,
   },
   navLabel: {
     fontSize: 14,

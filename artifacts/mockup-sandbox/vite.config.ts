@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -33,15 +33,19 @@ export default defineConfig({
     mockupPreviewPlugin(),
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
+    // The @replit/* plugins declare no vite dependency of their own, so their
+    // bundled `vite` type import resolves to a different copy than the one this
+    // app uses. They are valid plugins - the mismatch is a duplicate-types
+    // artifact of the monorepo - so assert the type here.
+    runtimeErrorOverlay() as PluginOption,
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
+          (await import("@replit/vite-plugin-cartographer").then((m) =>
             m.cartographer({
               root: path.resolve(import.meta.dirname, ".."),
             }),
-          ),
+          )) as PluginOption,
         ]
       : []),
   ],

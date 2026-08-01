@@ -7,14 +7,9 @@ import { useLayout } from "@/hooks/useLayout";
 import { SectionHeader } from "@/components/SectionHeader";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
 import { useGetDashboardCharts, useListBudgetLinesWithMonthly, useListAlerts } from "@workspace/api-client-react";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function formatCurrency(val: number): string {
-  if (Math.abs(val) >= 1000000) return "\u00a3" + (val / 1000000).toFixed(1) + "M";
-  if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
 
 function varPct(actual: number, planned: number): string {
   if (planned === 0) return "-";
@@ -34,6 +29,7 @@ interface BudgetLine {
 type DrillLine = { id: number; lineItem: string; owner: string | null; category: string; planned: number; actual: number };
 
 function SpendTrendChart({ data, width, height }: { data: { month: string; planned: number; actual: number }[]; width: number; height: number }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -82,6 +78,7 @@ function SpendTrendChart({ data, width, height }: { data: { month: string; plann
 }
 
 function MonthDrillRows({ lines }: { lines: DrillLine[] }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   return (
     <View style={[drillStyles.block, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
@@ -113,6 +110,7 @@ function MonthDrillRows({ lines }: { lines: DrillLine[] }) {
 }
 
 function MonthlyContent() {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

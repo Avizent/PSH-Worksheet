@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, real, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, numeric, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 import { makeInsertSchema } from "../utils";
 
@@ -11,8 +11,8 @@ export const budgetLinesTable = pgTable("budget_lines", {
   region: text("region"),
   channel: text("channel"),
   costStatus: text("cost_status").notNull().default("Variable"),
-  projectionPct: real("projection_pct").notNull().default(0),
-  boardApprovedAmount: real("board_approved_amount"),
+  projectionPct: numeric("projection_pct", { precision: 7, scale: 4, mode: "number" }).notNull().default(0),
+  boardApprovedAmount: numeric("board_approved_amount", { precision: 14, scale: 2, mode: "number" }),
   customFields: jsonb("custom_fields").$type<Record<string, string | number | null>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

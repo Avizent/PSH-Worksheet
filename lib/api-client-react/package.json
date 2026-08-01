@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./snapshots": "./src/snapshots.ts"
+    "./snapshots": "./src/snapshots.ts",
+    "./exchange-rate": "./src/exchange-rate.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "catalog:"

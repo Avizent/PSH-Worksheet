@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, inArray, asc } from "drizzle-orm";
+import { eq, and, inArray, asc } from "drizzle-orm";
 import multer from "multer";
 import XLSX from "xlsx";
 import JSZip from "jszip";
@@ -11,9 +11,11 @@ import {
   budgetLineColumnsTable,
 } from "@workspace/db";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { writeAuditLog } from "../middleware/auditLog";
 import { logger } from "../lib/logger";
 import { createSnapshot } from "./snapshots";
 import { triggerAlertEvaluation } from "../lib/runAlertEvaluation";
+import { resolveExportCurrency } from "../lib/exportCurrency";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -43,11 +45,15 @@ const MONTH_HEADERS = [
 
 const RESERVED_HEADER_SET = new Set<string>([...BASE_HEADERS_LEFT, ...MONTH_HEADERS]);
 
-function formatCurrency(val: number): string {
-  return val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
+/** Hidden sheet carrying export metadata; see readExportCurrency below. */
+const META_SHEET = "_PSH_META";
+const META_CURRENCY_KEY = "exportCurrency";
 
-router.get("/excel/export", asyncHandler(async (_req, res): Promise<void> => {
+/** The one fiscal year this import path reads and writes. */
+const IMPORT_YEAR = 2026;
+
+router.get("/excel/export", asyncHandler(async (req, res): Promise<void> => {
+  const money = await resolveExportCurrency(req.query.currency);
   const ExcelJS = (await import("exceljs")).default;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Budget Lines");
@@ -75,6 +81,27 @@ router.get("/excel/export", asyncHandler(async (_req, res): Promise<void> => {
     "Variance (Actual)",
     "Variance (Projected)",
   ];
+
+  // Column ranges (1-indexed), shared by both value conversion and numFmt below
+  // so a monetary cell can never be converted without its format matching.
+  const customStart = BASE_HEADERS_LEFT.length + 1;
+  const customEnd = customStart + customCols.length - 1;
+  const monthlyStart = customEnd + 1;
+  const monthlyEnd = monthlyStart + MONTH_HEADERS.length - 1;
+
+  /** 0-indexed positions in a row array that hold SEK amounts needing conversion. */
+  const monetaryIdx = new Set<number>();
+  headerRow.forEach((h, i) => {
+    const colNum = i + 1;
+    if (colNum <= BASE_HEADERS_LEFT.length) {
+      if (h === "Board Approved Amount") monetaryIdx.add(i);
+    } else if (colNum >= customStart && colNum <= customEnd) {
+      if (customCols[colNum - customStart]?.type === "number") monetaryIdx.add(i);
+    } else {
+      // monthly plan/actual plus all export-only computed columns
+      monetaryIdx.add(i);
+    }
+  });
 
   sheet.addRow(headerRow);
   const hRow = sheet.getRow(1);
@@ -151,7 +178,11 @@ router.get("/excel/export", asyncHandler(async (_req, res): Promise<void> => {
     }
     row.push(...projectedVals, totalPlan, totalActual, totalProjected, totalActual - totalPlan, totalProjected - totalPlan);
 
-    sheet.addRow(row);
+    sheet.addRow(
+      row.map((cell, i) =>
+        monetaryIdx.has(i) && typeof cell === "number" ? money.convert(cell) : cell,
+      ),
+    );
   }
 
   // Column widths and formats. Index ranges:
@@ -159,11 +190,6 @@ router.get("/excel/export", asyncHandler(async (_req, res): Promise<void> => {
   //   10..(9+customCols.length)   custom columns
   //   next 24  monthly plan/actual
   //   trailing 17 export-only computed (12 projected + 5 totals/variances)
-  const customStart = BASE_HEADERS_LEFT.length + 1; // 1-indexed
-  const customEnd = customStart + customCols.length - 1;
-  const monthlyStart = customEnd + 1;
-  const monthlyEnd = monthlyStart + MONTH_HEADERS.length - 1;
-
   sheet.columns.forEach((col, i) => {
     const colNum = i + 1;
     if (colNum <= BASE_HEADERS_LEFT.length) {
@@ -173,21 +199,37 @@ router.get("/excel/export", asyncHandler(async (_req, res): Promise<void> => {
         col.width = 12;
         col.numFmt = "0.0";
       } else if (headerRow[i] === "Board Approved Amount") {
-        col.numFmt = "£#,##0";
+        col.numFmt = money.numFmt;
       }
     } else if (colNum >= customStart && colNum <= customEnd) {
       const def = customCols[colNum - customStart];
       col.width = Math.max(14, Math.min(28, def.name.length + 4));
-      if (def.type === "number") col.numFmt = "£#,##0";
+      if (def.type === "number") col.numFmt = money.numFmt;
     } else if (colNum >= monthlyStart && colNum <= monthlyEnd) {
       col.width = 11;
-      col.numFmt = "£#,##0";
+      col.numFmt = money.numFmt;
     } else {
       // Export-only computed columns
       col.width = 13;
-      col.numFmt = "£#,##0";
+      col.numFmt = money.numFmt;
     }
   });
+
+  if (money.conversionNote) {
+    const note = sheet.addRow([money.conversionNote]);
+    note.font = { italic: true, size: 10 };
+  }
+
+  // Machine-readable stamp of what currency the figures are in. The importer
+  // reads this to refuse a converted workbook — without it, re-importing a GBP
+  // export would store the GBP numbers as SEK and divide the whole budget by
+  // the exchange rate. Kept on its own sheet so it cannot be mistaken for data.
+  const meta = workbook.addWorksheet(META_SHEET);
+  meta.state = "hidden";
+  meta.addRow(["key", "value"]);
+  meta.addRow([META_CURRENCY_KEY, money.currency]);
+  meta.addRow(["sekPerGbp", money.rate ?? ""]);
+  meta.addRow(["exportedAt", new Date().toISOString()]);
 
   const today = new Date().toISOString().slice(0, 10);
   const filename = `budget_export_${today}.xlsx`;
@@ -229,6 +271,24 @@ interface UnknownColumn {
 function cellToString(val: unknown): string {
   if (val === null || val === undefined) return "";
   return String(val).trim();
+}
+
+/**
+ * Reads the currency stamp written by /excel/export. Returns null for
+ * hand-made workbooks and for exports predating the stamp — those are treated
+ * as SEK, which is what they have always been.
+ */
+export function readExportCurrency(workbook: XLSX.WorkBook): string | null {
+  const sheet = workbook.Sheets[META_SHEET];
+  if (!sheet) return null;
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
+  for (const row of rows) {
+    if (!Array.isArray(row)) continue;
+    if (cellToString(row[0]) === META_CURRENCY_KEY) {
+      return cellToString(row[1]).toUpperCase() || null;
+    }
+  }
+  return null;
 }
 
 function cellToNumber(val: unknown): number | null {
@@ -301,6 +361,27 @@ async function validateBuffer(
   }
 
   const { workbook, sheetNames } = inspection;
+
+  // Amounts are stored in SEK. A GBP export has already been divided by the
+  // exchange rate for presentation, so importing it would write those smaller
+  // numbers back as SEK and shrink the entire budget by the rate. GBP exports
+  // are reporting artefacts, not a round-trip format.
+  const exportCurrency = readExportCurrency(workbook);
+  if (exportCurrency && exportCurrency !== "SEK") {
+    return {
+      valid: false,
+      errors: [
+        {
+          column: "file",
+          row: 0,
+          message:
+            `This workbook was exported in ${exportCurrency} for reporting, so its figures have ` +
+            `already been converted from SEK. Importing it would overwrite the budget with ` +
+            `converted values. Export again with the display currency set to SEK, then import that file.`,
+        },
+      ],
+    };
+  }
   const target = sheetName ?? "Budget Lines";
 
   if (!sheetNames.includes(target)) {
@@ -742,11 +823,6 @@ router.post(
     // didn't have one). So this is just: existing not in file.
     const fileKeys = new Set(parsed.map((p) => `${p.category}||${p.lineItem}`));
     const toDelete = existingLines.filter((l) => !fileKeys.has(`${l.category}||${l.lineItem}`));
-    if (toDelete.length > 0) {
-      await db.delete(budgetLinesTable).where(
-        inArray(budgetLinesTable.id, toDelete.map((l) => l.id))
-      );
-    }
 
     let upserted = 0;
     let inserted = 0;
@@ -757,80 +833,123 @@ router.post(
     const customColTypeByName = new Map<string, string>();
     for (const c of knownCustomColumns) customColTypeByName.set(c.name, c.type);
 
-    for (const row of acceptedRows) {
-      const key = `${row.category}||${row.lineItem}`;
-      const existing = existingMap.get(key);
+    // One transaction for the whole rewrite. Previously each line was deleted
+    // and re-inserted with its own statements, so a failure part-way through
+    // left some lines rewritten from the file and others still holding their
+    // old figures — with no error surfaced for the half that did apply.
+    await db.transaction(async (tx) => {
+      if (toDelete.length > 0) {
+        await tx.delete(budgetLinesTable).where(
+          inArray(budgetLinesTable.id, toDelete.map((l) => l.id))
+        );
+      }
 
-      // Coerce custom field values to declared types; drop unknown names defensively
-      const cf: Record<string, string | number | null> = {};
-      for (const [name, raw] of Object.entries(row.customFields)) {
-        const t = customColTypeByName.get(name);
-        if (!t) continue;
-        if (raw === null || raw === undefined || raw === "") continue;
-        if (t === "number") {
-          const n = typeof raw === "number" ? raw : Number(raw);
-          if (isFinite(n)) cf[name] = n;
+      for (const row of acceptedRows) {
+        const key = `${row.category}||${row.lineItem}`;
+        const existing = existingMap.get(key);
+
+        // Coerce custom field values to declared types; drop unknown names defensively
+        const cf: Record<string, string | number | null> = {};
+        for (const [name, raw] of Object.entries(row.customFields)) {
+          const t = customColTypeByName.get(name);
+          if (!t) continue;
+          if (raw === null || raw === undefined || raw === "") continue;
+          if (t === "number") {
+            const n = typeof raw === "number" ? raw : Number(raw);
+            if (isFinite(n)) cf[name] = n;
+          } else {
+            cf[name] = String(raw);
+          }
+        }
+
+        let lineId: number;
+
+        if (existing) {
+          await tx
+            .update(budgetLinesTable)
+            .set({
+              subcategory: row.subcategory || null,
+              owner: row.owner || null,
+              region: row.region || null,
+              channel: row.channel || null,
+              costStatus: row.costStatus,
+              projectionPct: row.projectionPct,
+              boardApprovedAmount: row.boardApprovedAmount,
+              customFields: cf,
+            })
+            .where(eq(budgetLinesTable.id, existing.id));
+          lineId = existing.id;
+          upserted++;
         } else {
-          cf[name] = String(raw);
+          const [newLine] = await tx
+            .insert(budgetLinesTable)
+            .values({
+              category: row.category,
+              subcategory: row.subcategory || null,
+              lineItem: row.lineItem,
+              owner: row.owner || null,
+              region: row.region || null,
+              channel: row.channel || null,
+              costStatus: row.costStatus,
+              projectionPct: row.projectionPct,
+              boardApprovedAmount: row.boardApprovedAmount,
+              customFields: cf,
+            })
+            .returning();
+          lineId = newLine.id;
+          inserted++;
+        }
+
+        // The year predicate matters: the workbook only carries IMPORT_YEAR
+        // columns, but these deletes used to match on budgetLineId alone. Once
+        // any other year existed — after a rollover, or with real 2027 data —
+        // re-importing the FY2026 sheet wiped every other year's plans and
+        // actuals for the line and never wrote them back.
+        await tx
+          .delete(monthlyPlansTable)
+          .where(
+            and(
+              eq(monthlyPlansTable.budgetLineId, lineId),
+              eq(monthlyPlansTable.year, IMPORT_YEAR),
+            ),
+          );
+        const planValues = row.plans
+          .map((amount, idx) => ({ budgetLineId: lineId, month: idx + 1, year: IMPORT_YEAR, plannedAmount: amount }))
+          .filter((p) => p.plannedAmount !== 0);
+        if (planValues.length > 0) {
+          await tx.insert(monthlyPlansTable).values(planValues);
+          plansWritten += planValues.length;
+        }
+
+        await tx
+          .delete(monthlyActualsTable)
+          .where(
+            and(
+              eq(monthlyActualsTable.budgetLineId, lineId),
+              eq(monthlyActualsTable.year, IMPORT_YEAR),
+            ),
+          );
+        const actualValues = row.actuals
+          .map((amount, idx) => ({ budgetLineId: lineId, month: idx + 1, year: IMPORT_YEAR, actualAmount: amount }))
+          .filter((a) => a.actualAmount !== 0);
+        if (actualValues.length > 0) {
+          await tx.insert(monthlyActualsTable).values(actualValues);
+          actualsWritten += actualValues.length;
         }
       }
+    });
 
-      let lineId: number;
-
-      if (existing) {
-        await db
-          .update(budgetLinesTable)
-          .set({
-            subcategory: row.subcategory || null,
-            owner: row.owner || null,
-            region: row.region || null,
-            channel: row.channel || null,
-            costStatus: row.costStatus,
-            projectionPct: row.projectionPct,
-            boardApprovedAmount: row.boardApprovedAmount,
-            customFields: cf,
-          })
-          .where(eq(budgetLinesTable.id, existing.id));
-        lineId = existing.id;
-        upserted++;
-      } else {
-        const [newLine] = await db
-          .insert(budgetLinesTable)
-          .values({
-            category: row.category,
-            subcategory: row.subcategory || null,
-            lineItem: row.lineItem,
-            owner: row.owner || null,
-            region: row.region || null,
-            channel: row.channel || null,
-            costStatus: row.costStatus,
-            projectionPct: row.projectionPct,
-            boardApprovedAmount: row.boardApprovedAmount,
-            customFields: cf,
-          })
-          .returning();
-        lineId = newLine.id;
-        inserted++;
-      }
-
-      await db.delete(monthlyPlansTable).where(eq(monthlyPlansTable.budgetLineId, lineId));
-      const planValues = row.plans
-        .map((amount, idx) => ({ budgetLineId: lineId, month: idx + 1, year: 2026, plannedAmount: amount }))
-        .filter((p) => p.plannedAmount !== 0);
-      if (planValues.length > 0) {
-        await db.insert(monthlyPlansTable).values(planValues);
-        plansWritten += planValues.length;
-      }
-
-      await db.delete(monthlyActualsTable).where(eq(monthlyActualsTable.budgetLineId, lineId));
-      const actualValues = row.actuals
-        .map((amount, idx) => ({ budgetLineId: lineId, month: idx + 1, year: 2026, actualAmount: amount }))
-        .filter((a) => a.actualAmount !== 0);
-      if (actualValues.length > 0) {
-        await db.insert(monthlyActualsTable).values(actualValues);
-        actualsWritten += actualValues.length;
-      }
-    }
+    // A bulk rewrite of every plan and actual in the year previously left no
+    // trace at all, against the "immutable/auditable actuals" standard.
+    await writeAuditLog({
+      action: "import",
+      entityType: "excel_import",
+      entityId: IMPORT_YEAR,
+      field: "workbook",
+      newValue:
+        `year=${IMPORT_YEAR} linesUpdated=${upserted} linesInserted=${inserted} ` +
+        `linesDeleted=${toDelete.length} plansWritten=${plansWritten} actualsWritten=${actualsWritten}`,
+    });
 
     triggerAlertEvaluation();
     res.json({

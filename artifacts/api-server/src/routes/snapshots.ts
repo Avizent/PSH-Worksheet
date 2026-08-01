@@ -11,13 +11,17 @@ import {
   csvImportRowsTable,
   csvImportsTable,
   budgetLineColumnsTable,
+  forecastPlansTable,
+  eventsTable,
+  alertsTable,
 } from "@workspace/db";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { logger } from "../lib/logger";
 import { isValidVpSession } from "../middleware/vpAuth";
 import { isValidUserSession } from "./userAuth";
 import { triggerAlertEvaluation } from "../lib/runAlertEvaluation";
+import { resolveExportCurrency } from "../lib/exportCurrency";
 
 const router: IRouter = Router();
 
@@ -543,11 +547,8 @@ router.get(
     res.setHeader("Content-Disposition", 'attachment; filename="snapshot-comparison.pdf"');
     doc.pipe(res);
 
-    const fmtMoney = (v: number) => {
-      if (Math.abs(v) >= 1_000_000) return "\u00a3" + (v / 1_000_000).toFixed(2) + "M";
-      if (Math.abs(v) >= 1_000) return "\u00a3" + (v / 1_000).toFixed(1) + "k";
-      return "\u00a3" + Math.round(v).toLocaleString("en-GB");
-    };
+    const money = await resolveExportCurrency(req.query.currency);
+    const fmtMoney = money.formatCompact;
     const fmtDate = (iso: string) =>
       new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
@@ -557,6 +558,9 @@ router.get(
     doc.moveDown(0.3);
     doc.fontSize(11).font("Helvetica").fillColor("#6b7280")
       .text(`Snapshot Comparison \u2014 Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, { align: "center" });
+    if (money.conversionNote) {
+      doc.fontSize(8).font("Helvetica-Oblique").fillColor("#6b7280").text(money.conversionNote, { align: "center" });
+    }
     doc.moveDown(1);
 
     // ── Snapshot labels ───────────────────────────────────────────────────────
@@ -908,6 +912,32 @@ router.post(
     }
 
     await db.transaction(async (tx) => {
+      /**
+       * A snapshot holds budget lines, plans and actuals — not forecasts,
+       * events or alerts. But restoring deletes every budget line, and
+       * forecast_plans cascades from it while events and alerts have their
+       * link set to null. So restoring a snapshot to undo a bad import also
+       * destroyed every forecast version's figures and detached every event
+       * from its budget line, with nothing in the snapshot to put them back.
+       *
+       * Capture those associations here and re-point them afterwards. Matching
+       * is by category + line item rather than id, because the restore
+       * re-inserts lines and Postgres hands out fresh serial ids.
+       */
+      const priorLines = await tx
+        .select({ id: budgetLinesTable.id, category: budgetLinesTable.category, lineItem: budgetLinesTable.lineItem })
+        .from(budgetLinesTable);
+      const keyByOldLineId = new Map<number, string>(
+        priorLines.map((l) => [l.id, `${l.category}||${l.lineItem}`]),
+      );
+      const priorForecastPlans = await tx.select().from(forecastPlansTable);
+      const priorEventLinks = await tx
+        .select({ id: eventsTable.id, budgetLineId: eventsTable.budgetLineId })
+        .from(eventsTable);
+      const priorAlertLinks = await tx
+        .select({ id: alertsTable.id, budgetLineId: alertsTable.budgetLineId })
+        .from(alertsTable);
+
       // Delete in FK order (csv_import_rows references budget_lines, must go first)
       await tx.delete(csvImportRowsTable);
       await tx.delete(csvImportsTable);
@@ -947,6 +977,7 @@ router.post(
 
       // Re-insert budget lines, tracking old id → new id for FK remapping
       const lineIdMap = new Map<number, number>();
+      const newIdByKey = new Map<string, number>();
       for (const bl of body.budgetLines) {
         const [inserted] = await tx
           .insert(budgetLinesTable)
@@ -964,6 +995,36 @@ router.post(
           })
           .returning();
         lineIdMap.set(bl.id, inserted.id);
+        newIdByKey.set(`${bl.category}||${bl.lineItem}`, inserted.id);
+      }
+
+      // Put forecasts, events and alerts back on their lines.
+      const remap = (oldLineId: number | null): number | undefined => {
+        if (oldLineId == null) return undefined;
+        const key = keyByOldLineId.get(oldLineId);
+        return key ? newIdByKey.get(key) : undefined;
+      };
+
+      for (const fp of priorForecastPlans) {
+        const newLineId = remap(fp.budgetLineId);
+        if (!newLineId) continue;
+        await tx.insert(forecastPlansTable).values({
+          versionId: fp.versionId,
+          budgetLineId: newLineId,
+          month: fp.month,
+          year: fp.year,
+          plannedAmount: fp.plannedAmount,
+        });
+      }
+      for (const ev of priorEventLinks) {
+        const newLineId = remap(ev.budgetLineId);
+        if (!newLineId) continue;
+        await tx.update(eventsTable).set({ budgetLineId: newLineId }).where(eq(eventsTable.id, ev.id));
+      }
+      for (const al of priorAlertLinks) {
+        const newLineId = remap(al.budgetLineId);
+        if (!newLineId) continue;
+        await tx.update(alertsTable).set({ budgetLineId: newLineId }).where(eq(alertsTable.id, al.id));
       }
 
       // Re-insert monthly plans using embedded plans array (joined by readSnapshotFile)

@@ -102,6 +102,11 @@ router.put("/budget-lines/:id/plans", asyncHandler(async (req, res): Promise<voi
   const { month, year, plannedAmount } = parsed.data;
   const budgetLineId = params.data.id;
 
+  // Read the prior value for the audit entry, then let Postgres settle the
+  // insert-or-update atomically. The previous SELECT-then-INSERT lost that race
+  // whenever the grid saved a row: the client fires all twelve months at once,
+  // so two requests could both see "no row" and the second hit the unique index
+  // with a 500 — or, on the update path, silently overwrite the other's figure.
   const [existing] = await db.select().from(monthlyPlansTable).where(
     and(
       eq(monthlyPlansTable.budgetLineId, budgetLineId),
@@ -110,31 +115,30 @@ router.put("/budget-lines/:id/plans", asyncHandler(async (req, res): Promise<voi
     ),
   );
 
-  let row;
-  if (existing) {
-    [row] = await db.update(monthlyPlansTable)
-      .set({ plannedAmount })
-      .where(eq(monthlyPlansTable.id, existing.id))
-      .returning();
-    if (existing.plannedAmount !== plannedAmount) {
-      await writeAuditLog({
-        action: "update",
-        entityType: "monthly_plan",
-        entityId: row.id,
-        field: "plannedAmount",
-        oldValue: String(existing.plannedAmount),
-        newValue: String(plannedAmount),
-      });
-    }
-  } else {
-    [row] = await db.insert(monthlyPlansTable)
-      .values({ budgetLineId, month, year, plannedAmount })
-      .returning();
+  const [row] = await db
+    .insert(monthlyPlansTable)
+    .values({ budgetLineId, month, year, plannedAmount })
+    .onConflictDoUpdate({
+      target: [monthlyPlansTable.budgetLineId, monthlyPlansTable.month, monthlyPlansTable.year],
+      set: { plannedAmount },
+    })
+    .returning();
+
+  if (!existing) {
     await writeAuditLog({
       action: "create",
       entityType: "monthly_plan",
       entityId: row.id,
       field: "plannedAmount",
+      newValue: String(plannedAmount),
+    });
+  } else if (existing.plannedAmount !== plannedAmount) {
+    await writeAuditLog({
+      action: "update",
+      entityType: "monthly_plan",
+      entityId: row.id,
+      field: "plannedAmount",
+      oldValue: String(existing.plannedAmount),
       newValue: String(plannedAmount),
     });
   }

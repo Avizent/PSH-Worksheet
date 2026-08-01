@@ -128,7 +128,7 @@ export async function runAlertEvaluation(year?: number): Promise<{ evaluated: nu
           candidates.push({
             type: "large_payment",
             severity: "warning",
-            message: `${line.lineItem}: large planned payment of £${(Number(plan.plannedAmount) / 1000).toFixed(0)}k in month ${plan.month}`,
+            message: `${line.lineItem}: large planned payment of ${(Number(plan.plannedAmount) / 1000).toFixed(0)}k kr in month ${plan.month}`,
             month: plan.month,
             year: resolvedYear,
             budgetLineId: line.id,

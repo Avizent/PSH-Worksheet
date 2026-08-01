@@ -12,18 +12,14 @@ import { useGetDashboardCharts, useGetDashboardSummary, useListBudgetLinesWithMo
 import { getApiUrl } from "@/utils/getApiUrl";
 import { CHANNEL_VALUES, CHANNEL_LABELS, type ChannelValue } from "@/components/BudgetTable";
 import { getSessionToken } from "@/lib/authSession";
+import { apiFetch } from "@/lib/apiFetch";
 import { Feather } from "@expo/vector-icons";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 type ChannelFilter = "all" | "none" | ChannelValue;
 
 const PIE_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 const BURNDOWN_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6"];
-
-function formatCurrency(val: number): string {
-  if (Math.abs(val) >= 1000000) return "\u00a3" + (val / 1000000).toFixed(1) + "M";
-  if (Math.abs(val) >= 1000) return "\u00a3" + (val / 1000).toFixed(1) + "k";
-  return "\u00a3" + val.toLocaleString("en-GB", { maximumFractionDigits: 0 });
-}
 
 function polarToCartesian(cx: number, cy: number, r: number, angle: number) {
   const rad = ((angle - 90) * Math.PI) / 180;
@@ -85,6 +81,7 @@ interface BudgetLine {
 }
 
 function QuarterlyCompareChart({ data, width, height }: { data: { label: string; planned: number; actual: number }[]; width: number; height: number }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -129,6 +126,7 @@ function QuarterlyCompareChart({ data, width, height }: { data: { label: string;
 }
 
 function MonthlyTrendLine({ data, width, height }: { data: { month: string; actual: number }[]; width: number; height: number }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -167,6 +165,7 @@ function MonthlyTrendLine({ data, width, height }: { data: { month: string; actu
 }
 
 function FixedVsVariableChart({ data, width, height }: { data: { label: string; fixedActual: number; variableActual: number }[]; width: number; height: number }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -208,6 +207,7 @@ function FixedVsVariableChart({ data, width, height }: { data: { label: string; 
 }
 
 function CategoryBurndownChart({ data, categories, width, height }: { data: Record<string, unknown>[]; categories: string[]; width: number; height: number }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -260,6 +260,7 @@ const REGION_COLORS: Record<string, { planned: string; actual: string }> = {
 };
 
 function RegionalInvestmentChart({ data, regions, width, height }: { data: { quarter: string; [key: string]: unknown }[]; regions: string[]; width: number; height: number }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 55, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -317,6 +318,7 @@ function RegionalInvestmentChart({ data, regions, width, height }: { data: { qua
 }
 
 function BoardVarianceTable({ data }: { data: { lineItem: string; category: string; boardApproved: number; currentPlan: number; variance: number; variancePct: number }[] }) {
+  const { formatCompact: formatCurrency } = useCurrency();
   const colors = useColors();
 
   return (
@@ -350,7 +352,7 @@ function useAnalytics(endpoint: string) {
 
   useEffect(() => {
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/analytics/${endpoint}?year=2026`)
+    apiFetch(`${baseUrl}/api/analytics/${endpoint}?year=2026`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
@@ -360,6 +362,7 @@ function useAnalytics(endpoint: string) {
 }
 
 function ReportsContent() {
+  const { currency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";
@@ -396,7 +399,7 @@ function ReportsContent() {
       const baseUrl = getApiUrl();
       const headers: Record<string, string> = {};
       if (token) headers["x-user-session"] = token;
-      const res = await fetch(`${baseUrl}/api/exports/reports-pdf`, { headers });
+      const res = await fetch(`${baseUrl}/api/exports/reports-pdf?currency=${currency}`, { headers });
       if (!res.ok) throw new Error("Export failed");
       if (Platform.OS === "web") {
         const blob = await res.blob();
@@ -406,7 +409,7 @@ function ReportsContent() {
         a.click();
         URL.revokeObjectURL(a.href);
       } else {
-        const FileSystem = (await import("expo-file-system")).default;
+        const FileSystem = await import("expo-file-system/legacy");
         const Sharing = await import("expo-sharing");
         const buffer = await res.arrayBuffer();
         const bytes = new Uint8Array(buffer);
@@ -709,7 +712,7 @@ function ReportsContent() {
         </View>
       )}
 
-      {boardVarData && (boardVarData as unknown[]).length > 0 && (
+      {Array.isArray(boardVarData) && boardVarData.length > 0 && (
         <View style={{ marginTop: 16 }}>
           <SectionHeader title="Board Sign-Off Variance" subtitle="Current plan vs December 2025 board-approved amounts" />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>

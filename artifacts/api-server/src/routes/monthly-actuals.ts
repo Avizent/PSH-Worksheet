@@ -108,19 +108,24 @@ router.put("/budget-lines/:id/actuals", asyncHandler(async (req, res): Promise<v
     return;
   }
 
-  let row;
+  // Atomic insert-or-update, for the same reason as the plans route: the grid
+  // saves twelve months concurrently, and SELECT-then-INSERT let two of them
+  // race into a unique-index violation or a lost update.
+  const setObj: { actualAmount: number; invoiceRef?: string | null } = { actualAmount };
+  if (invoiceRef !== undefined) setObj.invoiceRef = invoiceRef;
+
+  const [row] = await db
+    .insert(monthlyActualsTable)
+    .values({ budgetLineId, month, year, actualAmount, invoiceRef: invoiceRef ?? null })
+    .onConflictDoUpdate({
+      target: [monthlyActualsTable.budgetLineId, monthlyActualsTable.month, monthlyActualsTable.year],
+      set: setObj,
+    })
+    .returning();
+
   if (existing) {
-    const setObj: { actualAmount: number; invoiceRef?: string | null } = { actualAmount };
-    if (invoiceRef !== undefined) setObj.invoiceRef = invoiceRef;
-    [row] = await db.update(monthlyActualsTable)
-      .set(setObj)
-      .where(eq(monthlyActualsTable.id, existing.id))
-      .returning();
     await writeAuditDiff("update", "monthly_actual", row.id, existing, row, ["actualAmount", "invoiceRef"]);
   } else {
-    [row] = await db.insert(monthlyActualsTable)
-      .values({ budgetLineId, month, year, actualAmount, invoiceRef: invoiceRef ?? null })
-      .returning();
     await writeAuditLog({
       action: "create",
       entityType: "monthly_actual",
