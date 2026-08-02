@@ -368,6 +368,14 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="integrity"
+        options={{
+          title: "Data Integrity",
+          tabBarItemStyle: { display: "none" },
+          tabBarIcon: ({ color }) => <Feather name="shield" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="owners"
         options={{
           title: "Admin",

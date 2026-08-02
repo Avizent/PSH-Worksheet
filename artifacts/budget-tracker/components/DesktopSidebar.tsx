@@ -40,6 +40,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { key: "excel", label: "Excel", icon: "grid", route: "/excel" },
   { key: "snapshots", label: "Snapshots", icon: "archive", route: "/snapshots" },
   { key: "exchange-rate", label: "Exchange Rate", icon: "repeat", route: "/exchange-rate" },
+  { key: "integrity", label: "Data Integrity", icon: "shield", route: "/integrity" },
 ];
 
 interface DesktopSidebarProps {

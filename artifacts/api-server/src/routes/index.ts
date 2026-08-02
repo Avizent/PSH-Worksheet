@@ -27,6 +27,7 @@ import taskRemindersRouter from "./task-reminders";
 import inAppAlertsRouter from "./in-app-alerts";
 import budgetLineColumnsRouter from "./budget-line-columns";
 import exchangeRateRouter from "./exchange-rate";
+import integrityRouter from "./integrity";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(taskRemindersRouter);
 router.use(inAppAlertsRouter);
 router.use(budgetLineColumnsRouter);
 router.use(exchangeRateRouter);
+router.use(integrityRouter);
 
 export default router;
