@@ -69,7 +69,7 @@ function HorizontalBarChart({ data, width }: { data: { label: string; planned: n
 }
 
 function RegionDrillRows({ lines }: { lines: DrillLine[] }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   return (
     <View style={[drillStyles.block, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
@@ -103,7 +103,7 @@ function RegionDrillRows({ lines }: { lines: DrillLine[] }) {
 }
 
 export function QuarterlyBody() {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

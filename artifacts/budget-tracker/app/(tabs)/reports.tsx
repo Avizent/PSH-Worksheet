@@ -81,7 +81,7 @@ interface BudgetLine {
 }
 
 function QuarterlyCompareChart({ data, width, height }: { data: { label: string; planned: number; actual: number }[]; width: number; height: number }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -126,7 +126,7 @@ function QuarterlyCompareChart({ data, width, height }: { data: { label: string;
 }
 
 function MonthlyTrendLine({ data, width, height }: { data: { month: string; actual: number }[]; width: number; height: number }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -165,7 +165,7 @@ function MonthlyTrendLine({ data, width, height }: { data: { month: string; actu
 }
 
 function FixedVsVariableChart({ data, width, height }: { data: { label: string; fixedActual: number; variableActual: number }[]; width: number; height: number }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -207,7 +207,7 @@ function FixedVsVariableChart({ data, width, height }: { data: { label: string; 
 }
 
 function CategoryBurndownChart({ data, categories, width, height }: { data: Record<string, unknown>[]; categories: string[]; width: number; height: number }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -260,7 +260,7 @@ const REGION_COLORS: Record<string, { planned: string; actual: string }> = {
 };
 
 function RegionalInvestmentChart({ data, regions, width, height }: { data: { quarter: string; [key: string]: unknown }[]; regions: string[]; width: number; height: number }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 55, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -318,7 +318,7 @@ function RegionalInvestmentChart({ data, regions, width, height }: { data: { qua
 }
 
 function BoardVarianceTable({ data }: { data: { lineItem: string; category: string; boardApproved: number; currentPlan: number; variance: number; variancePct: number }[] }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
 
   return (

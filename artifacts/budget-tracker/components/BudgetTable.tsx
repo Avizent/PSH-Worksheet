@@ -96,7 +96,7 @@ function InlineProjectionInput({ lineId, value, onSave, colors }: { lineId: numb
 }
 
 export function BudgetTable({ data, showProjection, onProjectionChange, sortField = null, sortDir = null, onSort, categories = [], owners = [], amountColumnMode = "plan", onUpdateField, onOpenMonthly, onDelete, readOnly, customColumns = [] }: BudgetTableProps) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const interactive = !readOnly && !!onUpdateField && !!onOpenMonthly && !!onDelete && !!onSort;
 

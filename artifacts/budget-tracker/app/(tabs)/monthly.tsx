@@ -29,7 +29,7 @@ interface BudgetLine {
 type DrillLine = { id: number; lineItem: string; owner: string | null; category: string; planned: number; actual: number };
 
 function SpendTrendChart({ data, width, height }: { data: { month: string; planned: number; actual: number }[]; width: number; height: number }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const padding = { top: 20, right: 20, bottom: 40, left: 55 };
   const chartW = width - padding.left - padding.right;
@@ -78,7 +78,7 @@ function SpendTrendChart({ data, width, height }: { data: { month: string; plann
 }
 
 function MonthDrillRows({ lines }: { lines: DrillLine[] }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   return (
     <View style={[drillStyles.block, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
@@ -110,7 +110,7 @@ function MonthDrillRows({ lines }: { lines: DrillLine[] }) {
 }
 
 function MonthlyContent() {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

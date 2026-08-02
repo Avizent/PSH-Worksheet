@@ -90,7 +90,7 @@ function ProjectionEditor({ lineId, lineItem, currentPct, onClose, onSaved, onEr
 }
 
 function BudgetContent() {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

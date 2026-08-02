@@ -41,7 +41,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function BoardContent() {
-  const { formatCompact: formatCurrency, currency } = useCurrency();
+  const { format: formatCurrency, currency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

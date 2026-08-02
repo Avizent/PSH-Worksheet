@@ -60,7 +60,7 @@ export default function BoardViewScreen() {
 }
 
 function BoardViewContent() {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();

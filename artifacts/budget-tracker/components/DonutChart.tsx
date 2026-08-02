@@ -24,7 +24,7 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
 }
 
 export function DonutChart({ data, size }: DonutChartProps) {
-  const { formatCompact } = useCurrency();
+  const { format } = useCurrency();
   const colors = useColors();
   const cx = size / 2;
   const cy = size / 2;
@@ -70,8 +70,8 @@ export function DonutChart({ data, size }: DonutChartProps) {
               />
             );
           })}
-          <SvgText x={cx} y={cy - 6} fontSize={16} fontWeight="bold" fill={colors.foreground} textAnchor="middle">
-            {formatCompact(total)}
+          <SvgText x={cx} y={cy - 6} fontSize={13} fontWeight="bold" fill={colors.foreground} textAnchor="middle">
+            {format(total)}
           </SvgText>
           <SvgText x={cx} y={cy + 12} fontSize={11} fill={colors.mutedForeground} textAnchor="middle">
             Total Plan

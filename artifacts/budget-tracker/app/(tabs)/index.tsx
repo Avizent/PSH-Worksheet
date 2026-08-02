@@ -47,7 +47,7 @@ const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
 const CHART_COLORS = ["#1e6b4e", "#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
 function RemainingBudgetChart({ categories, width, title = "Remaining Budget by Category", interactive = false, expandedCategory = null, onCategoryPress }: { categories: { category: string; planned: number; actual: number }[]; width: number; title?: string; interactive?: boolean; expandedCategory?: string | null; onCategoryPress?: (cat: string) => void }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const barHeight = 24;
   const chevronW = interactive ? 16 : 0;
@@ -98,7 +98,7 @@ function RemainingBudgetChart({ categories, width, title = "Remaining Budget by 
 type DrillLine = { id: number; lineItem: string; owner: string | null; planned: number; actual: number };
 
 function CategoryDrillTable({ lines, colors }: { lines: DrillLine[]; colors: ReturnType<typeof useColors> }) {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const sorted = [...lines].sort((a, b) => b.planned - a.planned);
   return (
     <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
@@ -133,7 +133,7 @@ const SESSION_KEY = "hbt_auto_open_snapshot_saved";
 let nativeAutoOpenFired = false;
 
 function DashboardContent() {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const queryClient = useQueryClient();

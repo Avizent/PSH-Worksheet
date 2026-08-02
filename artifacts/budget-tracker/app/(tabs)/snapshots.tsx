@@ -94,7 +94,7 @@ interface SnapshotRowProps {
 }
 
 function SnapshotRow({ snap, isSelected, isDownloading, onSelect, onDownload, onDelete, compareSlot, compareMode, onPin, pinning }: SnapshotRowProps) {
-  const { formatCompact: fmt } = useCurrency();
+  const { format: fmt } = useCurrency();
   const colors = useColors();
   const isProtected = PROTECTED_LABELS.includes(snap.label);
 
@@ -223,7 +223,7 @@ function DetailPanel({
   pinning,
   renaming,
 }: DetailPanelProps) {
-  const { formatCompact: fmt } = useCurrency();
+  const { format: fmt } = useCurrency();
   const colors = useColors();
   const [editMode, setEditMode] = useState(false);
   const [editLabel, setEditLabel] = useState(snap.label);
@@ -426,7 +426,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Diff line row ────────────────────────────────────────────────────────────
 
 function DiffLineRow({ line }: { line: SnapshotDiffLine }) {
-  const { formatCompact: fmt } = useCurrency();
+  const { format: fmt } = useCurrency();
   const colors = useColors();
   const [expanded, setExpanded] = useState(false);
 

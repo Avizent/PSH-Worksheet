@@ -387,7 +387,7 @@ router.get("/exports/pdf", asyncHandler(async (req, res): Promise<void> => {
   doc.pipe(res);
 
   const money = await resolveExportCurrency(req.query.currency);
-  const fmt = money.formatCompact;
+  const fmt = money.format;
 
   doc.fontSize(22).font("Helvetica-Bold").text("Hubert Marketing Budget", { align: "center" });
   doc.moveDown(0.3);
@@ -564,7 +564,7 @@ router.get("/exports/reports-pdf", asyncHandler(async (req, res): Promise<void> 
   }).filter(l => l.planned > 0 || l.actual > 0).sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
 
   const money = await resolveExportCurrency(req.query.currency);
-  const fmt = money.formatCompact;
+  const fmt = money.format;
   const fmtPct = (a: number, p: number) => p > 0 ? ((a / p) * 100).toFixed(0) + "%" : "-";
   const varPct = (a: number, p: number) => p > 0 ? ((a - p) / p * 100).toFixed(1) + "%" : "-";
 

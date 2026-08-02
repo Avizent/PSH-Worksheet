@@ -78,7 +78,7 @@ interface LineRowProps {
 }
 
 function LineRow({ rank, lineItem, category, owner, planned, actual, variance, isOver }: LineRowProps) {
-  const { formatCompact: fmt } = useCurrency();
+  const { format: fmt } = useCurrency();
   const colors = useColors();
   const varColor = isOver
     ? colors.destructive ?? "#ef4444"
@@ -103,7 +103,7 @@ function LineRow({ rank, lineItem, category, owner, planned, actual, variance, i
 }
 
 function MirBody() {
-  const { formatCompact: fmt } = useCurrency();
+  const { format: fmt } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

@@ -66,7 +66,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const CURRENT_MONTH = new Date().getMonth() + 1;
 
 export default function ReforecastScreen() {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode, width } = useLayout();
   const isDesktop = mode === "desktop";

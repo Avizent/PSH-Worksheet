@@ -19,7 +19,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 function EventsContent() {
-  const { formatCompact: formatCurrency } = useCurrency();
+  const { format: formatCurrency } = useCurrency();
   const colors = useColors();
   const { mode } = useLayout();
   const isDesktop = mode === "desktop";

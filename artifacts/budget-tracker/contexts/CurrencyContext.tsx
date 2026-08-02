@@ -73,6 +73,12 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         : `${v.toLocaleString("sv-SE", { maximumFractionDigits: 0 })} kr`;
     };
 
+    /**
+     * Abbreviated form (1,2 M kr / 96k). Reserved for places with a hard width
+     * limit — chart axis gutters and labels drawn inside bars. Everything the
+     * user reads as a figure uses `format` and shows the amount in full;
+     * don't reach for this one just because the number is large.
+     */
     const formatCompact = (sekValue: number | null | undefined): string => {
       const v = convert(sekValue);
       const abs = Math.abs(v);

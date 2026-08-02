@@ -548,7 +548,7 @@ router.get(
     doc.pipe(res);
 
     const money = await resolveExportCurrency(req.query.currency);
-    const fmtMoney = money.formatCompact;
+    const fmtMoney = money.format;
     const fmtDate = (iso: string) =>
       new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
