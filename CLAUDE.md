@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code when working on this repository.
 
+## Start here
+
+Before making changes, read `docs/SESSION-CONTEXT.md`. It records what has
+already been done and — more importantly — **why decisions were made**, what
+was deliberately not done, and the environment gotchas that otherwise cost
+time to rediscover. Several choices in this codebase look odd without that
+context and should not be reversed without reading it.
+
+Related: `HANDOVER.md` (ownership and setup), `audit/` (the two audit reports
+and the integrity check specification).
+
 ## Project Overview
 
 This application takes an annual budget spreadsheet and replicates it as a web application. It is an independent, standalone project — not connected to any other budget, spreadsheet, or application work discussed previously.
