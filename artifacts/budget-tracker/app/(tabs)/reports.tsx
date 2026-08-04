@@ -41,8 +41,15 @@ function PieChart({ data, size, title }: { data: { label: string; value: number 
     const endAngle = currentAngle + angle;
     currentAngle = endAngle;
 
+    // A slice covering the full circle (one category holds 100%, e.g. every
+    // line has the same channel/region/owner) puts the arc's start and end
+    // at the identical point. Per the SVG spec that draws nothing — the
+    // slice silently vanishes rather than filling the circle. Clamping just
+    // short of a full turn keeps the arc's endpoints distinct; the gap is a
+    // fraction of a degree and invisible at any chart size used here.
+    const clampedEnd = Math.min(endAngle, startAngle + 359.9);
     const start = polarToCartesian(cx, cy, r, startAngle);
-    const end = polarToCartesian(cx, cy, r, endAngle);
+    const end = polarToCartesian(cx, cy, r, clampedEnd);
     const largeArc = angle > 180 ? 1 : 0;
     const pathData = `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
 
