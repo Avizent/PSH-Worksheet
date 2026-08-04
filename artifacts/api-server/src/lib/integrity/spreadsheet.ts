@@ -201,10 +201,9 @@ async function checkMonthCoverage(year: number): Promise<CheckFinding[]> {
 // ─── SI-4 — custom column type consistency ───────────────────────────────────
 
 async function checkCustomColumnTypes(): Promise<CheckFinding[]> {
-  const [columns, lines] = await Promise.all([
-    db.select().from(budgetLineColumnsTable),
-    db.select().from(budgetLinesTable),
-  ]);
+  // Sequential for the same reason as loadTotals in ./dataHealth.ts.
+  const columns = await db.select().from(budgetLineColumnsTable);
+  const lines = await db.select().from(budgetLinesTable);
   if (columns.length === 0) return [];
 
   const typeByName = new Map(columns.map((c) => [c.name, c.type]));

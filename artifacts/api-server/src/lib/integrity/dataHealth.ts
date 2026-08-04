@@ -36,6 +36,18 @@ interface LineTotals {
   actual: number;
 }
 
+/** Kept in step with the run() calls below; used to report a setup failure. */
+export const DATA_HEALTH_CHECK_TITLES: ReadonlyArray<readonly [string, string]> = [
+  ["DH-1", "Duplicate budget lines"],
+  ["DH-2", "Near-duplicate budget lines"],
+  ["DH-3", "Budget and spend split across two lines"],
+  ["DH-4", "Inconsistent empty values"],
+  ["DH-5", "Orphaned rows"],
+  ["DH-6", "Category name drift"],
+  ["DH-7", "Unrecognised cost status"],
+  ["DH-8", "Budget lines with no figures"],
+];
+
 function lineLabel(line: Line): string {
   return `${line.category ?? "(no category)"} | ${line.lineItem ?? "(no line item)"}`;
 }
@@ -44,26 +56,34 @@ function truncate<T>(items: T[]): { shown: T[]; total: number } {
   return { shown: items.slice(0, MAX_AFFECTED_PER_FINDING), total: items.length };
 }
 
-/** Loads the per-line plan/actual totals every data-health check reasons about. */
+/**
+ * Loads the per-line plan/actual totals every data-health check reasons about.
+ *
+ * Sequential, not Promise.all. These run against the same database that is
+ * serving the app, and the suite is diagnostic rather than latency sensitive —
+ * issuing them one at a time keeps the load predictable, which is what the
+ * orchestrator in ./index.ts says the whole engine does. Firing them
+ * concurrently also breaks against connection setups that serialise on a
+ * single connection, where the second query kills the first.
+ */
 async function loadTotals(year: number): Promise<Map<number, LineTotals>> {
-  const [plans, actuals] = await Promise.all([
-    db
+  const plans = await db
       .select({
         budgetLineId: monthlyPlansTable.budgetLineId,
         total: sql<string>`COALESCE(SUM(${monthlyPlansTable.plannedAmount}), 0)`,
       })
       .from(monthlyPlansTable)
       .where(eq(monthlyPlansTable.year, year))
-      .groupBy(monthlyPlansTable.budgetLineId),
-    db
+      .groupBy(monthlyPlansTable.budgetLineId);
+
+  const actuals = await db
       .select({
         budgetLineId: monthlyActualsTable.budgetLineId,
         total: sql<string>`COALESCE(SUM(${monthlyActualsTable.actualAmount}), 0)`,
       })
       .from(monthlyActualsTable)
       .where(eq(monthlyActualsTable.year, year))
-      .groupBy(monthlyActualsTable.budgetLineId),
-  ]);
+      .groupBy(monthlyActualsTable.budgetLineId);
 
   const totals = new Map<number, LineTotals>();
   for (const p of plans) {
@@ -467,8 +487,29 @@ export async function runDataHealthChecks(year: number): Promise<CheckResult[]> 
     }
   };
 
-  const lines = await db.select().from(budgetLinesTable);
-  const totals = await loadTotals(year);
+  // Every data-health check reads from these two, so they are loaded once and
+  // shared. That makes them a single point of failure: unguarded, a problem
+  // here threw straight out of the engine and the whole run returned an opaque
+  // 500, losing the spreadsheet and calculation results that would have run
+  // perfectly well. Report it as the checks failing instead, so the user gets
+  // a report saying what went wrong rather than a blank error.
+  let lines: Line[];
+  let totals: Map<number, LineTotals>;
+  try {
+    lines = await db.select().from(budgetLinesTable);
+    totals = await loadTotals(year);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return DATA_HEALTH_CHECK_TITLES.map(([id, title]) => ({
+      id,
+      category: "data-health" as const,
+      title,
+      ok: false,
+      error: `Could not load budget lines and totals: ${message}`,
+      findings: [],
+      durationMs: 0,
+    }));
+  }
 
   await run("DH-1", "Duplicate budget lines", () => checkDuplicateLines(lines, totals));
   await run("DH-2", "Near-duplicate budget lines", () => checkNearDuplicateLines(lines, totals));

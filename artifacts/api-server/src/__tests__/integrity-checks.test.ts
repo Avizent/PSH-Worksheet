@@ -7,6 +7,7 @@ import {
   monthlyActualsTable,
 } from "@workspace/db";
 import { runIntegrityChecks } from "../lib/integrity";
+import { DATA_HEALTH_CHECK_TITLES } from "../lib/integrity/dataHealth";
 import type { IntegrityReport } from "../lib/integrity";
 
 /**
@@ -87,6 +88,21 @@ describe("integrity checks — the suite runs", () => {
     const report = await runIntegrityChecks(YEAR);
     const errored = report.results.filter((r) => !r.ok);
     expect(errored.map((r) => `${r.id}: ${r.error}`)).toEqual([]);
+  });
+
+  // If the shared budget-line/totals load fails, runDataHealthChecks reports
+  // every DH check as errored rather than throwing, so the spreadsheet and
+  // calculation results still reach the user instead of a bare 500. That
+  // fallback carries its own hardcoded id/title list, which silently goes
+  // stale if a check is added or renamed and the list isn't updated — this
+  // keeps the two in step.
+  it("the data-health failure fallback covers exactly the checks that run", async () => {
+    const report = await runIntegrityChecks(YEAR);
+    const actualDhIds = report.results
+      .filter((r) => r.category === "data-health")
+      .map((r) => r.id)
+      .sort();
+    expect(actualDhIds).toEqual(DATA_HEALTH_CHECK_TITLES.map(([id]) => id).sort());
   });
 
   it("summary counts match the findings actually returned", async () => {
