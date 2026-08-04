@@ -10,8 +10,13 @@ was deliberately not done, and the environment gotchas that otherwise cost
 time to rediscover. Several choices in this codebase look odd without that
 context and should not be reversed without reading it.
 
-Related: `HANDOVER.md` (ownership and setup), `audit/` (the two audit reports
-and the integrity check specification).
+Related: `HANDOVER.md` (current state and what's outstanding), `audit/` (the
+two audit reports and the integrity check specification).
+
+**Taking over this app for the first time** (new owner, new machine)? Use
+`TRANSFER-RUNBOOK.md` instead — it's written for an AI agent to execute
+directly, with each step marked as agent-executable or requiring the human's
+own action.
 
 ## Project Overview
 

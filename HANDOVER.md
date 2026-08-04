@@ -6,6 +6,12 @@ state it's in, how to run it, and what's still outstanding.
 **GitHub repository: `Avizent/PSH-Worksheet`**
 https://github.com/Avizent/PSH-Worksheet
 
+**Taking over the app for the first time?** Use `TRANSFER-RUNBOOK.md`
+instead of this document — it's a step-by-step procedure written so an AI
+agent (Claude Code, Claude Cowork, or similar) can execute the mechanical
+parts directly and knows exactly which steps need your own action. This
+document is the reference to come back to afterwards.
+
 ---
 
 ## What the app is
@@ -124,47 +130,11 @@ The full specification of every check is in
 
 ## Getting set up
 
-### 1. Accept the transfers
-
-- **GitHub** — accept the transfer of `Avizent/PSH-Worksheet` to your account.
-- **Supabase** — accept the project transfer into your organisation.
-
-### 2. Reset the database password
-
-In the Supabase dashboard: Project Settings → Database → **Reset database
-password**. Do this yourself, so the working credential is one only you have
-seen. Keep the new connection string in a password manager.
-
-### 3. Install the tools
-
-Requires Xcode Command Line Tools, Node.js, and pnpm. Then:
-
-```bash
-git clone https://github.com/Avizent/PSH-Worksheet.git
-cd PSH-Worksheet
-pnpm install
-```
-
-### 4. Build the desktop app
-
-```bash
-pnpm --filter @workspace/scripts build-desktop
-pnpm --filter @workspace/desktop package
-```
-
-This produces `artifacts/desktop/release/mac-arm64/Marketing Budget Dashboard.app`.
-Drag it into your Applications folder.
-
-Building it on your own Mac matters: macOS blocks apps that arrive over the
-network or by AirDrop, but not ones built locally. It also means you can
-rebuild whenever the code changes.
-
-### 5. First run
-
-Open the app. It will ask for the database connection string — paste the new
-one from step 2. It's stored encrypted in your Mac's Keychain.
-
-Sign in with the account credentials provided separately.
+See `TRANSFER-RUNBOOK.md` for the full step-by-step procedure — accepting
+the GitHub and Supabase transfers, resetting the database password, cloning,
+building, and installing the desktop app. That document is written to be
+followed by an AI agent directly, so hand it to Claude Code or Cowork rather
+than working through it by hand.
 
 ---
 
