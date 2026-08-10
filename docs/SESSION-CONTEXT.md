@@ -8,6 +8,8 @@ Read alongside:
 - `CLAUDE.md` — project conventions and engineering standards
 - `HANDOVER.md` — ownership transfer and setup
 - `audit/phase-5-data-integrity.md`, `audit/phase-6-security.md` — full findings
+- `audit/spreadsheet-reconciliation.md` — line-by-line app vs. source
+  spreadsheet comparison
 - `audit/integrity-checks-spec.md` — specification of the 21 integrity checks
 
 ---
@@ -152,11 +154,14 @@ endpoint rather than the one-button run.
 **Board View.** Greyed out in the sidebar, not removed — director access was
 deferred in favour of a PowerPoint export that hasn't been built.
 
-**The spreadsheet reconciliation.** The app's total (2 823 149,06 kr) doesn't
-match the source workbook's line-item detail (2 468 466 kr). The workbook
-contains *three different* budget totals across its sheets, and 12 app lines
-have no counterpart in its FY26 detail. This needs a human judgement about
-which total is authoritative, not a code fix.
+**The spreadsheet reconciliation.** The app's total (2 823 149 kr) doesn't
+match the source workbook's line-item detail (2 468 466 kr). Full line-by-line
+breakdown, with the gap explained (a double-listing pattern in the
+spreadsheet itself, plus 16 app lines with no spreadsheet counterpart), is in
+`audit/spreadsheet-reconciliation.md`. The workbook also contains *four*
+different budget totals across its sheets that disagree with each other —
+this still needs a human judgement about which one is authoritative, not a
+code fix.
 
 ---
 
@@ -231,10 +236,11 @@ Claims in this project were checked, not assumed:
 
 1. **`xlsx`** — CDN install, migrate to ExcelJS, or accept?
 2. **Which spreadsheet total is authoritative** — the FY26 detail
-   (2 468 466 kr), the board-signed-off figure (2 420 427 kr), or the WIP
-   model (2 985 700 kr)?
-3. **The 12 app lines absent from the spreadsheet's FY26 detail** — legitimate
-   or not?
+   (2 468 466 kr), the total-budget row (2 311 321 kr), the board-signed-off
+   figure (2 420 427 kr), or the WIP model (2 985 700 kr)? See
+   `audit/spreadsheet-reconciliation.md`.
+3. **The 16 app lines absent from the spreadsheet's FY26 detail** — legitimate
+   or not? Same document.
 4. **PowerPoint export** — build it? Scoped: `pptxgenjs` with native editable
    charts, reusing `buildBoardViewData` and `resolveExportCurrency`.
 5. **AI access** — an MCP server giving Claude read/write access to the app was
